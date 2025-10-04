@@ -25,7 +25,15 @@
 
       <!-- Channels -->
       <div class="col q-pa-md bg-orange-2 drawer-div-wrapper" style="overflow-y: auto;">
-        <p>Obsah drawera - Zoznam channelov</p>
+        <q-list>
+          <channel/>
+          <channel/>
+          <channel/>
+          <channel/>
+          <channel/>
+          <channel/>
+          <channel/>
+        </q-list>
       </div>
 
       <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
@@ -62,10 +70,11 @@
 <script lang="ts">
 import { ref } from 'vue'
 import textBar from 'src/components/TextBar.vue'
+import ChannelBar from 'components/ChannelBar.vue'
 
 export default {
   components : {
-    textBar
+    textBar, channel: ChannelBar
   },
   setup () {
     const leftDrawerOpen = ref(false)
@@ -103,6 +112,26 @@ export default {
   .drawer-div-wrapper{
     border-radius: 20px;
     margin: 0 10px 0 10px;
+  }
+  .channel-item {
+    border-radius: 15px; /* Zaoblené rohy */
+    min-height: 50px; /* Aby bolo dostatočne vysoké ako na obrázku */
+    padding: 0 15px; /* Horizontálny padding */
+    display: flex; /* Použijeme flexbox pre zarovnanie obsahu */
+    align-items: center; /* Vertikálne centrovanie obsahu */
+    justify-content: space-between; /* Rozloženie obsahu na kraje */
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1); /* Jemný tieň, ak chceš */
+    margin-bottom: 10px; /* Ak bude viac takýchto channelov */
+  }
+
+  /* Štýl pre text channelu */
+  .channel-item .q-item__section--main {
+    font-size: 1.1em; /* Väčšia veľkosť písma */
+  }
+
+  /* Ak chceš presnejšie zarovnať ikony, toto je miesto, kde to môžeš ladiť */
+  .channel-item .q-item__section--side {
+    padding-left: 10px; /* Malá medzera medzi textom a ikonami */
   }
 
 </style>
