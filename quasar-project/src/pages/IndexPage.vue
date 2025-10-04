@@ -1,8 +1,12 @@
 <template>
-  <q-page class="row items-center justify-evenly">
+  <q-page class="items-center justify-evenly">
     MainPage
   </q-page>
 </template>
 
 <script setup lang="ts">
 </script>
+
+<style scoped>
+
+</style>
