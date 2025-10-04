@@ -1,8 +1,9 @@
 <template>
   <q-page class="row items-center justify-evenly">
-    MainPage
+    LoginPage
   </q-page>
 </template>
 
 <script setup lang="ts">
+
 </script>

@@ -34,7 +34,8 @@
     </q-drawer>
 
     <q-page-container>
-      <router-view />
+      <router-view /> <!--tu su veci ktore sa zobrazia na stranke-->
+      <TextBar/>
     </q-page-container>
   </q-layout>
 </template>
@@ -43,6 +44,7 @@
 import { ref } from 'vue'
 import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue'
 import logoUrl from 'src/assets/inTouch_logo.jpg'
+import TextBar from 'src/components/TextBar.vue'
 
 const linksList: EssentialLinkProps[] = [
   {
