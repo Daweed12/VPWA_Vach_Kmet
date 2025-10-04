@@ -1,99 +1,81 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
+  <q-layout view="lhh lpR lFr">
+
+    <q-header elevated class="bg-primary text-white">
       <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
+        <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
 
-        <q-toolbar-title shrink>
-          <img :src="logoUrl" alt="Logo" style="height:40px;" />
+        <q-toolbar-title>
+          <q-avatar>
+            <img src="https://cdn.quasar.dev/logo-v2/svg/logo-mono-white.svg">
+          </q-avatar>
+          Title
         </q-toolbar-title>
-        <q-toolbar-title> inTouch </q-toolbar-title>
 
-
-        <div>Quasar v{{ $q.version }}</div>
+        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" />
       </q-toolbar>
     </q-header>
 
-    <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
-      <q-list>
-        <q-item-label header>Essential Links</q-item-label>
-
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.title"
-          v-bind="link"
-        />
-      </q-list>
+    <!-- Left drawer -->
+    <q-drawer show-if-above v-model="leftDrawerOpen" side="left">
+      <!-- drawer content -->
     </q-drawer>
 
-    <q-page-container>
-      <router-view /> <!--tu su veci ktore sa zobrazia na stranke-->
-      <TextBar/>
+    <!-- Right drawer -->
+    <q-drawer show-if-above v-model="rightDrawerOpen" side="right" bordered>
+      <!-- drawer content -->
+    </q-drawer>
+
+    <q-page-container class="bg-orange-2">
+      <router-view />
     </q-page-container>
+
+    <q-footer class="bg-orange-1 text-black footer-wrapper q-pa-none">
+          <text-bar class="full-width full-height"/>
+    </q-footer>
+
   </q-layout>
 </template>
 
-<script setup lang="ts">
+<script lang="ts">
 import { ref } from 'vue'
-import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue'
-import logoUrl from 'src/assets/inTouch_logo.jpg'
-import TextBar from 'src/components/TextBar.vue'
+import textBar from 'src/components/TextBar.vue'
 
-const linksList: EssentialLinkProps[] = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev',
+export default {
+  components : {
+    textBar
   },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework',
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev',
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev',
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev',
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev',
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev',
-  },
-]
+  setup () {
+    const leftDrawerOpen = ref(false)
+    const rightDrawerOpen = ref(false)
 
-const leftDrawerOpen = ref(false)
+    return {
+      leftDrawerOpen,
+      toggleLeftDrawer () {
+        leftDrawerOpen.value = !leftDrawerOpen.value
+      },
 
-function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value
+      rightDrawerOpen,
+      toggleRightDrawer () {
+        rightDrawerOpen.value = !rightDrawerOpen.value
+      }
+    }
+  }
 }
 </script>
+
+<style>
+  .footer-wrapper {
+    margin: 0.2cm 0.2cm 0.2cm 0.2cm; /* hore, pravo, dole, lavo */
+    border-radius: 10px; /* zaoblené rohy */
+    overflow: hidden; /* aby obsah footeru rešpektoval border-radius */
+  }
+  .full-width {
+    width: 100%;
+  }
+
+  .full-height {
+    height: 100%;
+  }
+
+</style>
