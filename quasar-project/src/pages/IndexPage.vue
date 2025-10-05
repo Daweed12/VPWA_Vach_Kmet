@@ -1,6 +1,5 @@
 <template>
   <q-page class="items-center justify-evenly">
-    MainPage
   </q-page>
 </template>
 

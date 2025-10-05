@@ -48,17 +48,38 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import logoUrl from 'src/assets/intouch-logo-name.svg'
 
 const router = useRouter()
-const showRegister = ref(false)
+const $q = useQuasar()
 
+const showRegister = ref(false)
 const loginForm = reactive({ username: '', password: '' })
 const registerForm = reactive({ firstName: '', lastName: '', email: '', nickname: '', password: '' })
+
 const req = (v: string) => !!v || 'Povinné pole'
 
+const ADMIN_USER = 'admin'
+const ADMIN_PASS = 'admin'
+
 function goToApp () { void router.push('/app') }
-function handleLogin () { goToApp() }
+
+function handleLogin () {
+  const ok = loginForm.username === ADMIN_USER && loginForm.password === ADMIN_PASS
+  if (ok) {
+    goToApp()
+  } else {
+    $q.notify({
+      type: 'negative',
+      message: 'Nesprávne meno alebo heslo.',
+      position: 'bottom',
+      timeout: 2500,
+      actions: [{ label: 'OK', color: 'white' }]
+    })
+  }
+}
+
 function handleRegister () {
   const allFilled = Object.values(registerForm).every(Boolean)
   if (allFilled) goToApp()
