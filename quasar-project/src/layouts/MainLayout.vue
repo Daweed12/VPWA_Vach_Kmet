@@ -7,8 +7,9 @@
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
           Channel name
         </q-toolbar-title>
-
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" />
+        <q-btn dense flat round icon="close" />
+        <q-btn dense flat round icon="person_add" />
+        <q-btn dense flat round icon="group" @click="toggleRightDrawer" />
       </q-toolbar>
     </q-header>
 
@@ -37,10 +38,10 @@
       </div>
 
       <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
-        <q-item clickable v-ripple>
+        <q-item v-ripple>
           <q-item-section avatar>
-            <q-avatar size="50px" color="blue" text-color="white">
-              S
+            <q-avatar size="50px" color="white" text-color="bg-gray-9">
+              <q-badge floating color="red" rounded />S
             </q-avatar>
           </q-item-section>
           <q-item-section>
@@ -56,7 +57,7 @@
     <q-drawer show-if-above v-model="rightDrawerOpen" side="right" bordered>
     </q-drawer>
 
-    <q-page-container class="bg-orange-3 left-top-corner">
+    <q-page-container class="bg-orange-3">
       <router-view />
     </q-page-container>
 
@@ -71,7 +72,6 @@
 import { ref } from 'vue'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
-
 export default {
   components : {
     textBar, channel: ChannelBar
@@ -132,6 +132,41 @@ export default {
   /* Ak chceš presnejšie zarovnať ikony, toto je miesto, kde to môžeš ladiť */
   .channel-item .q-item__section--side {
     padding-left: 10px; /* Malá medzera medzi textom a ikonami */
+  }
+
+  /* --- Pre pravý drawer: Statusové bodky --- */
+
+  /* Všeobecný štýl pre bodku */
+  .status-dot {
+    position: absolute;
+
+    /* --- ZMENA PRE PRAVÝ DOLNÝ ROH --- */
+    top: auto;        /* Zruší pôvodné pravidlo (top: 5px) */
+    right: 5px;       /* Ponechá odsadenie od pravej strany */
+    bottom: 5px;      /* PRILEPÍ bodku 5px od spodného okraja */
+    /* ------------------------------------ */
+
+    /* Veľkosť bodky */
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+
+    /* Biely okraj (použi farbu pozadia wrapperu) */
+    border: 2px solid #FEE7D7;
+    z-index: 10;
+  }
+
+  /* Farby pre rôzne statusy (zostávajú nezmenené) */
+  .status-dot.online {
+    background-color: #4CAF50; /* Zelená */
+  }
+
+  .status-dot.offline {
+    background-color: #F44336; /* Červená */
+  }
+
+  .status-dot.away {
+    background-color: #9E9E9E; /* Šedá */
   }
 
 </style>
