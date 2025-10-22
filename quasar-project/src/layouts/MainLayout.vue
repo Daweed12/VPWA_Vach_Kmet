@@ -5,7 +5,7 @@
       <q-toolbar>
         <q-toolbar-title>
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
-          Channel name
+          Conversation of channel
         </q-toolbar-title>
         <q-btn dense flat round icon="close" />
         <q-btn dense flat round icon="person_add" />
