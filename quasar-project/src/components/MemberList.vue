@@ -1,11 +1,13 @@
 <script lang="ts">
 import { defineComponent, ref, computed } from 'vue';
+import AddUserToChannel from './AddUserToChannel.vue';
 
 type Status = 'online' | 'offline' | 'away' | 'dnd';
 type Member = { id: number; name: string; status: Status };
 
 export default defineComponent({
   name: 'MemberList',
+  components: { AddUserToChannel },
   props: { modelValue: { type: Boolean, required: true } },
   emits: ['update:modelValue', 'add'],
   setup (props, { emit }) {
@@ -13,6 +15,8 @@ export default defineComponent({
       get: () => props.modelValue,
       set: (val: boolean) => emit('update:modelValue', val)
     });
+
+    const showAddDialog = ref(false);
 
     const members = ref<Member[]>([
       { id: 1,  name: 'Jozko Mrkvicka', status: 'online'  },
@@ -51,10 +55,12 @@ export default defineComponent({
     };
 
     const addMember = () => {
+      // otvoríme modál + necháme aj emit, ak to chceš zachytiť vyššie
+      showAddDialog.value = true;
       emit('add');
     };
 
-    return { isOpen, members, getInitials, statusText, statusColor, addMember };
+    return { isOpen, members, getInitials, statusText, statusColor, addMember, showAddDialog };
   }
 });
 </script>
@@ -127,6 +133,12 @@ export default defineComponent({
       </q-btn>
     </div>
   </q-drawer>
+
+  <!-- DIALOG: Add user -->
+  <q-dialog v-model="showAddDialog" persistent transition-show="scale" transition-hide="scale">
+    <!-- Vnútri použijeme samostatnú komponentu -->
+    <AddUserToChannel @close="showAddDialog = false" />
+  </q-dialog>
 </template>
 
 <style scoped>

@@ -35,13 +35,13 @@
             <ChannelSearchHeader></ChannelSearchHeader>
           </div>
           <channel name="VPWA - projekt" />
-          <channel name="Development" />
+          <channel name="WTECH - projekt" />
           <channel name="Design" />
           <channel name="Marketing" />
           <channel name="Sales" />
           <channel name="Support" />
           <channel name="Random" />
-          <channel name="Announcements" />
+          <channel name="CEOs" />
           <channel name="HR" />
           <channel name="Finance" />
           <channel name="Operations" />

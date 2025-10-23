@@ -153,6 +153,7 @@
               <div><code>/quit</code> – správca zruší kanál</div>
               <div><code>/cancel</code> – opustiť kanál</div>
               <div><code>/list</code> – zoznam členov kanála</div>
+              <div><code>/change_channel_visibility</code> zmeň kanál z private na public a naopak</div>
               <div><code>@nickname</code> – adresovať správu konkrétnemu používateľovi</div>
             </q-card-section>
           </q-expansion-item>
@@ -169,3 +170,5 @@
 <style scoped>
 
 </style>
+<script setup lang="ts">
+</script>

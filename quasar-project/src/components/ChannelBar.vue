@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from 'vue'
+import { defineComponent, ref } from 'vue'
 
 export default defineComponent({
   name: 'ChannelBar',
@@ -8,15 +8,33 @@ export default defineComponent({
       type: String,
       required: true
     }
+  },
+  setup () {
+    // Náhodne určíme, či je kanál private alebo public
+    const isPrivate = ref(Math.random() < 0.5)
+
+    // Farba a text podľa typu
+    const badgeColor = ref(isPrivate.value ? 'red' : 'green')
+    const badgeText = ref(isPrivate.value ? 'private' : 'public')
+
+    return { badgeColor, badgeText }
   }
 })
 </script>
 
 <template>
   <q-item class="channel-item bg-orange-1" clickable v-ripple>
+    <!-- názov kanála -->
     <q-item-section class="text-black text-weight-bold">
       {{ name }}
     </q-item-section>
+
+    <!-- badge -->
+    <q-badge :color="badgeColor" class="q-ml-sm text-white text-uppercase" align="middle">
+      {{ badgeText }}
+    </q-badge>
+
+    <!-- akcie -->
     <q-item-section side>
       <div class="row items-center">
         <q-btn flat round dense icon="person_add" color="orange-8" size="md" />
