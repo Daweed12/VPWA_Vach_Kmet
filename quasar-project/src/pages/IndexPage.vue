@@ -28,7 +28,33 @@
                 {{ msg.text }}
               </div>
             </q-item>
+
           </q-list>
+          <q-chat-message
+            name="me"
+            avatar="https://cdn.quasar.dev/img/avatar3.jpg"
+            stamp="7 minutes ago"
+            sent
+            text-color="white"
+            bg-color="primary"
+          >
+            <div>
+              Hey there!
+            </div>
+
+            <div>
+              Have you seen Quasar?
+              <img src="https://cdn.quasar.dev/img/discord-omq.png" class="my-emoticon">
+            </div>
+          </q-chat-message>
+
+          <q-chat-message
+            name="Jane"
+            avatar="https://cdn.quasar.dev/img/avatar5.jpg"
+            bg-color="amber"
+          >
+            <q-spinner-dots size="2rem" />
+          </q-chat-message>
 
           <template #loading>
             <div class="text-grey q-my-md">
