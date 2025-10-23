@@ -82,6 +82,18 @@ const allMessages = [
   { from: 'you', text: 'Určite! 😊' },
   { from: 'me', text: 'Super, držím palce s počasím!' },
   { from: 'you', text: 'Díky! 😉' },
+  { from: 'me', text: 'Vidíme sa v pondelok!' },
+  { from: 'you', text: 'Ahoj, ako sa máš? Už si videl dnešné správy?' },
+  { from: 'me', text: 'Ahoj, mám sa fajn. Ešte som ich nepozeral, čo sa deje?' },
+  { from: 'you', text: 'Nič dôležité, len bežné veci. Ale počul som, že počasie má byť cez víkend super!' },
+  { from: 'me', text: 'To znie skvele! Plánuješ niečo?' },
+  { from: 'you', text: 'Možno výlet do hôr, ak nebude pršať.' },
+  { from: 'me', text: 'To znie super! Zober si aj foťák.' },
+  { from: 'you', text: 'Jasné, mám v pláne spraviť pár fotiek.' },
+  { from: 'me', text: 'Teším sa, pošli mi potom niečo.' },
+  { from: 'you', text: 'Určite! 😊' },
+  { from: 'me', text: 'Super, držím palce s počasím!' },
+  { from: 'you', text: 'Díky! 😉' },
   { from: 'me', text: 'Vidíme sa v pondelok!' }
 ]
 
@@ -89,7 +101,7 @@ const step = 4
 const visibleMessages = ref(allMessages.slice(-step))
 const scrollArea = ref<HTMLElement | null>(null)
 
-function loadOlder(index: number, done: Function) {
+function loadOlder(index: number, done: (finished?: boolean) => void) {
   setTimeout(() => {
     const currentCount = visibleMessages.value.length
     const newCount = currentCount + step
