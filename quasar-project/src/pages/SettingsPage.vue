@@ -1,9 +1,10 @@
 <template>
-  <div class="q-pa-md profile-wrapper no-page-scroll">
-    <div class="row q-col-gutter-md items-start settings-row">
+  <!-- q-page zabezpečí správne správanie vo vnútri q-page-container -->
+  <q-page class="q-pa-md">
+    <div class="row q-col-gutter-md items-start">
 
       <!-- ĽAVÁ STRANA: profil + ACCOUNT -->
-      <div class="col-12 col-md-4 flex column q-gutter-md column-fixed">
+      <div class="col-12 col-md-4 flex column q-gutter-md">
         <!-- PROFIL -->
         <q-card class="round-card">
           <q-card-section class="flex column items-center q-gutter-md compact-section">
@@ -64,20 +65,20 @@
           </q-card-section>
         </q-card>
 
-        <!-- NOVÝ BUTTON DOLE -->
+        <!-- LOGOUT -->
         <q-btn
-          class="logout-btn q-mt-sm"
+          class="q-mt-sm"
           color="negative"
           unelevated
           no-caps
           icon="meeting_room"
           label="Logout"
-          to="/#"
+          to="/"
         />
       </div>
 
       <!-- PRAVÁ STRANA -->
-      <div class="col-12 col-md-8 flex column q-gutter-md column-fixed">
+      <div class="col-12 col-md-8 flex column q-gutter-md">
         <!-- PRESENCE & NOTIFICATIONS -->
         <q-card class="round-card">
           <q-card-section class="row items-center justify-between compact-section">
@@ -161,14 +162,14 @@
       </div>
 
     </div>
-  </div>
+  </q-page>
 </template>
 
-
-
+<script setup lang="ts">
+// statická stránka – žiadna logika netreba
+</script>
 
 <style scoped>
-
+.round-card { border-radius: 16px; }
+.compact-section { padding: 16px; }
 </style>
-<script setup lang="ts">
-</script>
