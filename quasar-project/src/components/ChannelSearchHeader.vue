@@ -37,12 +37,11 @@ watch(searchText, (val: string) => emit('search', val))
 </script>
 
 <template>
-  <div class="search-bar-container q-mb-lg q-pa-md">
+  <div class="search-bar-container q-mb-lg">
     <q-input
       outlined
       dense
       placeholder="Hľadať kanály..."
-      class="search-input"
       bg-color="white"
       debounce="300"
       v-model="searchText"
@@ -83,18 +82,10 @@ watch(searchText, (val: string) => emit('search', val))
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  padding-left: 16px;
-  padding-right: 16px;
-}
-.search-input {
-  flex-grow: 1;
-  border-radius: 10px;
-  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1);
-  height: 48px;
+  width: 100%;       /* Natiahne komponent na celú šírku rodiča */
 }
 .add-channel-btn {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
 }
+
 </style>

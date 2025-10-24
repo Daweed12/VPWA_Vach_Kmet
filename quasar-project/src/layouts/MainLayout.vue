@@ -40,6 +40,12 @@
           <div>
             <ChannelSearchHeader />
           </div>
+          <channel
+            name="Tajný projekt"
+            :is-invite="true"
+            @accept="handleAccept"
+            @reject="handleReject"
+          />
           <channel name="VPWA - projekt" />
           <channel name="WTECH - projekt" />
           <channel name="Design" />
@@ -120,6 +126,7 @@ export default {
     const rightDrawerOpen = ref(false)
     const route = useRoute()
 
+
     // meta prepínače z routes.ts
     const showComposer = computed(() => route.meta.showComposer === true)
     const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
@@ -131,13 +138,33 @@ export default {
       rightDrawerOpen.value = !rightDrawerOpen.value
     }
 
+    // --- ZAČIATOK DOPLNENÉHO KÓDU ---
+
+    const handleAccept = () => {
+      console.log('Pozvánka prijatá!')
+      // Tu príde tvoja logika na prijatie pozvánky
+    }
+
+    const handleReject = () => {
+      console.log('Pozvánka odmietnutá!')
+      // Tu príde tvoja logika na odmietnutie pozvánky
+    }
+
+    // --- KONIEC DOPLNENÉHO KÓDU ---
+
+
     return {
       leftDrawerOpen,
       rightDrawerOpen,
       showComposer,
       showRightDrawer,
       toggleLeftDrawer,
-      toggleRightDrawer
+      toggleRightDrawer,
+
+      // --- PRIDANÉ DO RETURN ---
+      handleAccept,
+      handleReject
+      // --- KONIEC PRIDANÉ DO RETURN ---
     }
   }
 }

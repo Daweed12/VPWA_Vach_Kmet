@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref} from 'vue'
 
 export default defineComponent({
   name: 'ChannelBar',
@@ -7,45 +7,84 @@ export default defineComponent({
     name: {
       type: String,
       required: true
+    },
+    /**
+     * Prepne komponent do režimu "pozvánka"
+     */
+    isInvite: {
+      type: Boolean,
+      default: false
     }
   },
-  setup () {
-    // Náhodne určíme, či je kanál private alebo public
-    const isPrivate = ref(Math.random() < 0.5)
+  // Definujeme, aké udalosti môže komponent vysielať
+  emits: ['accept', 'reject'],
 
-    // Farba a text podľa typu
-    const badgeColor = ref(isPrivate.value ? 'red' : 'green')
-    const badgeText = ref(isPrivate.value ? 'private' : 'public')
+  setup (props, { emit }) {
+    // Tieto hodnoty nastavujeme, len ak to NIE JE pozvánka
+    const badgeColor = ref('green')
+    const badgeText = ref('public')
 
-    return { badgeColor, badgeText }
+    if (!props.isInvite) {
+      // Náhodne určíme, či je kanál private alebo public
+      const isPrivate = Math.random() < 0.5
+      badgeColor.value = isPrivate ? 'red' : 'green'
+      badgeText.value = isPrivate ? 'private' : 'public'
+    }
+
+    // Metódy pre obsluhu pozvánky
+    const acceptInvite = () => {
+      // Pošleme udalosť rodičovi
+      emit('accept')
+    }
+
+    const rejectInvite = () => {
+      // Pošleme udalosť rodičovi
+      emit('reject')
+    }
+
+    return {
+      badgeColor,
+      badgeText,
+      acceptInvite,
+      rejectInvite
+    }
   }
 })
 </script>
 
 <template>
-  <q-item class="channel-item bg-orange-1" clickable v-ripple>
-    <!-- názov kanála -->
-    <q-item-section class="text-black text-weight-bold">
+  <q-item
+    :class="isInvite ? 'invite-item bg-orange-8' : 'channel-item bg-orange-1'"
+    clickable
+    v-ripple
+  >
+    <q-item-section :class="isInvite ? 'text-white text-weight-bold' : 'text-black text-weight-bold'">
       {{ name }}
     </q-item-section>
 
-    <!-- badge -->
-    <q-badge :color="badgeColor" class="q-ml-sm text-white text-uppercase" align="middle">
+    <q-badge v-if="!isInvite" :color="badgeColor" class="q-ml-sm text-white text-uppercase" align="middle">
       {{ badgeText }}
     </q-badge>
 
-    <!-- akcie -->
-    <q-item-section side>
+    <q-item-section v-if="!isInvite" side>
       <div class="row items-center">
         <q-btn flat round dense icon="person_add" color="orange-8" size="md" />
         <q-btn flat round dense icon="close" color="red-8" size="md" />
+      </div>
+    </q-item-section>
+
+    <q-item-section v-else side>
+      <div class="row items-center">
+        <q-btn flat round dense icon="check" color="white" size="md" @click="acceptInvite" />
+        <q-btn flat round dense icon="close" color="white" size="md" @click="rejectInvite" />
       </div>
     </q-item-section>
   </q-item>
 </template>
 
 <style scoped>
-.channel-item {
+/* Spoločné štýly pre oba varianty */
+.channel-item, .invite-item {
   border-radius: 15px;
   min-height: 50px;
   padding: 0 15px;
@@ -57,15 +96,24 @@ export default defineComponent({
   transition: background-color 0.2s ease;
 }
 
+/* :hover pre normálny kanál (svetlo oranžový) */
 .channel-item:hover {
-  background-color: #ffcc80; /* jemné zvýraznenie po prechode myšou */
+  background-color: #ffcc80 !important; /* !important je potrebný na prebitie Quasar bg- triedy */
 }
 
-.channel-item .q-item__section--main {
+/* :hover pre invite (tmavo oranžový) */
+.invite-item:hover {
+  background-color: #ef6c00 !important; /* tmavšia oranžová (orange-9) */
+}
+
+/* Spoločné štýly pre sekcie */
+.channel-item .q-item__section--main,
+.invite-item .q-item__section--main {
   font-size: 1.1em;
 }
 
-.channel-item .q-item__section--side {
+.channel-item .q-item__section--side,
+.invite-item .q-item__section--side {
   padding-left: 10px;
 }
 </style>
