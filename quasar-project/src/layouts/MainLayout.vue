@@ -7,9 +7,15 @@
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
           VPWA - projekt
         </q-toolbar-title>
+
         <q-btn dense flat round icon="close" />
         <q-btn dense flat round icon="person_add" />
-        <q-btn dense flat round icon="group" @click="toggleRightDrawer" />
+        <!-- ikona pre members len ak je na danej route povolený pravý drawer -->
+        <q-btn
+          v-if="showRightDrawer"
+          dense flat round icon="group"
+          @click="toggleRightDrawer"
+        />
       </q-toolbar>
     </q-header>
 
@@ -32,16 +38,16 @@
       <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
         <q-list>
           <div>
-            <ChannelSearchHeader></ChannelSearchHeader>
+            <ChannelSearchHeader />
           </div>
           <channel name="VPWA - projekt" />
-          <channel name="Development" />
+          <channel name="WTECH - projekt" />
           <channel name="Design" />
           <channel name="Marketing" />
           <channel name="Sales" />
           <channel name="Support" />
           <channel name="Random" />
-          <channel name="Announcements" />
+          <channel name="CEOs" />
           <channel name="HR" />
           <channel name="Finance" />
           <channel name="Operations" />
@@ -56,7 +62,8 @@
         <q-item v-ripple>
           <q-item-section avatar>
             <q-avatar size="50px" color="white" text-color="bg-gray-9">
-              <q-badge floating color="red" rounded />S
+              <q-badge floating color="red" rounded />
+              S
             </q-avatar>
           </q-item-section>
           <q-item-section>
@@ -71,7 +78,7 @@
               color="black"
               icon="settings"
               size="lg"
-              @click="$router.push('/settings')"
+              @click="$router.push('/app/settings')"
             />
           </q-item-section>
         </q-item>
@@ -79,25 +86,27 @@
       <div style="height: 10px;" class="bg-primary"></div>
     </q-drawer>
 
-    <!-- ✅ Right drawer – tu používame MemberList -->
-    <MemberList v-model="rightDrawerOpen" />
+    <!-- ✅ Right drawer len ak je povolený na danej route -->
+    <MemberList v-if="showRightDrawer" v-model="rightDrawerOpen" />
 
     <q-page-container class="bg-orange-3">
       <router-view />
     </q-page-container>
 
-    <q-footer class="bg-orange-1 footer-wrapper q-pa-none">
+    <!-- ✅ Composer (footer) zobraz len ak je povolený na danej route -->
+    <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-none">
       <text-bar class="full-width full-height" />
     </q-footer>
   </q-layout>
 </template>
 
 <script lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
-import ChannelSearchHeader from "components/ChannelSearchHeader.vue";
-import MemberList from "components/MemberList.vue";
+import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
+import MemberList from 'components/MemberList.vue'
 
 export default {
   components: {
@@ -106,19 +115,29 @@ export default {
     channel: ChannelBar,
     MemberList
   },
-  setup() {
+  setup () {
     const leftDrawerOpen = ref(false)
     const rightDrawerOpen = ref(false)
+    const route = useRoute()
+
+    // meta prepínače z routes.ts
+    const showComposer = computed(() => route.meta.showComposer === true)
+    const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
+
+    function toggleLeftDrawer () {
+      leftDrawerOpen.value = !leftDrawerOpen.value
+    }
+    function toggleRightDrawer () {
+      rightDrawerOpen.value = !rightDrawerOpen.value
+    }
 
     return {
       leftDrawerOpen,
       rightDrawerOpen,
-      toggleLeftDrawer() {
-        leftDrawerOpen.value = !leftDrawerOpen.value
-      },
-      toggleRightDrawer() {
-        rightDrawerOpen.value = !rightDrawerOpen.value
-      }
+      showComposer,
+      showRightDrawer,
+      toggleLeftDrawer,
+      toggleRightDrawer
     }
   }
 }

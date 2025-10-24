@@ -8,20 +8,27 @@ const routes: RouteRecordRaw[] = [
       { path: '', component: () => import('pages/LoginRegisterPage.vue') }
     ],
   },
+
+  // ✅ Jeden spoločný layout pre celé /app
   {
     path: '/app',
     component: () => import('layouts/MainLayout.vue'),
     children: [
-      { path: '', component: () => import('pages/IndexPage.vue') }
+      {
+        path: '',
+        name: 'chat',
+        component: () => import('pages/IndexPage.vue'),
+        meta: { showComposer: true, showRightDrawer: true }   // chat
+      },
+      {
+        path: 'settings',
+        name: 'settings',
+        component: () => import('pages/SettingsPage.vue'),
+        meta: { showComposer: false, showRightDrawer: false } // settings
+      }
     ],
   },
-  {
-    path: '/settings',
-    component: () => import('layouts/SettingsLayout.vue'),
-    children: [
-      { path: '', component: () => import('pages/SettingsPage.vue') }
-    ],
-  },
+
   { path: '/:catchAll(.*)*', component: () => import('pages/ErrorNotFound.vue') },
 ];
 
