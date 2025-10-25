@@ -139,7 +139,7 @@ export default {
     const route = useRoute()
 
     // DEMO dáta – tu si to neskôr napojíš na store/API
-    const invites = ref<string[]>(['Tajný projekt'])
+    const invites = ref<string[]>(['Tajný projekt', 'Skola memes'])
     const channels = ref<string[]>([
       'VPWA - projekt',
       'WTECH - projekt',
@@ -181,7 +181,6 @@ export default {
       console.log('Pozvánka odmietnutá:', name)
     }
 
-    // ⬇️ Reakcia na /list z TextBar
     const onTextBarSend = (text: string) => {
       const cmd = text.trim().toLowerCase()
       if (cmd === '/list') {

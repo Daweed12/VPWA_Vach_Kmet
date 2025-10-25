@@ -166,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-// statická stránka – žiadna logika netreba
+
 </script>
 
 <style scoped>
