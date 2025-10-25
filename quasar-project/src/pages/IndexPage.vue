@@ -252,7 +252,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
   background-color: #ffcc80;
 }
 
@@ -260,7 +259,6 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .chat-scroll {

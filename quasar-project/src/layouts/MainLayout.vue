@@ -1,5 +1,6 @@
 <template>
-  <q-layout view="lhh lpR lFr">
+  <!-- PRIDANÉ: class="no-page-scroll" vypne scroll layoutu a page-containeru -->
+  <q-layout view="lhh lpR lFr" class="no-page-scroll">
     <q-header class="bg-orange-1 text-grey-9 left-top-corner">
       <div style="height: 20px;" class="bg-primary"></div>
       <q-toolbar>
@@ -19,6 +20,7 @@
       </q-toolbar>
     </q-header>
 
+    <!-- PRIDANÉ: wrapper bez scrollu (overflow hidden) -->
     <div class="column no-wrap test">
       <q-drawer
         show-if-above
@@ -106,12 +108,12 @@
 
       <MemberList v-if="showRightDrawer" v-model="rightDrawerOpen" />
 
-      <q-page-container class="bg-orange-3 q-page-container">
+      <!-- DÔLEŽITÉ: tento kontajner tiež nescrolluje; scroll si rieši vnútro UserSettings -->
+      <q-page-container class="bg-orange-3">
         <router-view />
       </q-page-container>
     </div>
 
-    <!-- Dôležité: zachytávame @send z TextBar -->
     <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
       <text-bar class="full-width full-height" @send="onTextBarSend" />
     </q-footer>
@@ -138,7 +140,6 @@ export default {
     const rightDrawerOpen = ref(false)
     const route = useRoute()
 
-    // DEMO dáta – tu si to neskôr napojíš na store/API
     const invites = ref<string[]>(['Tajný projekt', 'Skola memes'])
     const channels = ref<string[]>([
       'VPWA - projekt',
@@ -158,24 +159,17 @@ export default {
       'Legal'
     ])
 
-    // meta prepínače z routes.ts
     const showComposer = computed(() => route.meta.showComposer === true)
     const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
 
-    function toggleLeftDrawer () {
-      leftDrawerOpen.value = !leftDrawerOpen.value
-    }
-    function toggleRightDrawer () {
-      rightDrawerOpen.value = !rightDrawerOpen.value
-    }
+    function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
+    function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
 
-    // Handlery pre pozvánky (presun/odstránenie)
     const handleAccept = (name: string) => {
       invites.value = invites.value.filter(n => n !== name)
       if (!channels.value.includes(name)) channels.value.unshift(name)
       console.log('Pozvánka prijatá:', name)
     }
-
     const handleReject = (name: string) => {
       invites.value = invites.value.filter(n => n !== name)
       console.log('Pozvánka odmietnutá:', name)
@@ -187,7 +181,6 @@ export default {
         if (showRightDrawer.value) rightDrawerOpen.value = true
         return
       }
-      // (voliteľné) iné správy: sem pošli do chatu/store
       console.log('Správa:', text)
     }
 
@@ -209,19 +202,28 @@ export default {
 </script>
 
 <style>
+/* ===== vypneme globálny page scroll v tomto layoute ===== */
+.no-page-scroll,
+.no-page-scroll .q-page-container,
+.no-page-scroll .q-page {
+  height: 100%;
+  overflow: hidden; /* žiadny scrollbar mimo komponentov */
+}
+
+/* wrapper pre page + drawers musí mať výšku aj bez scrollu */
+.test {
+  height: 100vh;
+  overflow: hidden; /* nič „nepretečie“ */
+}
+
+/* ===== zvyšok pôvodných štýlov ===== */
 .footer-wrapper {
   margin: 0.2cm;
   border-radius: 20px;
-  overflow: hidden;
 }
 
-.full-width {
-  width: 100%;
-}
-
-.full-height {
-  height: 100%;
-}
+.full-width { width: 100%; }
+.full-height { height: 100%; }
 
 .drawer-div-wrapper {
   border-radius: 20px;
@@ -230,12 +232,10 @@ export default {
 
 .hide-scrollbar {
   overflow-y: auto;
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* Starý Edge / IE */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;                /* Chrome, Safari, Edge */
-}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
 
 .channel-item {
   border-radius: 15px;
@@ -247,14 +247,8 @@ export default {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
   margin-bottom: 10px;
 }
-
-.channel-item .q-item__section--main {
-  font-size: 1.1em;
-}
-
-.channel-item .q-item__section--side {
-  padding-left: 10px;
-}
+.channel-item .q-item__section--main { font-size: 1.1em; }
+.channel-item .q-item__section--side { padding-left: 10px; }
 
 /* === STATUS DOTS === */
 .status-dot {
@@ -268,13 +262,9 @@ export default {
   border: 2px solid #FEE7D7;
   z-index: 10;
 }
-
-.status-dot.online { background-color: #4CAF50; }
+.status-dot.online  { background-color: #4CAF50; }
 .status-dot.offline { background-color: #F44336; }
-.status-dot.away { background-color: #9E9E9E; }
-
-.q-page-container { overflow: hidden !important; }
-.test { height: 100vh; }
+.status-dot.away    { background-color: #9E9E9E; }
 
 /* Sekčné hlavičky */
 .section-label {
@@ -285,13 +275,15 @@ export default {
   align-items: center;
   gap: 6px;
 }
-
 .count-badge {
   font-size: 11px;
   line-height: 1;
   padding: 2px 6px;
   border-radius: 10px;
-  background: #ffb74d; /* orange-4 */
+  background: #ffb74d;
   color: #4e342e;
 }
+
+/* istota: root má plnú výšku */
+html, body, #q-app { height: 100%; }
 </style>

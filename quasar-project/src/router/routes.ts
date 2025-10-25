@@ -1,4 +1,4 @@
-import type { RouteRecordRaw } from 'vue-router';
+import type { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -8,8 +8,6 @@ const routes: RouteRecordRaw[] = [
       { path: '', component: () => import('pages/LoginRegisterPage.vue') }
     ],
   },
-
-  // ✅ Jeden spoločný layout pre celé /app
   {
     path: '/app',
     component: () => import('layouts/MainLayout.vue'),
@@ -18,18 +16,18 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'chat',
         component: () => import('pages/IndexPage.vue'),
-        meta: { showComposer: true, showRightDrawer: true }   // chat
+        meta: { showComposer: true, showRightDrawer: true }
       },
       {
         path: 'settings',
         name: 'settings',
         component: () => import('pages/SettingsPage.vue'),
-        meta: { showComposer: false, showRightDrawer: false } // settings
+        meta: { showComposer: false, showRightDrawer: false }
       }
     ],
   },
 
   { path: '/:catchAll(.*)*', component: () => import('pages/ErrorNotFound.vue') },
-];
+]
 
-export default routes;
+export default routes
