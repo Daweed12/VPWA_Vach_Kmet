@@ -10,7 +10,7 @@
     />
 
     <!-- Tlačidlo Odoslať -->
-    <q-btn round color="primary" icon="send"  class="q-ml-sm" @click="sendMessage"/>
+    <q-btn round color="primary" icon="send" class="q-ml-sm" @click="sendMessage" />
   </div>
 </template>
 
@@ -25,8 +25,8 @@ export default defineComponent({
 
     const sendMessage = () => {
       if (message.value.trim() === '') return
-      emit('send', message.value)  // Pošle správu rodičovi
-      message.value = ''           // Vyprázdni input
+      emit('send', message.value)
+      message.value = ''
     }
 
     return {
@@ -39,7 +39,7 @@ export default defineComponent({
 
 <style scoped>
 .text-bar {
-  width: 100%;       /* Natiahne komponent na celú šírku rodiča */
-  padding-left: 0.5cm; /* Vnútorný okraj zľava */
+  width: 100%;
+  padding-left: 0.5cm;
 }
 </style>

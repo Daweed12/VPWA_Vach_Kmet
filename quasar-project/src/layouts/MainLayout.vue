@@ -18,7 +18,8 @@
         />
       </q-toolbar>
     </q-header>
-    <div class ="column no-wrap test">
+
+    <div class="column no-wrap test">
       <q-drawer
         show-if-above
         v-model="leftDrawerOpen"
@@ -36,33 +37,45 @@
         <!-- Channels -->
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
-            <div>
+            <!-- search -->
+            <div class="q-mb-sm">
               <ChannelSearchHeader />
             </div>
+
+            <!-- INVITES sekcia -->
+            <q-item-label header class="section-label">
+              Invites
+              <span v-if="invites.length" class="count-badge">{{ invites.length }}</span>
+            </q-item-label>
+
+            <div v-if="invites.length">
+              <channel
+                v-for="name in invites"
+                :key="'invite-' + name"
+                :name="name"
+                :is-invite="true"
+                @accept="() => handleAccept(name)"
+                @reject="() => handleReject(name)"
+              />
+            </div>
+            <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
+              Žiadne pozvánky
+            </div>
+
+            <q-separator spaced />
+
+            <!-- CHANNELS sekcia -->
+            <q-item-label header class="section-label">Channels</q-item-label>
+
             <channel
-              name="Tajný projekt"
-              :is-invite="true"
-              @accept="handleAccept"
-              @reject="handleReject"
+              v-for="name in channels"
+              :key="'ch-' + name"
+              :name="name"
             />
-            <channel name="VPWA - projekt"/>
-            <channel name="WTECH - projekt" />
-            <channel name="Design" />
-            <channel name="Marketing" />
-            <channel name="Sales" />
-            <channel name="Support" />
-            <channel name="Random" />
-            <channel name="CEOs" />
-            <channel name="HR" />
-            <channel name="Finance" />
-            <channel name="Operations" />
-            <channel name="Product" />
-            <channel name="Customer Success" />
-            <channel name="IT" />
-            <channel name="Legal" />
           </q-list>
         </div>
 
+        <!-- user row -->
         <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
           <q-item v-ripple>
             <q-item-section avatar>
@@ -98,9 +111,9 @@
       </q-page-container>
     </div>
 
-
+    <!-- Dôležité: zachytávame @send z TextBar -->
     <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
-      <text-bar class="full-width full-height" />
+      <text-bar class="full-width full-height" @send="onTextBarSend" />
     </q-footer>
   </q-layout>
 </template>
@@ -125,6 +138,25 @@ export default {
     const rightDrawerOpen = ref(false)
     const route = useRoute()
 
+    // DEMO dáta – tu si to neskôr napojíš na store/API
+    const invites = ref<string[]>(['Tajný projekt'])
+    const channels = ref<string[]>([
+      'VPWA - projekt',
+      'WTECH - projekt',
+      'Design',
+      'Marketing',
+      'Sales',
+      'Support',
+      'Random',
+      'CEOs',
+      'HR',
+      'Finance',
+      'Operations',
+      'Product',
+      'Customer Success',
+      'IT',
+      'Legal'
+    ])
 
     // meta prepínače z routes.ts
     const showComposer = computed(() => route.meta.showComposer === true)
@@ -137,16 +169,28 @@ export default {
       rightDrawerOpen.value = !rightDrawerOpen.value
     }
 
-    const handleAccept = () => {
-      console.log('Pozvánka prijatá!')
-      // Tu príde tvoja logika na prijatie pozvánky
+    // Handlery pre pozvánky (presun/odstránenie)
+    const handleAccept = (name: string) => {
+      invites.value = invites.value.filter(n => n !== name)
+      if (!channels.value.includes(name)) channels.value.unshift(name)
+      console.log('Pozvánka prijatá:', name)
     }
 
-    const handleReject = () => {
-      console.log('Pozvánka odmietnutá!')
-      // Tu príde tvoja logika na odmietnutie pozvánky
+    const handleReject = (name: string) => {
+      invites.value = invites.value.filter(n => n !== name)
+      console.log('Pozvánka odmietnutá:', name)
     }
 
+    // ⬇️ Reakcia na /list z TextBar
+    const onTextBarSend = (text: string) => {
+      const cmd = text.trim().toLowerCase()
+      if (cmd === '/list') {
+        if (showRightDrawer.value) rightDrawerOpen.value = true
+        return
+      }
+      // (voliteľné) iné správy: sem pošli do chatu/store
+      console.log('Správa:', text)
+    }
 
     return {
       leftDrawerOpen,
@@ -155,8 +199,11 @@ export default {
       showRightDrawer,
       toggleLeftDrawer,
       toggleRightDrawer,
+      invites,
+      channels,
       handleAccept,
-      handleReject
+      handleReject,
+      onTextBarSend
     }
   }
 }
@@ -223,23 +270,29 @@ export default {
   z-index: 10;
 }
 
-.status-dot.online {
-  background-color: #4CAF50;
+.status-dot.online { background-color: #4CAF50; }
+.status-dot.offline { background-color: #F44336; }
+.status-dot.away { background-color: #9E9E9E; }
+
+.q-page-container { overflow: hidden !important; }
+.test { height: 100vh; }
+
+/* Sekčné hlavičky */
+.section-label {
+  color: #8d6e63;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.status-dot.offline {
-  background-color: #F44336;
-}
-
-.status-dot.away {
-  background-color: #9E9E9E;
-}
-.q-page-container {
-  overflow: hidden !important;
-
-}
-
-.test{
-  height: 100vh;
+.count-badge {
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #ffb74d; /* orange-4 */
+  color: #4e342e;
 }
 </style>

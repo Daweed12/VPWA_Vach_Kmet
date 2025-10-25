@@ -33,7 +33,6 @@ export default defineComponent({
 
     // Metódy pre obsluhu pozvánky
     const acceptInvite = () => {
-      // Pošleme udalosť rodičovi
       emit('accept')
     }
 

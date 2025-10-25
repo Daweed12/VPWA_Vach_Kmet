@@ -46,8 +46,8 @@ interface Message {
   text: string;
 }
 
-const me = { id: 'me', name: 'Ja', avatar: 'https://cdn.quasar.dev/img/avatar3.jpg' }
-const jane = { id: 'jane', name: 'Jane', avatar: 'https://cdn.quasar.dev/img/avatar5.jpg' }
+const me = { id: 'me', name: 'Ja', avatar: 'https://i.pravatar.cc/192?img=5' }
+const jane = { id: 'jane', name: 'Jane', avatar: 'https://cdn.quasar.dev/img/avatar6.jpg' }
 
 const allMessages: Message[] = [
   { from: jane.id, name: jane.name, avatar: jane.avatar, text: 'Ahoj, ako sa máš? Už si videl dnešné správy?' },
