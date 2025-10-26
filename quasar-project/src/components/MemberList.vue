@@ -139,7 +139,6 @@ export default defineComponent({
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-/* farby bodiek */
 .status-dot {
   position:absolute;
   right:-2px;

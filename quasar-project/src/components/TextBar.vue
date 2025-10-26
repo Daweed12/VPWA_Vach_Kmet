@@ -65,7 +65,7 @@ export default defineComponent({
   setup(_, { emit }) {
     const message = ref('')
     const inputRef = ref<QInput | null>(null)
-    const emojiMenuRef = ref() // používame len .hide()
+    const emojiMenuRef = ref()
 
     const emojis = [
       '😀','😁','😂','🤣','😊','😍','😎','🤔','😅','🙃',
@@ -81,7 +81,6 @@ export default defineComponent({
       if (message.value && !/\s$/.test(message.value)) message.value += ' '
       message.value += e
       emojiMenuRef.value?.hide()
-      // vrátime fokus do QInput – bez querySelector, bez type assertion
       setTimeout(focusInput, 0)
     }
 

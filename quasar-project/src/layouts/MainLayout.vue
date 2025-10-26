@@ -1,6 +1,5 @@
 <template>
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
-    <!-- Header -->
     <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
       <div style="height: 20px;" class="bg-primary"></div>
       <q-toolbar>
@@ -19,7 +18,6 @@
       </q-toolbar>
     </q-header>
 
-    <!-- Left Drawer -->
     <div class="column no-wrap test">
       <q-drawer
         show-if-above
@@ -72,16 +70,12 @@
           </q-list>
         </div>
 
-        <!-- User Info Section -->
         <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
           <q-item v-ripple>
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
-
                 <img src="https://cdn.quasar.dev/img/avatar4.jpg" alt="EY">
-
                 <div class="status-dot bg-green"></div>
-
               </q-avatar>
             </q-item-section>
             <q-item-section>
@@ -256,18 +250,10 @@ export default {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-
-  /* Voliteľné: Okraj, ktorý oddelí bodku od fotky.
-    Farba by mala zodpovedať pozadiu, na ktorom je avatar umiestnený.
-    V tvojom screenshote je to tmavo-sivá. Pre demo použijem bielu.
-  */
   border: 4px solid #fef3c7;
-
-  /* Zabezpečí, aby bola bodka pekne centrovaná, ak by mala okraj */
   box-sizing: border-box;
 }
 
-/* Sekčné hlavičky */
 .section-label {
   color: #8d6e63;
   text-transform: uppercase;
