@@ -29,8 +29,8 @@ function openAddChannelModal () {
   showAddDialog.value = true
 }
 function handleSubmit (payload: ChannelCreatePayload) {
-  emit('add-channel', payload)   // pošli na rodiča
-  showAddDialog.value = false    // zavri dialog
+  emit('add-channel', payload)
+  showAddDialog.value = false
 }
 
 watch(searchText, (val: string) => emit('search', val))
@@ -62,7 +62,6 @@ watch(searchText, (val: string) => emit('search', val))
     />
   </div>
 
-  <!-- lokálny dialog -->
   <q-dialog
     v-model="showAddDialog"
     persistent
@@ -82,7 +81,7 @@ watch(searchText, (val: string) => emit('search', val))
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;       /* Natiahne komponent na celú šírku rodiča */
+  width: 100%;
 }
 .add-channel-btn {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);

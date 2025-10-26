@@ -1,9 +1,7 @@
-<!-- src/pages/LoginRegisterPage.vue -->
 <template>
   <q-page class="flex flex-center bg-orange-6">
     <div class="column items-center q-gutter-md">
 
-      <!-- LOGO NAD BOXM -->
       <q-img
         :src="logoUrl"
         contain
@@ -11,12 +9,7 @@
         alt="inTouch logo"
       />
 
-      <!-- BOX NA PRIHLÁSENIE/REGISTRÁCIU -->
       <q-card class="q-pa-xl q-pt-lg" style="width: 420px; max-width: 90vw;">
-        <!-- ak už máš logo, nadpis môžeš kľudne zmazať -->
-        <!-- <div class="text-center text-h5 text-weight-bold q-mb-md">inTouch</div> -->
-
-        <!-- LOGIN -->
         <q-form v-if="!showRegister" @submit.prevent="handleLogin">
           <q-input v-model="loginForm.username" label="Meno" outlined class="q-mb-md"
                    :rules="[v => !!v || 'Zadaj meno']" />
@@ -28,7 +21,6 @@
           </div>
         </q-form>
 
-        <!-- REGISTER -->
         <q-form v-else @submit.prevent="handleRegister">
           <q-input v-model="registerForm.firstName" label="Meno" outlined class="q-mb-md" :rules="[req]" />
           <q-input v-model="registerForm.lastName"  label="Priezvisko" outlined class="q-mb-md" :rules="[req]" />

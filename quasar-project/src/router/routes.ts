@@ -22,7 +22,7 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'settings',
         component: () => import('pages/SettingsPage.vue'),
-        meta: { showComposer: false, showRightDrawer: false }
+        meta: { showComposer: false, showRightDrawer: false, showHeader: false }
       }
     ],
   },

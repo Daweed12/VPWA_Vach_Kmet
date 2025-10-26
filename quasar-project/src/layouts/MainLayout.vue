@@ -1,7 +1,7 @@
 <template>
-  <!-- PRIDANÉ: class="no-page-scroll" vypne scroll layoutu a page-containeru -->
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
-    <q-header class="bg-orange-1 text-grey-9 left-top-corner">
+    <!-- Header -->
+    <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
       <div style="height: 20px;" class="bg-primary"></div>
       <q-toolbar>
         <q-toolbar-title>
@@ -11,7 +11,6 @@
 
         <q-btn dense flat round icon="close" />
         <q-btn dense flat round icon="person_add" />
-        <!-- ikona pre members len ak je na danej route povolený pravý drawer -->
         <q-btn
           v-if="showRightDrawer"
           dense flat round icon="group"
@@ -20,7 +19,7 @@
       </q-toolbar>
     </q-header>
 
-    <!-- PRIDANÉ: wrapper bez scrollu (overflow hidden) -->
+    <!-- Left Drawer -->
     <div class="column no-wrap test">
       <q-drawer
         show-if-above
@@ -36,15 +35,12 @@
           />
         </div>
 
-        <!-- Channels -->
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
-            <!-- search -->
             <div class="q-mb-sm">
               <ChannelSearchHeader />
             </div>
 
-            <!-- INVITES sekcia -->
             <q-item-label header class="section-label">
               Invites
               <span v-if="invites.length" class="count-badge">{{ invites.length }}</span>
@@ -66,7 +62,6 @@
 
             <q-separator spaced />
 
-            <!-- CHANNELS sekcia -->
             <q-item-label header class="section-label">Channels</q-item-label>
 
             <channel
@@ -77,18 +72,21 @@
           </q-list>
         </div>
 
-        <!-- user row -->
+        <!-- User Info Section -->
         <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
           <q-item v-ripple>
             <q-item-section avatar>
-              <q-avatar size="50px" color="white" text-color="bg-gray-9">
-                <q-badge floating color="red" rounded />
-                S
+              <q-avatar size="56px" class="avatar-with-status">
+
+                <img src="https://cdn.quasar.dev/img/avatar4.jpg" alt="EY">
+
+                <div class="status-dot bg-green"></div>
+
               </q-avatar>
             </q-item-section>
             <q-item-section>
-              <q-item-label>Meno Používateľa</q-item-label>
-              <q-item-label caption>Status/Rola</q-item-label>
+              <q-item-label>Eren Yager</q-item-label>
+              <q-item-label caption>Online</q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-btn
@@ -108,7 +106,6 @@
 
       <MemberList v-if="showRightDrawer" v-model="rightDrawerOpen" />
 
-      <!-- DÔLEŽITÉ: tento kontajner tiež nescrolluje; scroll si rieši vnútro UserSettings -->
       <q-page-container class="bg-orange-3">
         <router-view />
       </q-page-container>
@@ -161,6 +158,7 @@ export default {
 
     const showComposer = computed(() => route.meta.showComposer === true)
     const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
+    const showHeader = computed(() => route.meta.showHeader !== false)
 
     function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
     function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
@@ -189,6 +187,7 @@ export default {
       rightDrawerOpen,
       showComposer,
       showRightDrawer,
+      showHeader,
       toggleLeftDrawer,
       toggleRightDrawer,
       invites,
@@ -202,21 +201,17 @@ export default {
 </script>
 
 <style>
-/* ===== vypneme globálny page scroll v tomto layoute ===== */
 .no-page-scroll,
 .no-page-scroll .q-page-container,
 .no-page-scroll .q-page {
   height: 100%;
-  overflow: hidden; /* žiadny scrollbar mimo komponentov */
+  overflow: hidden;
 }
 
-/* wrapper pre page + drawers musí mať výšku aj bez scrollu */
 .test {
   height: 100vh;
-  overflow: hidden; /* nič „nepretečie“ */
+  overflow: hidden;
 }
-
-/* ===== zvyšok pôvodných štýlov ===== */
 .footer-wrapper {
   margin: 0.2cm;
   border-radius: 20px;
@@ -250,21 +245,27 @@ export default {
 .channel-item .q-item__section--main { font-size: 1.1em; }
 .channel-item .q-item__section--side { padding-left: 10px; }
 
-/* === STATUS DOTS === */
+.avatar-with-status {
+  position: relative;
+}
+
 .status-dot {
   position: absolute;
-  top: auto;
-  right: 5px;
-  bottom: 5px;
-  width: 15px;
-  height: 15px;
+  bottom: 0px;
+  right: 0px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 2px solid #FEE7D7;
-  z-index: 10;
+
+  /* Voliteľné: Okraj, ktorý oddelí bodku od fotky.
+    Farba by mala zodpovedať pozadiu, na ktorom je avatar umiestnený.
+    V tvojom screenshote je to tmavo-sivá. Pre demo použijem bielu.
+  */
+  border: 4px solid #fef3c7;
+
+  /* Zabezpečí, aby bola bodka pekne centrovaná, ak by mala okraj */
+  box-sizing: border-box;
 }
-.status-dot.online  { background-color: #4CAF50; }
-.status-dot.offline { background-color: #F44336; }
-.status-dot.away    { background-color: #9E9E9E; }
 
 /* Sekčné hlavičky */
 .section-label {
@@ -284,6 +285,5 @@ export default {
   color: #4e342e;
 }
 
-/* istota: root má plnú výšku */
 html, body, #q-app { height: 100%; }
 </style>

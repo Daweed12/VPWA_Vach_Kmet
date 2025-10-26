@@ -8,36 +8,28 @@ export default defineComponent({
       type: String,
       required: true
     },
-    /**
-     * Prepne komponent do režimu "pozvánka"
-     */
     isInvite: {
       type: Boolean,
       default: false
     }
   },
-  // Definujeme, aké udalosti môže komponent vysielať
   emits: ['accept', 'reject'],
 
   setup (props, { emit }) {
-    // Tieto hodnoty nastavujeme, len ak to NIE JE pozvánka
     const badgeColor = ref('green')
     const badgeText = ref('public')
 
     if (!props.isInvite) {
-      // Náhodne určíme, či je kanál private alebo public
       const isPrivate = Math.random() < 0.5
       badgeColor.value = isPrivate ? 'red' : 'green'
       badgeText.value = isPrivate ? 'private' : 'public'
     }
 
-    // Metódy pre obsluhu pozvánky
     const acceptInvite = () => {
       emit('accept')
     }
 
     const rejectInvite = () => {
-      // Pošleme udalosť rodičovi
       emit('reject')
     }
 
@@ -82,7 +74,6 @@ export default defineComponent({
 </template>
 
 <style scoped>
-/* Spoločné štýly pre oba varianty */
 .channel-item, .invite-item {
   border-radius: 15px;
   min-height: 50px;
@@ -95,14 +86,13 @@ export default defineComponent({
   transition: background-color 0.2s ease;
 }
 
-/* :hover pre normálny kanál (svetlo oranžový) */
 .channel-item:hover {
-  background-color: #ffcc80 !important; /* !important je potrebný na prebitie Quasar bg- triedy */
+  background-color: #ffcc80 !important;
 }
 
 /* :hover pre invite (tmavo oranžový) */
 .invite-item:hover {
-  background-color: #ef6c00 !important; /* tmavšia oranžová (orange-9) */
+  background-color: #ef6c00 !important;
 }
 
 /* Spoločné štýly pre sekcie */

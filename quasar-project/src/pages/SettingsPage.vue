@@ -1,5 +1,4 @@
 <template>
-  <!-- Stránka ne-scrolluje; celý scroll je vnútri UserSettings -->
   <q-page class="settings-page">
     <UserSettings />
   </q-page>
@@ -14,7 +13,7 @@ import UserSettings from 'src/components/UserSettings.vue'
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;  /* žiadny page scroll */
+  overflow: hidden;
   padding: 0;
 }
 </style>

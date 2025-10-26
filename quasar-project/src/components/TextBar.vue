@@ -1,6 +1,5 @@
 <template>
   <div class="text-bar q-pa-sm row items-center">
-    <!-- Textové pole -->
     <q-input
       ref="inputRef"
       v-model="message"
@@ -9,8 +8,6 @@
       @keyup.enter="sendMessage"
       class="col"
     />
-
-    <!-- Emoji tlačidlo (rovnaká farba ako Send) -->
     <q-btn
       round
       color="primary"
@@ -27,8 +24,6 @@
       >
         <div class="q-pa-sm" style="max-width: 260px;">
           <div class="text-caption text-grey-7 q-mb-xs">Emoji</div>
-
-          <!-- jednoduchý grid -->
           <div class="row q-col-gutter-xs">
             <div
               v-for="e in emojis"
@@ -50,7 +45,6 @@
       </q-menu>
     </q-btn>
 
-    <!-- Tlačidlo Odoslať -->
     <q-btn
       round
       color="primary"
@@ -116,7 +110,6 @@ export default defineComponent({
   padding-left: 0.5cm;
 }
 
-/* väčší klikací target pre emoji v gride */
 .emoji-btn {
   width: 40px;
   height: 40px;

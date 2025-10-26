@@ -8,7 +8,6 @@
     <q-separator />
 
     <q-card-section class="q-gutter-md">
-      <!-- Názov kanála -->
       <q-input
         v-model="name"
         label="Názov kanála"
@@ -18,9 +17,6 @@
         hint="Zadaj názov kanála (aspoň 2 znaky)"
       />
 
-
-
-      <!-- Vyhľadávanie a výber členov -->
       <q-select
         v-model="selectedMemberIds"
         :options="filteredOptions"
@@ -39,7 +35,6 @@
         hint="Začni písať nickname alebo meno…"
         :popup-content-style="{ maxHeight: '300px' }"
       >
-        <!-- položky v zozname -->
         <template #option="scope">
           <q-item v-bind="scope.itemProps">
             <q-item-section avatar>
@@ -54,7 +49,6 @@
           </q-item>
         </template>
 
-        <!-- vybrané čipy -->
         <template #selected-item="scope">
           <q-chip
             removable
@@ -73,7 +67,6 @@
         </template>
       </q-select>
 
-      <!-- Viditeľnosť -->
       <div class="row items-center">
         <q-toggle v-model="isPrivate" color="primary" label="Súkromný kanál" />
         <div class="text-caption text-grey-7 q-ml-md">

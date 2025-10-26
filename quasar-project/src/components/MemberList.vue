@@ -55,7 +55,6 @@ export default defineComponent({
     };
 
     const addMember = () => {
-      // otvoríme modál + necháme aj emit, ak to chceš zachytiť vyššie
       showAddDialog.value = true;
       emit('add');
     };
@@ -76,7 +75,6 @@ export default defineComponent({
     :width="360"
     class="bg-orange-5 column"
   >
-    <!-- Header -->
     <div class="row items-center justify-between q-pa-md" style="gap:8px">
       <div class="text-h6 text-grey-10">Members list</div>
       <div class="row items-center" style="gap:6px">
@@ -84,7 +82,6 @@ export default defineComponent({
       </div>
     </div>
 
-    <!-- Members grid -->
     <div class="col bg-orange-2 q-pa-lg hide-scrollbar" style="margin: 0 16px 8px 16px; border-radius: 16px; overflow-y: auto;">
       <div class="row q-col-gutter-md">
         <div class="col-4" v-for="m in members" :key="m.id">
@@ -118,7 +115,6 @@ export default defineComponent({
       </div>
     </div>
 
-    <!-- Bottom button -->
     <div class="q-pa-md flex flex-center bg-orange-5">
       <q-btn
         color="primary"
@@ -134,9 +130,7 @@ export default defineComponent({
     </div>
   </q-drawer>
 
-  <!-- DIALOG: Add user -->
   <q-dialog v-model="showAddDialog" persistent transition-show="scale" transition-hide="scale">
-    <!-- Vnútri použijeme samostatnú komponentu -->
     <AddUserToChannel @close="showAddDialog = false" />
   </q-dialog>
 </template>

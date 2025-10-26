@@ -5,7 +5,6 @@ export default defineComponent({
   name: 'AddUserToChannel',
   emits: ['close'],
   setup(_, { emit }) {
-    // statické pole na ukážku; zatiaľ bez logiky
     const query = ref('');
     const role = ref<'member' | 'admin'>('member');
 
@@ -40,9 +39,6 @@ export default defineComponent({
         </template>
       </q-input>
 
-
-
-      <!-- statická ukážka “nájdeného” výsledku -->
       <div class="q-pa-sm bg-grey-2 rounded-borders">
         <div class="text-subtitle2 q-mb-xs">Návrhy</div>
         <div class="row items-center q-gutter-sm">
