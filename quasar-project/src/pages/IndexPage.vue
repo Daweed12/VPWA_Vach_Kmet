@@ -40,13 +40,55 @@
             </div>
           </template>
         </q-infinite-scroll>
+
+        <!-- Typing indicator (klikni pre náhľad) -->
+        <div v-if="isTyping" class="typing-row q-mt-sm cursor-pointer">
+          <div
+            class="avatars"
+            :style="`width: ${28 + Math.max(typingUsers.length - 1, 0) * 18}px`"
+          >
+            <q-avatar
+              v-for="(u, idx) in typingUsers"
+              :key="u.id"
+              size="28px"
+              class="overlapping"
+              :style="`left: ${idx * 18}px`"
+            >
+              <img :src="u.avatar" :alt="u.name" />
+            </q-avatar>
+          </div>
+
+          <div class="label">
+            <span class="typing-text">{{ typingLabel }}</span>
+            <q-spinner-dots size="18px" class="ml-2" />
+          </div>
+
+          <!-- Popup s draftami po kliknutí -->
+          <q-popup-proxy transition-show="scale" transition-hide="scale">
+            <q-card class="typing-card">
+              <q-list dense>
+                <q-item v-for="u in typingDrafts" :key="u.id">
+                  <q-item-section avatar>
+                    <q-avatar size="28px">
+                      <img :src="u.avatar" :alt="u.name" />
+                    </q-avatar>
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="font-600">{{ u.name }}</q-item-label>
+                    <q-item-label caption class="draft-text">“{{ u.draft }}”</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-card>
+          </q-popup-proxy>
+        </div>
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 
 interface Message {
   id: string
@@ -100,6 +142,30 @@ const visibleMessages = ref<Message[]>(allMessages.slice(-step))
 const scrollArea = ref<HTMLElement | null>(null)
 const finished = ref(false)
 const isLoading = ref(false)
+
+/* ---------- Typing indicator stav ---------- */
+const typingUsers = ref([jane, max, me]) // poradie určí meno v texte
+const isTyping = ref(true)
+const typingLabel = computed(() => {
+  const first = typingUsers.value[0]?.name ?? 'Someone'
+  const others = Math.max(typingUsers.value.length - 1, 0)
+  return others > 0 ? `${first} and ${others} others is typing...` : `${first} is typing...`
+})
+
+// Statické "drafty" – čo kto práve píše (len príklad)
+const draftsById: Record<string, string> = {
+  [jane.id]: 'Mám tip na skvelé tacos stánky pri vchode.',
+  [max.id]: 'Zoberiem ešte powerbanku naviac, keby niečo.',
+  [me.id]:  'Hodím do playlistu tri nové songy.'
+}
+
+const typingDrafts = computed(() =>
+  typingUsers.value.map(u => ({
+    ...u,
+    draft: draftsById[u.id] ?? '...'
+  }))
+)
+/* ------------------------------------------ */
 
 function onLoad(index: number, done: (finished?: boolean) => void) {
   isLoading.value = true
@@ -286,7 +352,6 @@ onUnmounted(() => {
   display: inline;
 }
 
-
 :deep(.mention) {
   background-color: green;
   color: white;
@@ -294,5 +359,59 @@ onUnmounted(() => {
   padding: 0 3px;
   border-radius: 3px;
   display: inline-block;
+}
+
+/* --- Typing indicator --- */
+.typing-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  align-self: flex-start;
+}
+
+.cursor-pointer { cursor: pointer; }
+
+.avatars {
+  position: relative;
+  height: 28px; /* = veľkosť q-avatar */
+}
+
+.overlapping {
+  position: absolute;
+  border: 2px solid #ffcc80; /* ladí s .chat-page pozadím */
+  border-radius: 9999px;
+}
+
+.typing-text {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Popup karta s draftami */
+.typing-card {
+  min-width: 280px;
+  max-width: 90vw;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+}
+
+.font-600 { font-weight: 600; }
+
+.draft-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 </style>
