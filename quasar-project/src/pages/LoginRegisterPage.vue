@@ -171,15 +171,53 @@ export default defineComponent({
       }
     }
 
-    // REGISTER – zatiaľ len info, nič sa reálne neuloží
-    const handleRegister = () => {
-      $q.notify({
-        type: 'info',
-        message: 'Registrácia zatiaľ nie je dostupná.',
-        position: 'bottom',
-        timeout: 2500,
-        actions: [{ label: 'OK', color: 'white' }],
-      })
+    // REGISTER – vytvorí account + prihlási
+    const handleRegister = async () => {
+      const allFilled = Object.values(registerForm).every(Boolean)
+      if (!allFilled) {
+        $q.notify({
+          type: 'negative',
+          message: 'Vyplň všetky polia v registrácii.',
+          position: 'bottom',
+          timeout: 2500,
+          actions: [{ label: 'OK', color: 'white' }],
+        })
+        return
+      }
+
+      try {
+        const { data } = await api.post('/register', {
+          firstName: registerForm.firstName,
+          lastName: registerForm.lastName,
+          email: registerForm.email,
+          nickname: registerForm.nickname,
+          password: registerForm.password,
+        })
+
+        localStorage.setItem('currentUser', JSON.stringify(data))
+        await router.push('/app')
+      } catch (error: unknown) {
+        let message = 'Registrácia zlyhala.'
+
+        if (axios.isAxiosError(error)) {
+          const serverData = error.response?.data
+          if (
+            serverData &&
+            typeof serverData === 'object' &&
+            'message' in serverData
+          ) {
+            message = (serverData as { message: string }).message
+          }
+        }
+
+        $q.notify({
+          type: 'negative',
+          message,
+          position: 'bottom',
+          timeout: 2500,
+          actions: [{ label: 'OK', color: 'white' }],
+        })
+      }
     }
 
     return {

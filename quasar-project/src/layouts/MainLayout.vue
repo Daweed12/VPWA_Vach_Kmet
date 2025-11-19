@@ -71,17 +71,19 @@
           </q-list>
         </div>
 
+        <!-- USER CARD DOLE -->
         <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
           <q-item v-ripple>
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
                 <img src="https://cdn.quasar.dev/img/avatar4.jpg" alt="EY">
-                <div class="status-dot bg-green"></div>
+                <!-- DYNAMICKÁ FARBA PODĽA STATUSU -->
+                <div :class="['status-dot', statusDotClass]"></div>
               </q-avatar>
             </q-item-section>
             <q-item-section>
-              <q-item-label>Eren Yager</q-item-label>
-              <q-item-label caption>Online</q-item-label>
+              <q-item-label>{{ currentUserName }}</q-item-label>
+              <q-item-label caption>{{ currentUserStatus }}</q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-btn
@@ -113,7 +115,7 @@
 </template>
 
 <script lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
@@ -130,6 +132,15 @@ interface ChannelFromApi {
   lastMessageAt: string | null
 }
 
+interface CurrentUser {
+  id: number
+  email: string
+  nickname: string
+  firstname: string | null
+  surname: string | null
+  status: string | null
+}
+
 export default {
   components: {
     ChannelSearchHeader,
@@ -143,41 +154,33 @@ export default {
     const route = useRoute()
 
     const invites = ref<string[]>(['Tajný projekt', 'Skola memes'])
-    // teraz držíme celé objekty kanálov, nie len string názvy
     const channels = ref<ChannelFromApi[]>([])
+
+    const currentUser = ref<CurrentUser | null>(null)
 
     const showComposer = computed(() => route.meta.showComposer === true)
     const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
     const showHeader = computed(() => route.meta.showHeader !== false)
 
-    function toggleLeftDrawer () {
-      leftDrawerOpen.value = !leftDrawerOpen.value
-    }
-
-    function toggleRightDrawer () {
-      rightDrawerOpen.value = !rightDrawerOpen.value
-    }
+    function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
+    function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
 
     const handleAccept = (name: string) => {
-      invites.value = invites.value.filter((n) => n !== name)
-
-      // ak taký názov ešte v channels nie je, pridáme ho ako private (lokálny kanál)
-      if (!channels.value.some((c) => c.title === name)) {
-        channels.value.push({
-          id: Date.now(),                // len lokálne ID
+      invites.value = invites.value.filter(n => n !== name)
+      if (!channels.value.find(ch => ch.title === name)) {
+        channels.value.unshift({
+          id: -Date.now(),
           title: name,
-          availability: 'private',       // pozvánky berme ako private
+          availability: 'private',
           creatorId: 0,
           createdAt: new Date().toISOString(),
           lastMessageAt: null,
         })
       }
-
       console.log('Pozvánka prijatá:', name)
     }
-
     const handleReject = (name: string) => {
-      invites.value = invites.value.filter((n) => n !== name)
+      invites.value = invites.value.filter(n => n !== name)
       console.log('Pozvánka odmietnutá:', name)
     }
 
@@ -190,14 +193,63 @@ export default {
       console.log('Správa:', text)
     }
 
+    // COMPUTED: meno a status text
+    const currentUserName = computed(() => {
+      if (!currentUser.value) return 'Guest'
+      const full = `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim()
+      return full || currentUser.value.nickname || currentUser.value.email
+    })
+
+    const currentUserStatus = computed(() => {
+      const status = currentUser.value?.status ?? 'online'
+      return status
+    })
+
+    // COMPUTED: farba bodky podľa statusu
+    const statusDotClass = computed(() => {
+      const status = (currentUser.value?.status ?? 'online').toLowerCase()
+      switch (status) {
+        case 'online':
+          return 'bg-green'
+        case 'away':
+          return 'bg-amber'
+        case 'dnd':
+          return 'bg-red'
+        case 'offline':
+          return 'bg-grey-5'
+        default:
+          return 'bg-grey-5'
+      }
+    })
+
+    // handler na custom event z UserSettings.vue
+    const handleCurrentUserUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<CurrentUser>
+      currentUser.value = customEvent.detail
+    }
+
     onMounted(async () => {
+      window.addEventListener('currentUserUpdated', handleCurrentUserUpdated)
+
       try {
         const { data } = await api.get<ChannelFromApi[]>('/channels')
-        // tu už necháme celé objekty – availability ide z DB
         channels.value = data
       } catch (error) {
         console.error('Chyba pri načítaní kanálov z API', error)
       }
+
+      try {
+        const raw = localStorage.getItem('currentUser')
+        if (raw) {
+          currentUser.value = JSON.parse(raw) as CurrentUser
+        }
+      } catch (e) {
+        console.error('Chyba pri čítaní currentUser z localStorage', e)
+      }
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('currentUserUpdated', handleCurrentUserUpdated)
     })
 
     return {
@@ -213,11 +265,13 @@ export default {
       handleAccept,
       handleReject,
       onTextBarSend,
+      currentUserName,
+      currentUserStatus,
+      statusDotClass,
     }
   },
 }
 </script>
-
 
 <style>
 .no-page-scroll,
