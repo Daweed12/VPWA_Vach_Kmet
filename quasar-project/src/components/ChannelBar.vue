@@ -1,28 +1,36 @@
 <script lang="ts">
-import { defineComponent, ref} from 'vue'
+import { defineComponent, computed } from 'vue'
 
 export default defineComponent({
   name: 'ChannelBar',
   props: {
     name: {
       type: String,
-      required: true
+      required: true,
+    },
+    availability: {
+      // tu neriešime union typ, nech je to obyčajný string
+      type: String,
+      default: 'public',
     },
     isInvite: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
-  emits: ['accept', 'reject'],
+  emits: ['accept', 'reject', 'click'],
 
   setup (props, { emit }) {
-    const badgeColor = ref('green')
-    const badgeText = ref('public')
+    const badgeColor = computed(() =>
+      props.availability === 'private' ? 'red' : 'green',
+    )
 
-    if (!props.isInvite) {
-      const isPrivate = Math.random() < 0.5
-      badgeColor.value = isPrivate ? 'red' : 'green'
-      badgeText.value = isPrivate ? 'private' : 'public'
+    const badgeText = computed(() =>
+      props.availability === 'private' ? 'private' : 'public',
+    )
+
+    const handleClick = () => {
+      emit('click')
     }
 
     const acceptInvite = () => {
@@ -36,10 +44,11 @@ export default defineComponent({
     return {
       badgeColor,
       badgeText,
+      handleClick,
       acceptInvite,
-      rejectInvite
+      rejectInvite,
     }
-  }
+  },
 })
 </script>
 
@@ -48,15 +57,25 @@ export default defineComponent({
     :class="isInvite ? 'invite-item bg-orange-8' : 'channel-item bg-orange-1'"
     clickable
     v-ripple
+    @click="handleClick"
   >
-    <q-item-section :class="isInvite ? 'text-white text-weight-bold' : 'text-black text-weight-bold'">
+    <q-item-section
+      :class="isInvite ? 'text-white text-weight-bold' : 'text-black text-weight-bold'"
+    >
       {{ name }}
     </q-item-section>
 
-    <q-badge v-if="!isInvite" :color="badgeColor" class="q-ml-sm text-white text-uppercase" align="middle">
+    <!-- Badge len pre normálne kanály -->
+    <q-badge
+      v-if="!isInvite"
+      :color="badgeColor"
+      class="q-ml-sm text-white text-uppercase"
+      align="middle"
+    >
       {{ badgeText }}
     </q-badge>
 
+    <!-- Ak to NIE je invite – ikony person_add a close -->
     <q-item-section v-if="!isInvite" side>
       <div class="row items-center">
         <q-btn flat round dense icon="person_add" color="orange-8" size="md" />
@@ -64,17 +83,35 @@ export default defineComponent({
       </div>
     </q-item-section>
 
+    <!-- Ak je to invite – check / close s emitmi -->
     <q-item-section v-else side>
       <div class="row items-center">
-        <q-btn flat round dense icon="check" color="white" size="md" @click="acceptInvite" />
-        <q-btn flat round dense icon="close" color="white" size="md" @click="rejectInvite" />
+        <q-btn
+          flat
+          round
+          dense
+          icon="check"
+          color="white"
+          size="md"
+          @click.stop="acceptInvite"
+        />
+        <q-btn
+          flat
+          round
+          dense
+          icon="close"
+          color="white"
+          size="md"
+          @click.stop="rejectInvite"
+        />
       </div>
     </q-item-section>
   </q-item>
 </template>
 
 <style scoped>
-.channel-item, .invite-item {
+.channel-item,
+.invite-item {
   border-radius: 15px;
   min-height: 50px;
   padding: 0 15px;
@@ -90,12 +127,10 @@ export default defineComponent({
   background-color: #ffcc80 !important;
 }
 
-/* :hover pre invite (tmavo oranžový) */
 .invite-item:hover {
   background-color: #ef6c00 !important;
 }
 
-/* Spoločné štýly pre sekcie */
 .channel-item .q-item__section--main,
 .invite-item .q-item__section--main {
   font-size: 1.1em;

@@ -3,6 +3,7 @@ import { BaseSeeder } from '@adonisjs/lucid/seeders'
 import User from '#models/user'
 import Channel from '#models/channel'
 import ChannelMember from '#models/channel_member'
+import Access from '#models/access'
 import Message from '#models/message'
 import Mention from '#models/mention'
 import KickVote from '#models/kick_vote'
@@ -24,7 +25,7 @@ export default class MainSeeder extends BaseSeeder {
       {
         nickname: 'kristof',
         firstname: 'Kristof',
-        surname: 'Kolega',
+        surname: 'Kmet',
         email: 'kristof@example.com',
         profilePicture: null,
         status: 'online',
@@ -129,10 +130,15 @@ export default class MainSeeder extends BaseSeeder {
     // 2) CHANNELS – všetky public okrem VPWA
     const [
       vpwa,
+
       design,
+
       random,
+
+
       product,
-      it,
+
+      it
 
     ] = await Channel.createMany([
       {
@@ -212,19 +218,26 @@ export default class MainSeeder extends BaseSeeder {
       },
     ])
 
-    // 3) CHANNEL MEMBERS (access) – VPWA je private, len David + Kristof
+    // 3) ACCESS – práva do private kanálov
+    await Access.createMany([
+      { userId: david.id,   channelId: vpwa.id },
+      { userId: kristof.id, channelId: vpwa.id },
+    ])
+
+    // 4) CHANNEL MEMBERS – členovia kanálov
     await ChannelMember.createMany([
+      // VPWA (private) – len David + Kristof
       { userId: david.id,   channelId: vpwa.id, status: 'owner' },
       { userId: kristof.id, channelId: vpwa.id, status: 'member' },
 
-      // pár ukážkových členstiev do public kanálov (nie je nutné pre access)
+      // pár ukážkových členstiev do public kanálov
       { userId: david.id, channelId: it.id, status: 'member' },
       { userId: david.id, channelId: product.id, status: 'member' },
       { userId: lucia.id, channelId: design.id, status: 'member' },
       { userId: anna.id,  channelId: design.id, status: 'member' },
     ])
 
-    // 4) MESSAGES – voliteľné demo
+    // 5) MESSAGES – demo správy
     const [m2, m3] = await Message.createMany([
       {
         senderId: david.id,
@@ -253,13 +266,13 @@ export default class MainSeeder extends BaseSeeder {
       },
     ])
 
-    // 5) MENTIONS
+    // 6) MENTIONS
     await Mention.createMany([
       { messageId: m2.id, userId: kristof.id },
       { messageId: m3.id, userId: david.id },
     ])
 
-    // 6) KICK VOTES – len príklad
+    // 7) KICK VOTES – len príklad
     await KickVote.createMany([
       {
         channelId: random.id,
@@ -273,6 +286,6 @@ export default class MainSeeder extends BaseSeeder {
       },
     ])
 
-    console.log('✅ MainSeeder finished – users + channels seeded.')
+    console.log('✅ MainSeeder finished – users, channels, access, members, messages.')
   }
 }

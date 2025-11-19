@@ -1,5 +1,6 @@
 <template>
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
+    <!-- HORNÝ HEADER -->
     <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
       <div style="height: 20px;" class="bg-primary"></div>
       <q-toolbar>
@@ -22,6 +23,7 @@
     </q-header>
 
     <div class="column no-wrap test">
+      <!-- ĽAVÝ DRAWER -->
       <q-drawer
         show-if-above
         v-model="leftDrawerOpen"
@@ -39,25 +41,28 @@
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
             <div class="q-mb-sm">
-              <!-- vyhľadávanie -->
-              <ChannelSearchHeader
-                v-model="channelSearch"
-              />
+              <!-- vyhľadávanie kanálov -->
+              <ChannelSearchHeader v-model="channelSearch" />
             </div>
 
             <q-item-label header class="section-label">
               Invites
-              <span v-if="invites.length" class="count-badge">{{ invites.length }}</span>
+              <span
+                v-if="invites.length"
+                class="count-badge"
+              >{{ invites.length }}</span>
             </q-item-label>
 
+            <!-- INVITES -->
             <div v-if="invites.length">
               <channel
-                v-for="name in invites"
-                :key="'invite-' + name"
-                :name="name"
-                :is-invite="true"
-                @accept="() => handleAccept(name)"
-                @reject="() => handleReject(name)"
+                v-for="ch in invites"
+                :key="'invite-' + ch.id"
+                :name="ch.title"
+                :availability="ch.availability"
+                is-invite
+                @accept="() => handleAccept(ch)"
+                @reject="() => handleReject(ch)"
               />
             </div>
             <div
@@ -71,7 +76,7 @@
 
             <q-item-label header class="section-label">Channels</q-item-label>
 
-            <!-- tu už renderujeme filtrovaný zoznam -->
+            <!-- KANÁLY z API (filtrované) -->
             <channel
               v-for="ch in filteredChannels"
               :key="'ch-' + ch.id"
@@ -93,10 +98,12 @@
                 <div :class="['status-dot', statusDotClass]"></div>
               </q-avatar>
             </q-item-section>
+
             <q-item-section>
               <q-item-label>{{ currentUserName }}</q-item-label>
               <q-item-label caption>{{ currentUserStatus }}</q-item-label>
             </q-item-section>
+
             <q-item-section side>
               <q-btn
                 flat
@@ -110,18 +117,20 @@
             </q-item-section>
           </q-item>
         </div>
+
         <div style="height: 10px;" class="bg-primary"></div>
       </q-drawer>
 
-      <!-- MemberList napravo -->
+      <!-- MEMBER LIST VPRAVO -->
       <MemberList v-if="showRightDrawer" v-model="rightDrawerOpen" />
 
+      <!-- HLAVNÁ STRANA -->
       <q-page-container class="bg-orange-3">
         <router-view />
       </q-page-container>
     </div>
 
-    <!-- TextBar dole -->
+    <!-- TEXTBAR DOLE -->
     <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
       <text-bar class="full-width full-height" @send="onTextBarSend" />
     </q-footer>
@@ -129,7 +138,8 @@
 </template>
 
 <script lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { defineComponent, ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
 import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
@@ -139,7 +149,7 @@ import { api } from 'boot/api'
 interface ChannelFromApi {
   id: number
   title: string
-  availability: string
+  availability: string          // ⬅️ obyčajný string, nech sedí s ChannelBar prop
   creatorId: number
   createdAt: string
   lastMessageAt: string | null
@@ -154,48 +164,69 @@ interface CurrentUser {
   status: string | null
 }
 
-export default {
+export default defineComponent({
+  name: 'MainLayout',
   components: {
     ChannelSearchHeader,
     textBar,
     channel: ChannelBar,
     MemberList,
   },
+
   setup () {
+    const route = useRoute()
+
     const leftDrawerOpen = ref(false)
     const rightDrawerOpen = ref(false)
 
-    const invites = ref<string[]>(['Tajný projekt', 'Skola memes'])
-    const channels = ref<ChannelFromApi[]>([])
+    const invites = ref<ChannelFromApi[]>([
+      {
+        id: -1,
+        title: 'Tajný projekt',
+        availability: 'private',
+        creatorId: 0,
+        createdAt: new Date().toISOString(),
+        lastMessageAt: null,
+      },
+      {
+        id: -2,
+        title: 'Skola memes',
+        availability: 'private',
+        creatorId: 0,
+        createdAt: new Date().toISOString(),
+        lastMessageAt: null,
+      },
+    ])
 
+    const channels = ref<ChannelFromApi[]>([])
     const channelSearch = ref('')
 
     const currentUser = ref<CurrentUser | null>(null)
 
-    const showComposer = ref(true)
-    const showRightDrawer = ref(true)
-    const showHeader = ref(true)
+    const showComposer = computed(() => route.meta.showComposer === true)
+    const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
+    const showHeader = computed(() => route.meta.showHeader !== false)
 
-    function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
-    function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
-
-    const handleAccept = (name: string) => {
-      invites.value = invites.value.filter(n => n !== name)
-      if (!channels.value.find(ch => ch.title === name)) {
-        channels.value.unshift({
-          id: -Date.now(),
-          title: name,
-          availability: 'private',
-          creatorId: 0,
-          createdAt: new Date().toISOString(),
-          lastMessageAt: null,
-        })
-      }
-      console.log('Pozvánka prijatá:', name)
+    function toggleLeftDrawer () {
+      leftDrawerOpen.value = !leftDrawerOpen.value
     }
-    const handleReject = (name: string) => {
-      invites.value = invites.value.filter(n => n !== name)
-      console.log('Pozvánka odmietnutá:', name)
+
+    function toggleRightDrawer () {
+      rightDrawerOpen.value = !rightDrawerOpen.value
+    }
+
+    const handleAccept = (ch: ChannelFromApi) => {
+      invites.value = invites.value.filter((i) => i.id !== ch.id)
+
+      if (!channels.value.find((c) => c.id === ch.id)) {
+        channels.value.unshift(ch)
+      }
+      console.log('Pozvánka prijatá:', ch.title)
+    }
+
+    const handleReject = (ch: ChannelFromApi) => {
+      invites.value = invites.value.filter((i) => i.id !== ch.id)
+      console.log('Pozvánka odmietnutá:', ch.title)
     }
 
     const onTextBarSend = (text: string) => {
@@ -207,12 +238,11 @@ export default {
       console.log('Správa:', text)
     }
 
-    // filtrovanie kanálov podľa search
     const filteredChannels = computed(() => {
       const term = channelSearch.value.trim().toLowerCase()
       if (!term) return channels.value
-      return channels.value.filter(ch =>
-        ch.title.toLowerCase().includes(term)
+      return channels.value.filter((ch) =>
+        ch.title.toLowerCase().includes(term),
       )
     })
 
@@ -222,7 +252,9 @@ export default {
       return full || currentUser.value.nickname || currentUser.value.email
     })
 
-    const currentUserStatus = computed(() => currentUser.value?.status ?? 'online')
+    const currentUserStatus = computed(
+      () => currentUser.value?.status ?? 'online',
+    )
 
     const statusDotClass = computed(() => {
       const status = (currentUser.value?.status ?? 'online').toLowerCase()
@@ -246,25 +278,40 @@ export default {
     }
 
     onMounted(async () => {
-      window.addEventListener('currentUserUpdated', handleCurrentUserUpdated)
+      window.addEventListener(
+        'currentUserUpdated',
+        handleCurrentUserUpdated as EventListener,
+      )
 
+      // 1) najprv načítaj currentUser z localStorage
       try {
-        const { data } = await api.get<ChannelFromApi[]>('/channels')
+        const raw = localStorage.getItem('currentUser')
+        if (raw) {
+          currentUser.value = JSON.parse(raw) as CurrentUser
+        }
+      } catch (e) {
+        console.error('Chyba pri čítaní currentUser z localStorage', e)
+      }
+
+      // 2) potom zavolaj /channels s userId
+      try {
+        const userId = currentUser.value?.id ?? null
+
+        const { data } = await api.get<ChannelFromApi[]>('/channels', {
+          params: { userId },
+        })
+
         channels.value = data
       } catch (error) {
         console.error('Chyba pri načítaní kanálov z API', error)
       }
-
-      try {
-        const raw = localStorage.getItem('currentUser')
-        if (raw) currentUser.value = JSON.parse(raw) as CurrentUser
-      } catch (e) {
-        console.error('Chyba pri čítaní currentUser z localStorage', e)
-      }
     })
 
     onUnmounted(() => {
-      window.removeEventListener('currentUserUpdated', handleCurrentUserUpdated)
+      window.removeEventListener(
+        'currentUserUpdated',
+        handleCurrentUserUpdated as EventListener,
+      )
     })
 
     return {
@@ -287,7 +334,7 @@ export default {
       statusDotClass,
     }
   },
-}
+})
 </script>
 
 <style>
@@ -302,13 +349,18 @@ export default {
   height: 100vh;
   overflow: hidden;
 }
+
 .footer-wrapper {
   margin: 0.2cm;
   border-radius: 20px;
 }
 
-.full-width { width: 100%; }
-.full-height { height: 100%; }
+.full-width {
+  width: 100%;
+}
+.full-height {
+  height: 100%;
+}
 
 .drawer-div-wrapper {
   border-radius: 20px;
@@ -320,7 +372,9 @@ export default {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 .avatar-with-status {
   position: relative;
@@ -340,7 +394,7 @@ export default {
 .section-label {
   color: #8d6e63;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -354,5 +408,9 @@ export default {
   color: #4e342e;
 }
 
-html, body, #q-app { height: 100%; }
+html,
+body,
+#q-app {
+  height: 100%;
+}
 </style>

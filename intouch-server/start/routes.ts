@@ -13,34 +13,29 @@ router.get('/', async () => {
 
 /**
  * GET /channels
- * - neprihlásený: všetky PUBLIC
- * - prihlásený: PUBLIC + PRIVATE, kde má user záznam v accesses
- *
- * Používame (ctx: any), aby TS neriešil typy auth.user (inak je to "never").
+ * - bez userId: všetky PUBLIC
+ * - s userId: PUBLIC + PRIVATE, kde má user záznam v access
  */
-router.get('/channels', async (ctx: any) => {
-  const userId: number | null = ctx.auth?.user?.id ?? null
+router.get('/channels', async ({ request }) => {
+  const userId = request.input('userId') as number | null
 
-  // 1) ak nie je prihlásený → len PUBLIC
+  // 1) ak nie je userId → len PUBLIC
   if (!userId) {
     return await Channel.query()
       .where('availability', 'public')
       .orderBy('title')
   }
 
-  // 2) prihlásený:
-  //    (availability = 'public')
-  //    OR
-  //    (availability = 'private' AND existuje access pre daného usera)
+  // 2) prihlásený user:
+  //    public kanály + private, kde existuje access pre userId
   const channels = await Channel.query()
-    .where((builder) => {
-      builder
-        .where('availability', 'public')
-        .orWhere((qb) => {
-          qb.where('availability', 'private').whereHas('accesses', (sub) => {
-            sub.where('user_id', userId).whereNull('deleted_at')
-          })
-        })
+    .where('availability', 'public')
+    .orWhereIn('id', (sub) => {
+      sub
+        .from('access')              // názov tabuľky
+        .select('channel_id')
+        .where('user_id', userId)
+        .whereNull('deleted_at')
     })
     .orderBy('title')
 
