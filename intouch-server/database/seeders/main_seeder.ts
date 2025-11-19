@@ -9,7 +9,7 @@ import KickVote from '#models/kick_vote'
 
 export default class MainSeeder extends BaseSeeder {
   public async run () {
-    // 1) USERS – 10 používateľov
+    // 1) USERS
     const users = await User.createMany([
       {
         nickname: 'david',
@@ -22,10 +22,10 @@ export default class MainSeeder extends BaseSeeder {
         password: 'password123',
       },
       {
-        nickname: 'kmet',
-        firstname: 'Kmet',
+        nickname: 'kristof',
+        firstname: 'Kristof',
         surname: 'Kolega',
-        email: 'kmet@example.com',
+        email: 'kristof@example.com',
         profilePicture: null,
         status: 'online',
         notifyOnMentionOnly: true,
@@ -115,7 +115,7 @@ export default class MainSeeder extends BaseSeeder {
 
     const [
       david,
-      kmet,
+      kristof,
       lucia,
       anna,
       martin,
@@ -126,38 +126,29 @@ export default class MainSeeder extends BaseSeeder {
       filip,
     ] = users
 
-    // 2) CHANNELS – 15 kanálov
+    // 2) CHANNELS – všetky public okrem VPWA
     const [
-      vpwaProjekt,
-      wtechProjekt,
+      vpwa,
       design,
-      marketing,
-      sales,
-      support,
       random,
-      ceos,
-      hr,
-      finance,
-      operations,
       product,
-      customerSuccess,
       it,
-      legal,
+
     ] = await Channel.createMany([
       {
         title: 'VPWA - projekt',
-        availability: 'private', // jediný private
+        availability: 'private',
         creatorId: david.id,
       },
       {
         title: 'WTECH - projekt',
         availability: 'public',
-        creatorId: kmet.id,
+        creatorId: kristof.id,
       },
       {
         title: 'Design',
         availability: 'public',
-        creatorId: lucia.id,
+        creatorId: anna.id,
       },
       {
         title: 'Marketing',
@@ -167,17 +158,17 @@ export default class MainSeeder extends BaseSeeder {
       {
         title: 'Sales',
         availability: 'public',
-        creatorId: kmet.id,
+        creatorId: peter.id,
       },
       {
         title: 'Support',
         availability: 'public',
-        creatorId: anna.id,
+        creatorId: jana.id,
       },
       {
         title: 'Random',
         availability: 'public',
-        creatorId: david.id,
+        creatorId: filip.id,
       },
       {
         title: 'CEOs',
@@ -187,130 +178,73 @@ export default class MainSeeder extends BaseSeeder {
       {
         title: 'HR',
         availability: 'public',
-        creatorId: jana.id,
+        creatorId: zuzana.id,
       },
       {
         title: 'Finance',
         availability: 'public',
-        creatorId: tomas.id,
+        creatorId: martin.id,
       },
       {
         title: 'Operations',
         availability: 'public',
-        creatorId: martin.id,
+        creatorId: tomas.id,
       },
       {
         title: 'Product',
         availability: 'public',
-        creatorId: david.id,
+        creatorId: martin.id,
       },
       {
         title: 'Customer Success',
         availability: 'public',
-        creatorId: kmet.id,
+        creatorId: lucia.id,
       },
       {
         title: 'IT',
         availability: 'public',
-        creatorId: martin.id,
+        creatorId: tomas.id,
       },
       {
         title: 'Legal',
         availability: 'public',
-        creatorId: peter.id,
+        creatorId: anna.id,
       },
     ])
 
-    // 3) CHANNEL MEMBERS
+    // 3) CHANNEL MEMBERS (access) – VPWA je private, len David + Kristof
     await ChannelMember.createMany([
-      // VPWA - projekt (private)
-      { userId: david.id, channelId: vpwaProjekt.id, status: 'owner' },
-      { userId: kmet.id, channelId: vpwaProjekt.id, status: 'member' },
-      { userId: lucia.id, channelId: vpwaProjekt.id, status: 'member' },
-      { userId: anna.id, channelId: vpwaProjekt.id, status: 'member' },
+      { userId: david.id,   channelId: vpwa.id, status: 'owner' },
+      { userId: kristof.id, channelId: vpwa.id, status: 'member' },
 
-      // WTECH - projekt
-      { userId: kmet.id, channelId: wtechProjekt.id, status: 'owner' },
-      { userId: david.id, channelId: wtechProjekt.id, status: 'member' },
-      { userId: filip.id, channelId: wtechProjekt.id, status: 'member' },
-
-      // Design
-      { userId: lucia.id, channelId: design.id, status: 'owner' },
-      { userId: anna.id, channelId: design.id, status: 'member' },
-      { userId: zuzana.id, channelId: design.id, status: 'member' },
-
-      // Marketing
-      { userId: zuzana.id, channelId: marketing.id, status: 'owner' },
-      { userId: david.id, channelId: marketing.id, status: 'member' },
-      { userId: peter.id, channelId: marketing.id, status: 'member' },
-
-      // Sales
-      { userId: kmet.id, channelId: sales.id, status: 'owner' },
-      { userId: filip.id, channelId: sales.id, status: 'member' },
-
-      // Support
-      { userId: anna.id, channelId: support.id, status: 'owner' },
-      { userId: jana.id, channelId: support.id, status: 'member' },
-
-      // Random
-      { userId: david.id, channelId: random.id, status: 'owner' },
-      { userId: kmet.id, channelId: random.id, status: 'member' },
-      { userId: filip.id, channelId: random.id, status: 'member' },
-
-      // CEOs
-      { userId: zuzana.id, channelId: ceos.id, status: 'owner' },
-      { userId: david.id, channelId: ceos.id, status: 'member' },
-
-      // HR
-      { userId: jana.id, channelId: hr.id, status: 'owner' },
-      { userId: lucia.id, channelId: hr.id, status: 'member' },
-
-      // Finance
-      { userId: tomas.id, channelId: finance.id, status: 'owner' },
-      { userId: martin.id, channelId: finance.id, status: 'member' },
-
-      // Operations
-      { userId: martin.id, channelId: operations.id, status: 'owner' },
-      { userId: tomas.id, channelId: operations.id, status: 'member' },
-
-      // Product
-      { userId: david.id, channelId: product.id, status: 'owner' },
-      { userId: zuzana.id, channelId: product.id, status: 'member' },
-
-      // Customer Success
-      { userId: kmet.id, channelId: customerSuccess.id, status: 'owner' },
-      { userId: jana.id, channelId: customerSuccess.id, status: 'member' },
-
-      // IT
-      { userId: martin.id, channelId: it.id, status: 'owner' },
-      { userId: peter.id, channelId: it.id, status: 'member' },
-
-      // Legal
-      { userId: peter.id, channelId: legal.id, status: 'owner' },
-      { userId: zuzana.id, channelId: legal.id, status: 'member' },
+      // pár ukážkových členstiev do public kanálov (nie je nutné pre access)
+      { userId: david.id, channelId: it.id, status: 'member' },
+      { userId: david.id, channelId: product.id, status: 'member' },
+      { userId: lucia.id, channelId: design.id, status: 'member' },
+      { userId: anna.id,  channelId: design.id, status: 'member' },
     ])
 
-    // 4) MESSAGES – pár ukážkových
+    // 4) MESSAGES – voliteľné demo
     const [m2, m3] = await Message.createMany([
       {
         senderId: david.id,
-        channelId: vpwaProjekt.id,
-        content: 'Vitajte v kanáli "VPWA - projekt" 👋',
+        channelId: vpwa.id,
+        content: 'Vitajte v kanáli VPWA - projekt 👋',
       },
       {
-        senderId: kmet.id,
-        channelId: wtechProjekt.id,
-        content: 'WTECH tím, dnes o 17:00 sync call?',
+        senderId: kristof.id,
+        channelId: vpwa.id,
+        content: '@david skontroluj prosím posledný commit.',
       },
       {
         senderId: lucia.id,
         channelId: design.id,
-        content: '@anna prosím pozri nový prototyp vo Figme.',
+        content: 'Mám nový prototyp v Figma, mrknite.',
       },
       {
         senderId: martin.id,
         channelId: it.id,
-        content: 'Deploy novej API verzie prebehol OK ✅',
+        content: 'Nasadil som novú verziu backendu ✅',
       },
       {
         senderId: filip.id,
@@ -321,11 +255,11 @@ export default class MainSeeder extends BaseSeeder {
 
     // 5) MENTIONS
     await Mention.createMany([
-      { messageId: m2.id, userId: zuzana.id },
-      { messageId: m3.id, userId: anna.id },
+      { messageId: m2.id, userId: kristof.id },
+      { messageId: m3.id, userId: david.id },
     ])
 
-    // 6) KICK VOTES – príklad (Random kanál, chcú vyhodiť Filipa)
+    // 6) KICK VOTES – len príklad
     await KickVote.createMany([
       {
         channelId: random.id,
@@ -335,10 +269,10 @@ export default class MainSeeder extends BaseSeeder {
       {
         channelId: random.id,
         targetUserId: filip.id,
-        voterUserId: kmet.id,
+        voterUserId: kristof.id,
       },
     ])
 
-    console.log('✅ MainSeeder finished – 10 users & 15 channels inserted.')
+    console.log('✅ MainSeeder finished – users + channels seeded.')
   }
 }

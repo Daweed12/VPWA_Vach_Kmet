@@ -1,3 +1,4 @@
+// app/models/channel.ts
 import { DateTime } from 'luxon'
 import {
   BaseModel,
@@ -6,10 +7,15 @@ import {
   hasMany,
   manyToMany,
 } from '@adonisjs/lucid/orm'
-import type { BelongsTo, HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
+import type {
+  BelongsTo,
+  HasMany,
+  ManyToMany,
+} from '@adonisjs/lucid/types/relations'
 
 import User from '#models/user'
 import Message from '#models/message'
+import Access from '#models/access'
 
 export default class Channel extends BaseModel {
   @column({ isPrimary: true })
@@ -19,7 +25,7 @@ export default class Channel extends BaseModel {
   declare title: string
 
   @column()
-  declare availability: string
+  declare availability: string // 'public' | 'private'
 
   @column({ columnName: 'creator_id' })
   declare creatorId: number
@@ -51,4 +57,10 @@ export default class Channel extends BaseModel {
     pivotRelatedForeignKey: 'user_id',
   })
   declare members: ManyToMany<typeof User>
+
+  // access – kto má prístup do private kanálov
+  @hasMany(() => Access, {
+    foreignKey: 'channelId',
+  })
+  declare accesses: HasMany<typeof Access>
 }

@@ -1,33 +1,59 @@
-// intouch-server/start/routes.ts
-
+// start/routes.ts
 import router from '@adonisjs/core/services/router'
 import Channel from '#models/channel'
 import User from '#models/user'
 import ChannelMember from '#models/channel_member'
 
 /**
- * Jednoduchý root endpoint – na testovanie
+ * Root – test
  */
 router.get('/', async () => {
   return { hello: 'world' }
 })
 
 /**
- * Vráti všetky kanály (momentálne bez filtrovania podľa usera)
+ * GET /channels
+ * - neprihlásený: všetky PUBLIC
+ * - prihlásený: PUBLIC + PRIVATE, kde má user záznam v accesses
+ *
+ * Používame (ctx: any), aby TS neriešil typy auth.user (inak je to "never").
  */
-router.get('/channels', async () => {
-  const channels = await Channel.all()
+router.get('/channels', async (ctx: any) => {
+  const userId: number | null = ctx.auth?.user?.id ?? null
+
+  // 1) ak nie je prihlásený → len PUBLIC
+  if (!userId) {
+    return await Channel.query()
+      .where('availability', 'public')
+      .orderBy('title')
+  }
+
+  // 2) prihlásený:
+  //    (availability = 'public')
+  //    OR
+  //    (availability = 'private' AND existuje access pre daného usera)
+  const channels = await Channel.query()
+    .where((builder) => {
+      builder
+        .where('availability', 'public')
+        .orWhere((qb) => {
+          qb.where('availability', 'private').whereHas('accesses', (sub) => {
+            sub.where('user_id', userId).whereNull('deleted_at')
+          })
+        })
+    })
+    .orderBy('title')
+
   return channels
 })
 
 /**
- * LOGIN – podľa nickname alebo emailu
+ * POST /login – podľa nickname alebo emailu
  */
 router.post('/login', async ({ request, response }) => {
   const { username, password } = request.only(['username', 'password'])
 
-  const user = await User
-    .query()
+  const user = await User.query()
     .where('nickname', username)
     .orWhere('email', username)
     .first()
@@ -47,7 +73,7 @@ router.post('/login', async ({ request, response }) => {
 })
 
 /**
- * REGISTER – vytvorí používateľa + pridá ho do všetkých PUBLIC kanálov
+ * POST /register – vytvorí usera + pridá ho do všetkých PUBLIC kanálov
  */
 router.post('/register', async ({ request, response }) => {
   const { firstName, lastName, email, nickname, password } = request.only([
@@ -58,7 +84,6 @@ router.post('/register', async ({ request, response }) => {
     'password',
   ])
 
-  // Kontrola duplicít
   const existingEmail = await User.query().where('email', email).first()
   if (existingEmail) {
     return response.conflict({ message: 'Tento e-mail sa už používa.' })
@@ -69,7 +94,6 @@ router.post('/register', async ({ request, response }) => {
     return response.conflict({ message: 'Tento nickname sa už používa.' })
   }
 
-  // Vytvorenie usera (heslá tu zatiaľ nie sú hashované – držíme sa vášho projektu)
   const user = await User.create({
     nickname,
     firstname: firstName,
@@ -81,7 +105,6 @@ router.post('/register', async ({ request, response }) => {
     password,
   })
 
-  // Pridanie do všetkých PUBLIC kanálov
   const publicChannels = await Channel.query().where('availability', 'public')
 
   await Promise.all(
@@ -94,7 +117,6 @@ router.post('/register', async ({ request, response }) => {
     ),
   )
 
-  // Rovnaký tvar response ako pri logine
   return {
     id: user.id,
     email: user.email,
@@ -106,7 +128,7 @@ router.post('/register', async ({ request, response }) => {
 })
 
 /**
- * GET /users/:id – detail používateľa (na SettingsPage)
+ * GET /users/:id – detail pre SettingsPage
  */
 router.get('/users/:id', async ({ params, response }) => {
   const user = await User.find(params.id)
@@ -119,7 +141,7 @@ router.get('/users/:id', async ({ params, response }) => {
 })
 
 /**
- * PUT /users/:id – update profilu z SettingsPage
+ * PUT /users/:id – update profilu zo SettingsPage
  */
 router.put('/users/:id', async ({ params, request, response }) => {
   const user = await User.find(params.id)

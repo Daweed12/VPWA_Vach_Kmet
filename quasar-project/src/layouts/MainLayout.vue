@@ -12,7 +12,10 @@
         <q-btn dense flat round icon="person_add" />
         <q-btn
           v-if="showRightDrawer"
-          dense flat round icon="group"
+          dense
+          flat
+          round
+          icon="group"
           @click="toggleRightDrawer"
         />
       </q-toolbar>
@@ -36,7 +39,10 @@
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
             <div class="q-mb-sm">
-              <ChannelSearchHeader />
+              <!-- vyhľadávanie -->
+              <ChannelSearchHeader
+                v-model="channelSearch"
+              />
             </div>
 
             <q-item-label header class="section-label">
@@ -54,7 +60,10 @@
                 @reject="() => handleReject(name)"
               />
             </div>
-            <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
+            <div
+              v-else
+              class="text-grey-6 text-caption q-ml-sm q-mb-md"
+            >
               Žiadne pozvánky
             </div>
 
@@ -62,8 +71,9 @@
 
             <q-item-label header class="section-label">Channels</q-item-label>
 
+            <!-- tu už renderujeme filtrovaný zoznam -->
             <channel
-              v-for="ch in channels"
+              v-for="ch in filteredChannels"
               :key="'ch-' + ch.id"
               :name="ch.title"
               :availability="ch.availability"
@@ -72,12 +82,14 @@
         </div>
 
         <!-- USER CARD DOLE -->
-        <div class="q-pa-none bg-orange-2 drawer-div-wrapper" style="margin-top: 10px; padding: 2px">
+        <div
+          class="q-pa-none bg-orange-2 drawer-div-wrapper"
+          style="margin-top: 10px; padding: 2px"
+        >
           <q-item v-ripple>
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
                 <img src="https://cdn.quasar.dev/img/avatar4.jpg" alt="EY">
-                <!-- DYNAMICKÁ FARBA PODĽA STATUSU -->
                 <div :class="['status-dot', statusDotClass]"></div>
               </q-avatar>
             </q-item-section>
@@ -101,6 +113,7 @@
         <div style="height: 10px;" class="bg-primary"></div>
       </q-drawer>
 
+      <!-- MemberList napravo -->
       <MemberList v-if="showRightDrawer" v-model="rightDrawerOpen" />
 
       <q-page-container class="bg-orange-3">
@@ -108,6 +121,7 @@
       </q-page-container>
     </div>
 
+    <!-- TextBar dole -->
     <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
       <text-bar class="full-width full-height" @send="onTextBarSend" />
     </q-footer>
@@ -116,7 +130,6 @@
 
 <script lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
 import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
@@ -151,16 +164,17 @@ export default {
   setup () {
     const leftDrawerOpen = ref(false)
     const rightDrawerOpen = ref(false)
-    const route = useRoute()
 
     const invites = ref<string[]>(['Tajný projekt', 'Skola memes'])
     const channels = ref<ChannelFromApi[]>([])
 
+    const channelSearch = ref('')
+
     const currentUser = ref<CurrentUser | null>(null)
 
-    const showComposer = computed(() => route.meta.showComposer === true)
-    const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
-    const showHeader = computed(() => route.meta.showHeader !== false)
+    const showComposer = ref(true)
+    const showRightDrawer = ref(true)
+    const showHeader = ref(true)
 
     function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
     function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
@@ -193,19 +207,23 @@ export default {
       console.log('Správa:', text)
     }
 
-    // COMPUTED: meno a status text
+    // filtrovanie kanálov podľa search
+    const filteredChannels = computed(() => {
+      const term = channelSearch.value.trim().toLowerCase()
+      if (!term) return channels.value
+      return channels.value.filter(ch =>
+        ch.title.toLowerCase().includes(term)
+      )
+    })
+
     const currentUserName = computed(() => {
       if (!currentUser.value) return 'Guest'
       const full = `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim()
       return full || currentUser.value.nickname || currentUser.value.email
     })
 
-    const currentUserStatus = computed(() => {
-      const status = currentUser.value?.status ?? 'online'
-      return status
-    })
+    const currentUserStatus = computed(() => currentUser.value?.status ?? 'online')
 
-    // COMPUTED: farba bodky podľa statusu
     const statusDotClass = computed(() => {
       const status = (currentUser.value?.status ?? 'online').toLowerCase()
       switch (status) {
@@ -222,7 +240,6 @@ export default {
       }
     })
 
-    // handler na custom event z UserSettings.vue
     const handleCurrentUserUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<CurrentUser>
       currentUser.value = customEvent.detail
@@ -240,9 +257,7 @@ export default {
 
       try {
         const raw = localStorage.getItem('currentUser')
-        if (raw) {
-          currentUser.value = JSON.parse(raw) as CurrentUser
-        }
+        if (raw) currentUser.value = JSON.parse(raw) as CurrentUser
       } catch (e) {
         console.error('Chyba pri čítaní currentUser z localStorage', e)
       }
@@ -262,6 +277,8 @@ export default {
       toggleRightDrawer,
       invites,
       channels,
+      filteredChannels,
+      channelSearch,
       handleAccept,
       handleReject,
       onTextBarSend,
@@ -304,19 +321,6 @@ export default {
   -ms-overflow-style: none;
 }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
-
-.channel-item {
-  border-radius: 15px;
-  min-height: 50px;
-  padding: 0 15px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 10px;
-}
-.channel-item .q-item__section--main { font-size: 1.1em; }
-.channel-item .q-item__section--side { padding-left: 10px; }
 
 .avatar-with-status {
   position: relative;
