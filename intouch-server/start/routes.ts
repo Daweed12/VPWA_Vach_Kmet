@@ -1,22 +1,34 @@
-// start/routes.ts
 import router from '@adonisjs/core/services/router'
-import Channel from '#models/channel'   // <<< normálny (statický) import
+import Channel from '#models/channel'
+import User from '#models/user'
 
-/*
-|--------------------------------------------------------------------------
-| Default route - len na test
-|--------------------------------------------------------------------------
-*/
 router.get('/', async () => {
   return { hello: 'world' }
 })
 
-/*
-|--------------------------------------------------------------------------
-| Zoznam kanálov z DB
-|--------------------------------------------------------------------------
-*/
 router.get('/channels', async () => {
   const channels = await Channel.all()
-  return channels          // <<< musíš vrátiť, inak je "unused variable"
+  return channels
+})
+
+// LOGIN – používateľ z databázy podľa username (nickname alebo email)
+router.post('/login', async ({ request, response }) => {
+  const { username, password } = request.only(['username', 'password'])
+
+  const user = await User
+    .query()
+    .where('nickname', username)
+    .orWhere('email', username)
+    .first()
+
+  if (!user || user.password !== password) {
+    return response.unauthorized({ message: 'Nesprávne meno alebo heslo.' })
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    nickname: user.nickname,
+    status: user.status,
+  }
 })
