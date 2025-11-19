@@ -63,9 +63,10 @@
             <q-item-label header class="section-label">Channels</q-item-label>
 
             <channel
-              v-for="name in channels"
-              :key="'ch-' + name"
-              :name="name"
+              v-for="ch in channels"
+              :key="'ch-' + ch.id"
+              :name="ch.title"
+              :availability="ch.availability"
             />
           </q-list>
         </div>
@@ -112,19 +113,29 @@
 </template>
 
 <script lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
 import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
 import MemberList from 'components/MemberList.vue'
+import { api } from 'boot/api'
+
+interface ChannelFromApi {
+  id: number
+  title: string
+  availability: string
+  creatorId: number
+  createdAt: string
+  lastMessageAt: string | null
+}
 
 export default {
   components: {
     ChannelSearchHeader,
     textBar,
     channel: ChannelBar,
-    MemberList
+    MemberList,
   },
   setup () {
     const leftDrawerOpen = ref(false)
@@ -132,38 +143,41 @@ export default {
     const route = useRoute()
 
     const invites = ref<string[]>(['Tajný projekt', 'Skola memes'])
-    const channels = ref<string[]>([
-      'VPWA - projekt',
-      'WTECH - projekt',
-      'Design',
-      'Marketing',
-      'Sales',
-      'Support',
-      'Random',
-      'CEOs',
-      'HR',
-      'Finance',
-      'Operations',
-      'Product',
-      'Customer Success',
-      'IT',
-      'Legal'
-    ])
+    // teraz držíme celé objekty kanálov, nie len string názvy
+    const channels = ref<ChannelFromApi[]>([])
 
     const showComposer = computed(() => route.meta.showComposer === true)
     const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
     const showHeader = computed(() => route.meta.showHeader !== false)
 
-    function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
-    function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
+    function toggleLeftDrawer () {
+      leftDrawerOpen.value = !leftDrawerOpen.value
+    }
+
+    function toggleRightDrawer () {
+      rightDrawerOpen.value = !rightDrawerOpen.value
+    }
 
     const handleAccept = (name: string) => {
-      invites.value = invites.value.filter(n => n !== name)
-      if (!channels.value.includes(name)) channels.value.unshift(name)
+      invites.value = invites.value.filter((n) => n !== name)
+
+      // ak taký názov ešte v channels nie je, pridáme ho ako private (lokálny kanál)
+      if (!channels.value.some((c) => c.title === name)) {
+        channels.value.push({
+          id: Date.now(),                // len lokálne ID
+          title: name,
+          availability: 'private',       // pozvánky berme ako private
+          creatorId: 0,
+          createdAt: new Date().toISOString(),
+          lastMessageAt: null,
+        })
+      }
+
       console.log('Pozvánka prijatá:', name)
     }
+
     const handleReject = (name: string) => {
-      invites.value = invites.value.filter(n => n !== name)
+      invites.value = invites.value.filter((n) => n !== name)
       console.log('Pozvánka odmietnutá:', name)
     }
 
@@ -175,6 +189,16 @@ export default {
       }
       console.log('Správa:', text)
     }
+
+    onMounted(async () => {
+      try {
+        const { data } = await api.get<ChannelFromApi[]>('/channels')
+        // tu už necháme celé objekty – availability ide z DB
+        channels.value = data
+      } catch (error) {
+        console.error('Chyba pri načítaní kanálov z API', error)
+      }
+    })
 
     return {
       leftDrawerOpen,
@@ -188,11 +212,12 @@ export default {
       channels,
       handleAccept,
       handleReject,
-      onTextBarSend
+      onTextBarSend,
     }
-  }
+  },
 }
 </script>
+
 
 <style>
 .no-page-scroll,

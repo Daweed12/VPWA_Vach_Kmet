@@ -26,7 +26,7 @@ export async function boot() {
     })
   })
 
-  console.log('Socket.IO initialized')
+  //console.log('Socket.IO initialized')
 }
 
 export function getIO() {
