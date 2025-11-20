@@ -1,34 +1,49 @@
 <template>
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
-    <!-- HORNÝ HEADER -->
+    <!-- HLAVNÝ HEADER -->
     <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
       <div style="height: 20px;" class="bg-primary"></div>
+
       <q-toolbar>
         <q-toolbar-title>
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
-          VPWA - projekt
+
+          <!-- Názov podľa toho, či som v settings alebo v app -->
+          <span v-if="isSettingsPage">
+            Nastavenia používateľského účtu
+          </span>
+          <span v-else-if="currentChannelTitle">
+            {{ currentChannelTitle }}
+          </span>
+          <span v-else>
+            VPWA - projekt
+          </span>
         </q-toolbar-title>
 
-        <q-btn dense flat round icon="close" />
-        <q-btn dense flat round icon="person_add" />
-        <q-btn
-          dense
-          flat
-          round
-          icon="group"
-          @click="toggleRightDrawer"
-        />
+        <!-- Ikonky vpravo – len mimo settings -->
+        <template v-if="!isSettingsPage">
+          <q-btn dense flat round icon="close" />
+          <q-btn dense flat round icon="person_add" />
+          <q-btn
+            dense flat round
+            icon="group"
+            @click="toggleRightDrawer"
+          />
+        </template>
+
       </q-toolbar>
     </q-header>
 
+    <!-- HLAVNÉ TELO -->
     <div class="column no-wrap test">
-      <!-- ĽAVÝ DRAWER -->
+      <!-- ĽAVÝ PANEL -->
       <q-drawer
         show-if-above
         v-model="leftDrawerOpen"
         side="left"
         class="bg-orange-5 column"
       >
+        <!-- LOGO -->
         <div style="margin: 10px 15px 10px 15px;">
           <img
             src="../assets/intouch-logo-name.svg"
@@ -37,55 +52,58 @@
           />
         </div>
 
+        <!-- MIDDLE PANEL -->
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
             <div class="q-mb-sm">
-              <!-- vyhľadávanie kanálov -->
               <ChannelSearchHeader v-model="channelSearch" />
             </div>
 
+            <!-- INVITES -->
             <q-item-label header class="section-label">
               Invites
-              <span
-                v-if="invites.length"
-                class="count-badge"
-              >{{ invites.length }}</span>
+              <span v-if="invites.length" class="count-badge">
+                {{ invites.length }}
+              </span>
             </q-item-label>
 
-            <!-- INVITES z channel_invites -->
             <div v-if="invites.length">
               <channel
                 v-for="inv in invites"
                 :key="'invite-' + inv.id"
                 :name="inv.title"
                 :availability="inv.availability"
-                is-invite
+                :is-invite="true"
                 @accept="() => handleAccept(inv)"
                 @reject="() => handleReject(inv)"
               />
             </div>
-            <div
-              v-else
-              class="text-grey-6 text-caption q-ml-sm q-mb-md"
-            >
+
+            <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
               Žiadne pozvánky
             </div>
 
             <q-separator spaced />
 
-            <q-item-label header class="section-label">Channels</q-item-label>
+            <!-- CHANNELS -->
+            <q-item-label header class="section-label">
+              Channels
+              <span v-if="filteredChannels.length" class="count-badge">
+                {{ filteredChannels.length }}
+              </span>
+            </q-item-label>
 
-            <!-- KANÁLY z API (filtrované) -->
             <channel
               v-for="ch in filteredChannels"
               :key="'ch-' + ch.id"
               :name="ch.title"
               :availability="ch.availability"
+              @click="() => handleChannelClick(ch)"
             />
           </q-list>
         </div>
 
-        <!-- USER CARD DOLE -->
+        <!-- USER BADGE DOLE -->
         <div
           class="q-pa-none bg-orange-2 drawer-div-wrapper"
           style="margin-top: 10px; padding: 2px"
@@ -93,8 +111,8 @@
           <q-item v-ripple>
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
-                <img src="https://cdn.quasar.dev/img/avatar4.jpg" alt="EY">
-                <div :class="['status-dot', statusDotClass]"></div>
+                <img :src="currentUserAvatar" alt="avatar" />
+                <div class="status-dot" :class="statusDotClass"></div>
               </q-avatar>
             </q-item-section>
 
@@ -120,24 +138,27 @@
         <div style="height: 10px;" class="bg-primary"></div>
       </q-drawer>
 
-      <!-- MEMBER LIST VPRAVO -->
+      <!-- RIGHT SIDEBAR -->
+      <!-- RIGHT SIDEBAR -->
       <MemberList v-model="rightDrawerOpen" />
 
-      <!-- HLAVNÁ STRANA -->
+
+      <!-- MAIN VIEW -->
       <q-page-container class="bg-orange-3">
         <router-view />
       </q-page-container>
     </div>
 
-    <!-- TEXTBAR DOLE – vždy viditeľný -->
-    <q-footer class="bg-orange-1 footer-wrapper q-pa-sm">
+    <!-- TEXTBAR DOLE – len mimo settings -->
+    <q-footer v-if="!isSettingsPage" class="bg-orange-1 footer-wrapper q-pa-sm">
       <text-bar class="full-width full-height" @send="onTextBarSend" />
     </q-footer>
+
   </q-layout>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
@@ -149,9 +170,9 @@ interface ChannelFromApi {
   id: number
   title: string
   availability: string
-  creatorId: number
-  createdAt: string
-  lastMessageAt: string | null
+  creatorId?: number
+  createdAt?: string
+  lastMessageAt?: string | null
 }
 
 interface InviteFromApi {
@@ -159,6 +180,7 @@ interface InviteFromApi {
   channelId: number
   title: string
   availability: string
+  inviterId: number
   createdAt: string
 }
 
@@ -169,10 +191,10 @@ interface CurrentUser {
   firstname: string | null
   surname: string | null
   status: string | null
+  profilePicture: string | null
 }
 
-export default defineComponent({
-  name: 'MainLayout',
+export default {
   components: {
     ChannelSearchHeader,
     textBar,
@@ -181,18 +203,24 @@ export default defineComponent({
   },
 
   setup () {
-    const route = useRoute()
-
     const leftDrawerOpen = ref(false)
     const rightDrawerOpen = ref(false)
+
+    const route = useRoute()
 
     const invites = ref<InviteFromApi[]>([])
     const channels = ref<ChannelFromApi[]>([])
     const channelSearch = ref('')
 
+    const currentChannelTitle = ref<string | null>(null)
     const currentUser = ref<CurrentUser | null>(null)
 
+    const showComposer = computed(() => route.meta.showComposer === true)
+    const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
     const showHeader = computed(() => route.meta.showHeader !== false)
+
+    // 👉 sme na /app/settings ?
+    const isSettingsPage = computed(() => route.path.startsWith('/app/settings'))
 
     function toggleLeftDrawer () {
       leftDrawerOpen.value = !leftDrawerOpen.value
@@ -203,39 +231,85 @@ export default defineComponent({
     }
 
     const handleAccept = async (inv: InviteFromApi) => {
-      try {
-        await api.post(`/invites/${inv.id}/accept`)
+      await api.post(`/invites/${inv.id}/accept`)
+      invites.value = invites.value.filter((i) => i.id !== inv.id)
 
-        // odstráň pozvánku z UI
-        invites.value = invites.value.filter((i) => i.id !== inv.id)
-
-        // ak kanál ešte nemáme v zozname, pridaj ho
-        if (!channels.value.find((c) => c.id === inv.channelId)) {
-          channels.value.unshift({
-            id: inv.channelId,
-            title: inv.title,
-            availability: inv.availability,
-            creatorId: 0,
-            createdAt: inv.createdAt,
-            lastMessageAt: null,
-          })
-        }
-
-        console.log('Pozvánka prijatá:', inv.title)
-      } catch (error) {
-        console.error('Chyba pri accept pozvánky', error)
+      if (!channels.value.find((c) => c.id === inv.channelId)) {
+        channels.value.unshift({
+          id: inv.channelId,
+          title: inv.title,
+          availability: inv.availability,
+        })
       }
     }
 
     const handleReject = async (inv: InviteFromApi) => {
-      try {
-        await api.post(`/invites/${inv.id}/reject`)
-        invites.value = invites.value.filter((i) => i.id !== inv.id)
-        console.log('Pozvánka odmietnutá:', inv.title)
-      } catch (error) {
-        console.error('Chyba pri reject pozvánky', error)
-      }
+      await api.post(`/invites/${inv.id}/reject`)
+      invites.value = invites.value.filter((i) => i.id !== inv.id)
     }
+
+    const handleChannelClick = (ch: ChannelFromApi) => {
+      currentChannelTitle.value = ch.title
+
+      window.dispatchEvent(
+        new CustomEvent('channelSelected', {
+          detail: {
+            id: ch.id,
+            title: ch.title,
+          },
+        }),
+      )
+    }
+
+    const filteredChannels = computed(() => {
+      const term = channelSearch.value.trim().toLowerCase()
+      if (!term) return channels.value
+      return channels.value.filter((c) =>
+        c.title.toLowerCase().includes(term),
+      )
+    })
+
+    const currentUserName = computed(() => {
+      if (!currentUser.value) return 'User'
+      return (
+        `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim() ||
+        currentUser.value.nickname ||
+        currentUser.value.email
+      )
+    })
+
+    const currentUserAvatar = computed(
+      () =>
+        currentUser.value?.profilePicture ||
+        'https://cdn.quasar.dev/img/avatar4.jpg',
+    )
+
+    const currentUserStatus = computed(
+      () => currentUser.value?.status ?? 'online',
+    )
+
+    const statusDotClass = computed(() => {
+      const status = (currentUser.value?.status ?? 'online').toLowerCase()
+      return {
+        'bg-green': status === 'online',
+        'bg-amber': status === 'away',
+        'bg-red': status === 'dnd',
+        'bg-grey': status === 'offline',
+      }
+    })
+
+    onMounted(async () => {
+      const stored = localStorage.getItem('currentUser')
+      if (stored) currentUser.value = JSON.parse(stored)
+
+      const userId = currentUser.value?.id
+
+      const chRes = await api.get('/channels', { params: { userId } })
+      channels.value = chRes.data
+
+      const invRes = await api.get('/invites', { params: { userId } })
+      invites.value = invRes.data
+    })
 
     const onTextBarSend = (text: string) => {
       const cmd = text.trim().toLowerCase()
@@ -246,112 +320,36 @@ export default defineComponent({
       console.log('Správa:', text)
     }
 
-    const filteredChannels = computed(() => {
-      const term = channelSearch.value.trim().toLowerCase()
-      if (!term) return channels.value
-      return channels.value.filter((ch) =>
-        ch.title.toLowerCase().includes(term),
-      )
-    })
-
-    const currentUserName = computed(() => {
-      if (!currentUser.value) return 'Guest'
-      const full = `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim()
-      return full || currentUser.value.nickname || currentUser.value.email
-    })
-
-    const currentUserStatus = computed(
-      () => currentUser.value?.status ?? 'online',
-    )
-
-    const statusDotClass = computed(() => {
-      const status = (currentUser.value?.status ?? 'online').toLowerCase()
-      switch (status) {
-        case 'online':
-          return 'bg-green'
-        case 'away':
-          return 'bg-amber'
-        case 'dnd':
-          return 'bg-red'
-        case 'offline':
-          return 'bg-grey-5'
-        default:
-          return 'bg-grey-5'
-      }
-    })
-
-    const handleCurrentUserUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<CurrentUser>
-      currentUser.value = customEvent.detail
-    }
-
-    onMounted(async () => {
-      window.addEventListener(
-        'currentUserUpdated',
-        handleCurrentUserUpdated as EventListener,
-      )
-
-      // 1) načítaj currentUser z localStorage
-      try {
-        const raw = localStorage.getItem('currentUser')
-        if (raw) {
-          currentUser.value = JSON.parse(raw) as CurrentUser
-        }
-      } catch (e) {
-        console.error('Chyba pri čítaní currentUser z localStorage', e)
-      }
-
-      const userId = currentUser.value?.id ?? null
-
-      // 2) načítaj kanály (public + private podľa access)
-      try {
-        const { data } = await api.get<ChannelFromApi[]>('/channels', {
-          params: { userId },
-        })
-        channels.value = data
-      } catch (error) {
-        console.error('Chyba pri načítaní kanálov z API', error)
-      }
-
-      // 3) načítaj invites pre daného usera z channel_invites
-      try {
-        if (userId) {
-          const { data } = await api.get<InviteFromApi[]>('/invites', {
-            params: { userId },
-          })
-          invites.value = data
-        }
-      } catch (error) {
-        console.error('Chyba pri načítaní invites z API', error)
-      }
-    })
-
-    onUnmounted(() => {
-      window.removeEventListener(
-        'currentUserUpdated',
-        handleCurrentUserUpdated as EventListener,
-      )
-    })
-
     return {
       leftDrawerOpen,
       rightDrawerOpen,
-      showHeader,
       toggleLeftDrawer,
       toggleRightDrawer,
+
       invites,
       channels,
       filteredChannels,
       channelSearch,
+      currentChannelTitle,
+
+      showComposer,
+      showRightDrawer,
+      showHeader,
+      isSettingsPage,
+
       handleAccept,
       handleReject,
-      onTextBarSend,
+      handleChannelClick,
+
       currentUserName,
+      currentUserAvatar,
       currentUserStatus,
       statusDotClass,
+
+      onTextBarSend,
     }
   },
-})
+}
 </script>
 
 <style>
@@ -416,6 +414,7 @@ export default defineComponent({
   align-items: center;
   gap: 6px;
 }
+
 .count-badge {
   font-size: 11px;
   line-height: 1;

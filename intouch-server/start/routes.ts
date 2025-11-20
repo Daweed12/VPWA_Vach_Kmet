@@ -6,6 +6,7 @@ import User from '#models/user'
 import ChannelMember from '#models/channel_member'
 import Access from '#models/access'
 import ChannelInvite from '#models/channel_invite'
+import Message from '#models/message'
 
 /**
  * Root – test
@@ -232,4 +233,22 @@ router.put('/users/:id', async ({ params, request, response }) => {
   await user.save()
 
   return user
+})
+
+// GET /channels/:id/messages – správy v kanáli
+router.get('/channels/:id/messages', async ({ params, response }) => {
+  const channelId = Number(params.id)
+
+  if (Number.isNaN(channelId)) {
+    return response.badRequest({ message: 'Neplatné ID kanála.' })
+  }
+
+  // načítaj správy pre kanál + autora správy
+  const messages = await Message.query()
+    .where('channelId', channelId)
+    .preload('sender')
+    .orderBy('timestamp', 'asc')
+
+  // frontend očakáva: { id, content, timestamp, senderId, sender: { ... } }
+  return messages.map((m) => m.serialize())
 })
