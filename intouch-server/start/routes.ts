@@ -252,3 +252,51 @@ router.get('/channels/:id/messages', async ({ params, response }) => {
   // frontend očakáva: { id, content, timestamp, senderId, sender: { ... } }
   return messages.map((m) => m.serialize())
 })
+
+
+router.post('/channels', async ({ request, response }) => {
+  const { title, availability, creatorId } = request.only([
+    'title',
+    'availability',
+    'creatorId',
+  ])
+
+  if (!title || !creatorId) {
+    return response.badRequest({ message: 'title a creatorId sú povinné.' })
+  }
+
+  const user = await User.find(creatorId)
+  if (!user) {
+    return response.badRequest({ message: 'Používateľ (creatorId) neexistuje.' })
+  }
+
+  const safeAvailability =
+    availability === 'private' ? 'private' : 'public'
+
+  // 1) vytvoríme kanál
+  const channel = await Channel.create({
+    title,
+    availability: safeAvailability,
+    creatorId: user.id,
+  })
+
+  // 2) ak je private, rovno mu dáme Access
+  if (safeAvailability === 'private') {
+    await Access.firstOrCreate({
+      userId: user.id,
+      channelId: channel.id,
+    })
+  }
+
+  // 3) a nech je owner v ChannelMember
+  await ChannelMember.create({
+    userId: user.id,
+    channelId: channel.id,
+    status: 'owner',
+  })
+
+  return channel
+})
+
+
+

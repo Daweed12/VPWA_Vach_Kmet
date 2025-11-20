@@ -1,19 +1,19 @@
 <template>
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
-    <!-- HLAVNÝ HEADER -->
+    <!-- HEADER -->
     <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
-      <div style="height: 20px;" class="bg-primary"></div>
+      <div style="height: 20px;" class="bg-primary" />
 
       <q-toolbar>
         <q-toolbar-title>
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
 
-          <!-- Názov podľa toho, či som v settings alebo v app -->
+          <!-- Titulok podľa stránky -->
           <span v-if="isSettingsPage">
             Nastavenia používateľského účtu
           </span>
           <span v-else-if="currentChannelTitle">
-            {{ currentChannelTitle }}
+            # {{ currentChannelTitle }}
           </span>
           <span v-else>
             VPWA - projekt
@@ -22,28 +22,38 @@
 
         <!-- Ikonky vpravo – len mimo settings -->
         <template v-if="!isSettingsPage">
-          <q-btn dense flat round icon="close" />
+          <!-- X len ak som owner daného kanála -->
+          <q-btn
+            v-if="canDeleteCurrentChannel"
+            dense
+            flat
+            round
+            icon="close"
+            :disable="deletingChannel"
+            @click="onDeleteCurrentChannel"
+          />
           <q-btn dense flat round icon="person_add" />
           <q-btn
-            dense flat round
+            dense
+            flat
+            round
             icon="group"
             @click="toggleRightDrawer"
           />
         </template>
-
       </q-toolbar>
     </q-header>
 
-    <!-- HLAVNÉ TELO -->
+    <!-- TELO -->
     <div class="column no-wrap test">
-      <!-- ĽAVÝ PANEL -->
+      <!-- ĽAVÝ SIDEBAR -->
       <q-drawer
         show-if-above
         v-model="leftDrawerOpen"
         side="left"
         class="bg-orange-5 column"
       >
-        <!-- LOGO -->
+        <!-- Logo -->
         <div style="margin: 10px 15px 10px 15px;">
           <img
             src="../assets/intouch-logo-name.svg"
@@ -52,17 +62,23 @@
           />
         </div>
 
-        <!-- MIDDLE PANEL -->
+        <!-- Invites + Channels -->
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
             <div class="q-mb-sm">
-              <ChannelSearchHeader v-model="channelSearch" />
+              <ChannelSearchHeader
+                v-model="channelSearch"
+                @create-channel="openCreateChannelDialog"
+              />
             </div>
 
             <!-- INVITES -->
             <q-item-label header class="section-label">
               Invites
-              <span v-if="invites.length" class="count-badge">
+              <span
+                v-if="invites.length"
+                class="count-badge"
+              >
                 {{ invites.length }}
               </span>
             </q-item-label>
@@ -78,8 +94,10 @@
                 @reject="() => handleReject(inv)"
               />
             </div>
-
-            <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
+            <div
+              v-else
+              class="text-grey-6 text-caption q-ml-sm q-mb-md"
+            >
               Žiadne pozvánky
             </div>
 
@@ -88,7 +106,10 @@
             <!-- CHANNELS -->
             <q-item-label header class="section-label">
               Channels
-              <span v-if="filteredChannels.length" class="count-badge">
+              <span
+                v-if="filteredChannels.length"
+                class="count-badge"
+              >
                 {{ filteredChannels.length }}
               </span>
             </q-item-label>
@@ -112,7 +133,7 @@
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
                 <img :src="currentUserAvatar" alt="avatar" />
-                <div class="status-dot" :class="statusDotClass"></div>
+                <div class="status-dot" :class="statusDotClass" />
               </q-avatar>
             </q-item-section>
 
@@ -135,25 +156,89 @@
           </q-item>
         </div>
 
-        <div style="height: 10px;" class="bg-primary"></div>
+        <div style="height: 10px;" class="bg-primary" />
       </q-drawer>
 
-      <!-- RIGHT SIDEBAR -->
-      <!-- RIGHT SIDEBAR -->
-      <MemberList v-model="rightDrawerOpen" />
+      <!-- PRAVÝ SIDEBAR (MemberList) – len mimo settings -->
+      <MemberList
+        v-if="!isSettingsPage"
+        v-model="rightDrawerOpen"
+      />
 
-
-      <!-- MAIN VIEW -->
+      <!-- HLAVNÝ OBSAH -->
       <q-page-container class="bg-orange-3">
         <router-view />
       </q-page-container>
     </div>
 
-    <!-- TEXTBAR DOLE – len mimo settings -->
-    <q-footer v-if="!isSettingsPage" class="bg-orange-1 footer-wrapper q-pa-sm">
-      <text-bar class="full-width full-height" @send="onTextBarSend" />
+    <!-- TEXTBAR – vždy na /app, okrem /app/settings -->
+    <q-footer
+      v-if="showComposer"
+      class="bg-orange-1 footer-wrapper q-pa-sm"
+    >
+      <text-bar
+        class="full-width full-height"
+        @send="onTextBarSend"
+      />
     </q-footer>
 
+    <!-- DIALOG: Vytvoriť nový kanál -->
+    <q-dialog v-model="createDialogOpen" persistent>
+      <q-card style="min-width: 400px">
+        <q-card-section>
+          <div class="text-h6">Vytvoriť nový kanál</div>
+          <div class="text-caption text-grey-7 q-mt-xs">
+            Budeš nastavený ako vlastník kanála.
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none q-gutter-md">
+          <q-input
+            v-model="newChannelTitle"
+            label="Názov kanála"
+            autofocus
+            :rules="[
+              (val) =>
+                (!!val && val.trim().length >= 3) || 'Min. 3 znaky'
+            ]"
+          />
+
+          <q-option-group
+            v-model="newChannelAvailability"
+            type="radio"
+            :options="[
+              { label: 'Verejný (public)', value: 'public' },
+              { label: 'Súkromný (private)', value: 'private' }
+            ]"
+            inline
+          />
+
+          <div
+            v-if="createChannelError"
+            class="text-negative text-caption"
+          >
+            {{ createChannelError }}
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            label="Zrušiť"
+            color="grey"
+            @click="closeCreateDialog"
+          />
+          <q-btn
+            unelevated
+            color="orange-7"
+            :loading="creatingChannel"
+            :disable="creatingChannel"
+            label="Vytvoriť"
+            @click="onCreateChannelConfirm"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
@@ -199,11 +284,11 @@ export default {
     ChannelSearchHeader,
     textBar,
     channel: ChannelBar,
-    MemberList,
+    MemberList
   },
 
   setup () {
-    const leftDrawerOpen = ref(false)
+    const leftDrawerOpen = ref(true)
     const rightDrawerOpen = ref(false)
 
     const route = useRoute()
@@ -213,14 +298,30 @@ export default {
     const channelSearch = ref('')
 
     const currentChannelTitle = ref<string | null>(null)
+    const currentChannel = ref<ChannelFromApi | null>(null)
     const currentUser = ref<CurrentUser | null>(null)
 
-    const showComposer = computed(() => route.meta.showComposer === true)
-    const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
     const showHeader = computed(() => route.meta.showHeader !== false)
-
-    // 👉 sme na /app/settings ?
     const isSettingsPage = computed(() => route.path.startsWith('/app/settings'))
+
+    // TextBar: vždy na /app, okrem settings
+    const showComposer = computed(() => !isSettingsPage.value)
+
+    // CREATE CHANNEL dialog state
+    const createDialogOpen = ref(false)
+    const newChannelTitle = ref('')
+    const newChannelAvailability = ref<'public' | 'private'>('public')
+    const creatingChannel = ref(false)
+    const createChannelError = ref('')
+
+    // DELETE CHANNEL stav
+    const deletingChannel = ref(false)
+
+    // či je current user owner aktuálneho kanála
+    const canDeleteCurrentChannel = computed(() => {
+      if (!currentUser.value || !currentChannel.value) return false
+      return currentChannel.value.creatorId === currentUser.value.id
+    })
 
     function toggleLeftDrawer () {
       leftDrawerOpen.value = !leftDrawerOpen.value
@@ -238,7 +339,7 @@ export default {
         channels.value.unshift({
           id: inv.channelId,
           title: inv.title,
-          availability: inv.availability,
+          availability: inv.availability
         })
       }
     }
@@ -250,14 +351,15 @@ export default {
 
     const handleChannelClick = (ch: ChannelFromApi) => {
       currentChannelTitle.value = ch.title
+      currentChannel.value = ch
 
       window.dispatchEvent(
         new CustomEvent('channelSelected', {
           detail: {
             id: ch.id,
-            title: ch.title,
-          },
-        }),
+            title: ch.title
+          }
+        })
       )
     }
 
@@ -265,7 +367,7 @@ export default {
       const term = channelSearch.value.trim().toLowerCase()
       if (!term) return channels.value
       return channels.value.filter((c) =>
-        c.title.toLowerCase().includes(term),
+        c.title.toLowerCase().includes(term)
       )
     })
 
@@ -281,11 +383,11 @@ export default {
     const currentUserAvatar = computed(
       () =>
         currentUser.value?.profilePicture ||
-        'https://cdn.quasar.dev/img/avatar4.jpg',
+        'https://cdn.quasar.dev/img/avatar4.jpg'
     )
 
     const currentUserStatus = computed(
-      () => currentUser.value?.status ?? 'online',
+      () => currentUser.value?.status ?? 'online'
     )
 
     const statusDotClass = computed(() => {
@@ -294,7 +396,7 @@ export default {
         'bg-green': status === 'online',
         'bg-amber': status === 'away',
         'bg-red': status === 'dnd',
-        'bg-grey': status === 'offline',
+        'bg-grey': status === 'offline'
       }
     })
 
@@ -320,6 +422,115 @@ export default {
       console.log('Správa:', text)
     }
 
+    // CREATE CHANNEL handlers
+    function openCreateChannelDialog () {
+      if (!currentUser.value) {
+        window.alert('Najprv sa prihlás ako používateľ.')
+        return
+      }
+      createChannelError.value = ''
+      newChannelTitle.value = ''
+      newChannelAvailability.value = 'public'
+      createDialogOpen.value = true
+    }
+
+    function closeCreateDialog () {
+      if (creatingChannel.value) return
+      createDialogOpen.value = false
+    }
+
+    const onCreateChannelConfirm = async () => {
+      if (!currentUser.value) {
+        createChannelError.value = 'Nie si prihlásený.'
+        return
+      }
+
+      const title = newChannelTitle.value.trim()
+      if (title.length < 3) {
+        createChannelError.value = 'Názov musí mať aspoň 3 znaky.'
+        return
+      }
+
+      // kontrola duplicit – case-insensitive
+      const lower = title.toLowerCase()
+      if (channels.value.some(c => c.title.trim().toLowerCase() === lower)) {
+        createChannelError.value = 'Kanál s týmto názvom už existuje.'
+        return
+      }
+
+      creatingChannel.value = true
+      createChannelError.value = ''
+
+      try {
+        const payload = {
+          title,
+          availability: newChannelAvailability.value,
+          creatorId: currentUser.value.id
+        }
+
+        const res = await api.post('/channels', payload)
+        const created = res.data as ChannelFromApi
+
+        channels.value.unshift(created)
+        handleChannelClick(created)
+
+        createDialogOpen.value = false
+      } catch (error) {
+        console.error('Chyba pri vytváraní kanála', error)
+
+        const err = error as {
+          response?: { data?: { message?: string } }
+        }
+
+        createChannelError.value =
+          err.response?.data?.message ??
+          'Nepodarilo sa vytvoriť kanál. Skús to ešte raz.'
+      } finally {
+        creatingChannel.value = false
+      }
+    }
+
+    // DELETE CHANNEL handler
+    const onDeleteCurrentChannel = async () => {
+      if (!currentChannel.value || !currentUser.value) return
+      if (!canDeleteCurrentChannel.value) return
+
+      const title = currentChannel.value.title
+      const id = currentChannel.value.id
+
+      const ok = window.confirm(
+        `Naozaj chceš vymazať kanál "${title}"?\nTúto akciu nie je možné vrátiť.`
+      )
+      if (!ok) return
+
+      try {
+        deletingChannel.value = true
+        await api.delete(`/channels/${id}`)
+
+        // odstráň z lokálneho zoznamu
+        channels.value = channels.value.filter(c => c.id !== id)
+
+        // reset aktuálneho kanála
+        currentChannel.value = null
+        currentChannelTitle.value = null
+
+        // pošli event do IndexPage, aby si vyčistil správy
+        window.dispatchEvent(
+          new CustomEvent('channelSelected', {
+            detail: {
+              id: null,
+              title: null
+            }
+          })
+        )
+      } catch (error) {
+        console.error('Chyba pri mazaní kanála', error)
+        window.alert('Kanál sa nepodarilo vymazať. Skús to znova.')
+      } finally {
+        deletingChannel.value = false
+      }
+    }
+
     return {
       leftDrawerOpen,
       rightDrawerOpen,
@@ -332,10 +543,9 @@ export default {
       channelSearch,
       currentChannelTitle,
 
-      showComposer,
-      showRightDrawer,
       showHeader,
       isSettingsPage,
+      showComposer,
 
       handleAccept,
       handleReject,
@@ -347,8 +557,21 @@ export default {
       statusDotClass,
 
       onTextBarSend,
+
+      createDialogOpen,
+      newChannelTitle,
+      newChannelAvailability,
+      creatingChannel,
+      createChannelError,
+      openCreateChannelDialog,
+      closeCreateDialog,
+      onCreateChannelConfirm,
+
+      canDeleteCurrentChannel,
+      deletingChannel,
+      onDeleteCurrentChannel
     }
-  },
+  }
 }
 </script>
 

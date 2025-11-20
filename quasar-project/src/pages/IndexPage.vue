@@ -18,33 +18,36 @@
       </div>
 
       <!-- samotný chat -->
-      <div ref="scrollArea" class="chat-scroll">
-        <!-- placeholder keď nie je vybraný kanál -->
+      <div
+        ref="scrollArea"
+        id="chat-scroll"
+        class="chat-scroll"
+      >
+        <!-- 1) Nie je zvolený žiadny kanál -->
         <div
-          v-if="!activeChannelId && !loading"
+          v-if="!activeChannelId"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
         >
-          <q-icon name="chat_bubble_outline" size="48px" class="q-mb-sm" />
-          <div class="text-subtitle1 text-center">
-            Zatiaľ nie je vybraný žiadny kanál.
-          </div>
-          <div class="text-caption text-center q-mt-xs">
-            Klikni na kanál vľavo a zobrazí sa konverzácia z databázy.
+          <q-icon name="chat_bubble_outline" size="32px" class="q-mb-sm" />
+          <div class="text-caption text-center">
+            Najprv vyber kanál vľavo.
           </div>
         </div>
 
-        <!-- loader -->
+        <!-- 2) Načítanie prvých správ -->
         <div
-          v-else-if="loading"
+          v-else-if="loading && totalMessages === 0"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
         >
           <q-spinner-dots size="32px" class="q-mb-sm" />
-          <div class="text-caption">Načítavam správy…</div>
+          <div class="text-caption text-center">
+            Načítavam správy…
+          </div>
         </div>
 
-        <!-- žiadne správy -->
+        <!-- 3) Kanál je prázdny -->
         <div
-          v-else-if="uiMessages.length === 0"
+          v-else-if="!loading && totalMessages === 0"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
         >
           <q-icon name="hourglass_empty" size="32px" class="q-mb-sm" />
@@ -53,42 +56,58 @@
           </div>
         </div>
 
-        <!-- správy z databázy -->
+        <!-- 4) Správy + infinite scroll -->
         <div
           v-else
           class="q-pt-sm q-pb-lg"
         >
-          <div
-            v-for="msg in uiMessages"
-            :key="msg.id"
-            class="q-px-sm q-py-xs"
+          <q-infinite-scroll
+            :key="infiniteKey"
+            reverse
+            :offset="10"
+            :debounce="120"
+            @load="onLoad"
+            scroll-target="#chat-scroll"
           >
-            <q-chat-message
-              :name="msg.name"
-              :avatar="msg.avatar"
-              :sent="msg.sent"
-              :bg-color="msg.sent ? 'primary' : 'grey-3'"
-              :text-color="msg.sent ? 'white' : 'black'"
-              class="shadow-sm"
+            <div
+              v-for="msg in visibleMessages"
+              :key="msg.id"
+              class="q-px-sm q-py-xs"
             >
-              <template #default>
-                <span class="bubble-text">
-                  <span
-                    v-for="(chunk, idx) in chunks(msg.text)"
-                    :key="msg.id + '-' + idx"
-                  >
+              <q-chat-message
+                :name="msg.name"
+                :avatar="msg.avatar"
+                :sent="msg.sent"
+                :bg-color="msg.sent ? 'primary' : 'grey-3'"
+                :text-color="msg.sent ? 'white' : 'black'"
+                class="shadow-sm"
+              >
+                <template #default>
+                  <span class="bubble-text">
                     <span
-                      v-if="chunk.type === 'mention'"
-                      class="mention"
+                      v-for="(chunk, idx) in chunks(msg.text)"
+                      :key="msg.id + '-' + idx"
                     >
-                      @{{ chunk.value }}
+                      <span
+                        v-if="chunk.type === 'mention'"
+                        class="mention"
+                      >
+                        @{{ chunk.value }}
+                      </span>
+                      <span v-else>{{ chunk.value }}</span>
                     </span>
-                    <span v-else>{{ chunk.value }}</span>
                   </span>
-                </span>
-              </template>
-            </q-chat-message>
-          </div>
+                </template>
+              </q-chat-message>
+            </div>
+
+            <template #loading>
+              <div class="loading-banner" v-show="isLoading">
+                <q-spinner-dots size="24px" />
+                <span class="ml-2">Načítavam staršie správy…</span>
+              </div>
+            </template>
+          </q-infinite-scroll>
         </div>
       </div>
     </div>
@@ -98,6 +117,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
+
+/* ===== typy z API ===== */
 
 interface CurrentUser {
   id: number
@@ -122,7 +143,6 @@ interface MessageFromApi {
   id: number
   content: string
   timestamp: string
-  senderId: number
   sender: SenderFromApi
 }
 
@@ -136,6 +156,8 @@ interface UiMessage {
   text: string
 }
 
+/* ===== stav stránky ===== */
+
 const activeChannelId = ref<number | null>(null)
 const activeChannelTitle = ref<string | null>(null)
 
@@ -143,11 +165,21 @@ const currentUser = ref<CurrentUser | null>(null)
 
 const rawMessages = ref<MessageFromApi[]>([])
 const loading = ref(false)
+
 const scrollArea = ref<HTMLElement | null>(null)
 
-/**
- * Prevod správ z API na formát pre q-chat-message
- */
+/* ===== infinite scroll paging ===== */
+
+const step = 15                           // koľko správ naraz
+const visibleCount = ref(0)               // koľko správ je aktuálne vidno
+const isLoading = ref(false)              // loading banner hore
+const finished = ref(false)               // či už nie sú ďalšie správy
+
+// 👉 nový kľúč pre q-infinite-scroll
+const infiniteKey = ref(0)
+
+/* ===== odvodené hodnoty ===== */
+
 const uiMessages = computed<UiMessage[]>(() => {
   return rawMessages.value.map((m) => {
     const s = m.sender
@@ -173,51 +205,27 @@ const uiMessages = computed<UiMessage[]>(() => {
   })
 })
 
-/**
- * Rozbitie textu na obyčajný text + @mentions
- */
-const chunks = (text: string): Chunk[] => {
-  const re = /\B@([\p{L}\p{N}_-]+)/gu
-  const out: Chunk[] = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
+const totalMessages = computed(() => uiMessages.value.length)
 
-  while ((match = re.exec(text)) !== null) {
-    const [full, username] = match
-    const index = match.index
+const visibleMessages = computed<UiMessage[]>(() => {
+  const total = totalMessages.value
+  if (total === 0) return []
 
-    if (index > lastIndex) {
-      out.push({ type: 'text', value: text.slice(lastIndex, index) })
-    }
+  const cnt = Math.min(visibleCount.value || step, total)
+  const start = Math.max(total - cnt, 0)
+  return uiMessages.value.slice(start)
+})
 
-    out.push({ type: 'mention', value: username })
-    lastIndex = index + full.length
-  }
+/* ===== helpery ===== */
 
-  if (lastIndex < text.length) {
-    out.push({ type: 'text', value: text.slice(lastIndex) })
-  }
-
-  return out
+const resetPaging = () => {
+  visibleCount.value = 0
+  isLoading.value = false
+  finished.value = false
 }
 
-/**
- * Načítanie currentUser z localStorage
- */
-const loadCurrentUserFromStorage = () => {
-  try {
-    const raw = localStorage.getItem('currentUser')
-    if (raw) {
-      currentUser.value = JSON.parse(raw) as CurrentUser
-    }
-  } catch (e) {
-    console.error('Chyba pri čítaní currentUser z localStorage', e)
-  }
-}
+/* ===== načítanie správ pre kanál ===== */
 
-/**
- * Načítanie správ pre aktívny kanál
- */
 const loadMessagesForChannel = async () => {
   if (!activeChannelId.value) {
     rawMessages.value = []
@@ -225,11 +233,19 @@ const loadMessagesForChannel = async () => {
   }
 
   loading.value = true
+  resetPaging()
+
+  infiniteKey.value++
+
   try {
     const { data } = await api.get<MessageFromApi[]>(
       `/channels/${activeChannelId.value}/messages`,
     )
     rawMessages.value = data
+
+    const total = totalMessages.value
+    visibleCount.value = Math.min(step, total)
+    finished.value = visibleCount.value >= total
 
     await nextTick()
     if (scrollArea.value) {
@@ -243,26 +259,136 @@ const loadMessagesForChannel = async () => {
   }
 }
 
-/**
- * Handler pre event z MainLayoutu – klik na kanál
- */
-function handleChannelSelected (event: Event) {
-  const custom = event as CustomEvent<{ id: number; title: string }>
-  activeChannelId.value = custom.detail.id
-  activeChannelTitle.value = custom.detail.title
+/* ===== infinite scroll callback ===== */
+
+const onLoad = (index: number, done: (finished?: boolean) => void) => {
+  if (loading.value) {
+    done()
+    return
+  }
+  if (finished.value) {
+    done(true)
+    return
+  }
+
+  isLoading.value = true
+
+  const el = scrollArea.value
+  const prevScrollHeight = el?.scrollHeight ?? 0
+
+  setTimeout(() => {
+    const total = totalMessages.value
+    const next = Math.min(visibleCount.value + step, total)
+    visibleCount.value = next
+
+    void nextTick(() => {
+      const newScrollHeight = el?.scrollHeight ?? 0
+      if (el) {
+        el.scrollTop += newScrollHeight - prevScrollHeight
+      }
+
+      isLoading.value = false
+
+      if (visibleCount.value >= total) {
+        finished.value = true
+        done(true)
+      } else {
+        done()
+      }
+    })
+  }, 300)
+}
+
+/* ===== parsovanie @mention ===== */
+
+const chunks = (text: string): Chunk[] => {
+  const re = /\B@([\p{L}\p{N}_-]+)/gu
+  const out: Chunk[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push({ type: 'text', value: text.slice(last, m.index) })
+    }
+    const captured = m[1]
+    if (typeof captured === 'string') {
+      out.push({ type: 'mention', value: captured })
+    } else {
+      out.push({ type: 'text', value: text.slice(m.index, re.lastIndex) })
+    }
+    last = re.lastIndex
+  }
+
+  if (last < text.length) {
+    out.push({ type: 'text', value: text.slice(last) })
+  }
+
+  return out
+}
+
+/* ===== eventy z MainLayoutu ===== */
+
+const handleChannelSelected = (event: Event) => {
+  const detail = (event as CustomEvent<{ id: number; title: string }>).detail
+  activeChannelId.value = detail.id
+  activeChannelTitle.value = detail.title
   void loadMessagesForChannel()
 }
 
-/**
- * Handler pre aktualizáciu currentUser (napr. po logine)
- */
-function handleCurrentUserUpdated (event: Event) {
-  const custom = event as CustomEvent<CurrentUser>
-  currentUser.value = custom.detail
+const handleCurrentUserUpdated = (event: Event) => {
+  const detail = (event as CustomEvent<CurrentUser>).detail
+  currentUser.value = detail
 }
 
+/* ===== notifikácie (ako v pôvodnej verzii) ===== */
+
+const notificationsSupported =
+  typeof window !== 'undefined' && typeof Notification !== 'undefined'
+
+const notificationPermission = ref<NotificationPermission>(
+  notificationsSupported ? Notification.permission : 'default',
+)
+
+let notificationTimer: ReturnType<typeof setTimeout> | null = null
+
+const showNotification = () => {
+  if (!notificationsSupported) return
+  if (notificationPermission.value !== 'granted') {
+    return
+  }
+
+  const last = uiMessages.value[uiMessages.value.length - 1]
+  if (!last) return
+
+  const notification = new Notification(last.name, {
+    body: last.text,
+    icon: last.avatar,
+    badge: 'https://cdn-icons-png.flaticon.com/512/1384/1384069.png',
+  })
+  notification.onclick = () => {
+    window.focus()
+  }
+}
+
+const handleVisibilityChange = () => {
+  if (!notificationsSupported) return
+
+  if (document.visibilityState === 'hidden') {
+    notificationTimer = setTimeout(() => {
+      showNotification()
+    }, 3000)
+  } else if (notificationTimer) {
+    clearTimeout(notificationTimer)
+    notificationTimer = null
+  }
+}
+
+/* ===== lifecycle ===== */
+
 onMounted(() => {
-  loadCurrentUserFromStorage()
+  const stored = localStorage.getItem('currentUser')
+  if (stored) currentUser.value = JSON.parse(stored)
 
   window.addEventListener(
     'channelSelected',
@@ -273,6 +399,24 @@ onMounted(() => {
     'currentUserUpdated',
     handleCurrentUserUpdated as EventListener,
   )
+
+  if (notificationsSupported) {
+    notificationPermission.value = Notification.permission
+    if (
+      Notification.permission !== 'granted' &&
+      Notification.permission !== 'denied'
+    ) {
+      Notification.requestPermission()
+        .then((permission) => {
+          notificationPermission.value = permission
+        })
+        .catch((err) => {
+          console.error('Chyba pri žiadaní o povolenie na notifikácie:', err)
+        })
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }
 })
 
 onUnmounted(() => {
@@ -285,6 +429,14 @@ onUnmounted(() => {
     'currentUserUpdated',
     handleCurrentUserUpdated as EventListener,
   )
+
+  if (notificationsSupported) {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }
+  if (notificationTimer) {
+    clearTimeout(notificationTimer)
+    notificationTimer = null
+  }
 })
 </script>
 
@@ -300,21 +452,49 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 1px;
 }
 
 .chat-header {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(4px);
+  background: #ffe0b2;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0 16px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
 }
 
-/* bubliny */
+.chat-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-scroll {
+  scrollbar-width: none;
+}
+
+.loading-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(2px);
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+/* text bubliny + @mention */
+
 .bubble-text {
   white-space: pre-wrap;
   word-wrap: break-word;
