@@ -1,8 +1,11 @@
 // start/routes.ts
 import router from '@adonisjs/core/services/router'
+
 import Channel from '#models/channel'
 import User from '#models/user'
 import ChannelMember from '#models/channel_member'
+import Access from '#models/access'
+import ChannelInvite from '#models/channel_invite'
 
 /**
  * Root – test
@@ -19,20 +22,19 @@ router.get('/', async () => {
 router.get('/channels', async ({ request }) => {
   const userId = request.input('userId') as number | null
 
-  // 1) ak nie je userId → len PUBLIC
+  // neprihlásený → len public
   if (!userId) {
     return await Channel.query()
       .where('availability', 'public')
       .orderBy('title')
   }
 
-  // 2) prihlásený user:
-  //    public kanály + private, kde existuje access pre userId
+  // prihlásený → public + private s accessom
   const channels = await Channel.query()
     .where('availability', 'public')
     .orWhereIn('id', (sub) => {
       sub
-        .from('access')              // názov tabuľky
+        .from('access')
         .select('channel_id')
         .where('user_id', userId)
         .whereNull('deleted_at')
@@ -40,6 +42,78 @@ router.get('/channels', async ({ request }) => {
     .orderBy('title')
 
   return channels
+})
+
+/**
+ * GET /invites?userId=1
+ * Vracia pending pozvánky daného používateľa
+ */
+router.get('/invites', async ({ request }) => {
+  const userId = Number(request.input('userId'))
+  if (!userId) return []
+
+  const invites = await ChannelInvite
+    .query()
+    .where('user_id', userId)
+    .where('status', 'pending')
+    .preload('channel')
+
+  return invites.map((inv) => ({
+    id: inv.id,
+    channelId: inv.channelId,
+    title: inv.channel.title,
+    availability: inv.channel.availability,
+    createdAt: inv.createdAt.toISO(),
+  }))
+})
+
+/**
+ * POST /invites/:id/accept
+ * - označí invite ako accepted
+ * - vytvorí Access + ChannelMember
+ */
+router.post('/invites/:id/accept', async ({ params, response }) => {
+  const invite = await ChannelInvite.find(params.id)
+
+  if (!invite || invite.status !== 'pending') {
+    return response.badRequest({
+      message: 'Pozvánka neexistuje alebo nie je pending.',
+    })
+  }
+
+  invite.status = 'accepted'
+  await invite.save()
+
+  await Access.firstOrCreate({
+    userId: invite.userId,
+    channelId: invite.channelId,
+  })
+
+  await ChannelMember.firstOrCreate(
+    { userId: invite.userId, channelId: invite.channelId },
+    { status: 'member' },
+  )
+
+  return { ok: true }
+})
+
+/**
+ * POST /invites/:id/reject
+ * - označí invite ako rejected
+ */
+router.post('/invites/:id/reject', async ({ params, response }) => {
+  const invite = await ChannelInvite.find(params.id)
+
+  if (!invite || invite.status !== 'pending') {
+    return response.badRequest({
+      message: 'Pozvánka neexistuje alebo nie je pending.',
+    })
+  }
+
+  invite.status = 'rejected'
+  await invite.save()
+
+  return { ok: true }
 })
 
 /**

@@ -9,7 +9,6 @@ export default defineComponent({
       required: true,
     },
     availability: {
-      // tu neriešime union typ, nech je to obyčajný string
       type: String,
       default: 'public',
     },
@@ -65,7 +64,6 @@ export default defineComponent({
       {{ name }}
     </q-item-section>
 
-    <!-- Badge len pre normálne kanály -->
     <q-badge
       v-if="!isInvite"
       :color="badgeColor"
@@ -75,7 +73,7 @@ export default defineComponent({
       {{ badgeText }}
     </q-badge>
 
-    <!-- Ak to NIE je invite – ikony person_add a close -->
+    <!-- normálny channel – icons person_add & close -->
     <q-item-section v-if="!isInvite" side>
       <div class="row items-center">
         <q-btn flat round dense icon="person_add" color="orange-8" size="md" />
@@ -83,7 +81,7 @@ export default defineComponent({
       </div>
     </q-item-section>
 
-    <!-- Ak je to invite – check / close s emitmi -->
+    <!-- invite – accept / reject -->
     <q-item-section v-else side>
       <div class="row items-center">
         <q-btn

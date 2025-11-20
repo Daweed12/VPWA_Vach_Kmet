@@ -12,7 +12,6 @@
         <q-btn dense flat round icon="close" />
         <q-btn dense flat round icon="person_add" />
         <q-btn
-          v-if="showRightDrawer"
           dense
           flat
           round
@@ -53,16 +52,16 @@
               >{{ invites.length }}</span>
             </q-item-label>
 
-            <!-- INVITES -->
+            <!-- INVITES z channel_invites -->
             <div v-if="invites.length">
               <channel
-                v-for="ch in invites"
-                :key="'invite-' + ch.id"
-                :name="ch.title"
-                :availability="ch.availability"
+                v-for="inv in invites"
+                :key="'invite-' + inv.id"
+                :name="inv.title"
+                :availability="inv.availability"
                 is-invite
-                @accept="() => handleAccept(ch)"
-                @reject="() => handleReject(ch)"
+                @accept="() => handleAccept(inv)"
+                @reject="() => handleReject(inv)"
               />
             </div>
             <div
@@ -122,7 +121,7 @@
       </q-drawer>
 
       <!-- MEMBER LIST VPRAVO -->
-      <MemberList v-if="showRightDrawer" v-model="rightDrawerOpen" />
+      <MemberList v-model="rightDrawerOpen" />
 
       <!-- HLAVNÁ STRANA -->
       <q-page-container class="bg-orange-3">
@@ -130,8 +129,8 @@
       </q-page-container>
     </div>
 
-    <!-- TEXTBAR DOLE -->
-    <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
+    <!-- TEXTBAR DOLE – vždy viditeľný -->
+    <q-footer class="bg-orange-1 footer-wrapper q-pa-sm">
       <text-bar class="full-width full-height" @send="onTextBarSend" />
     </q-footer>
   </q-layout>
@@ -149,10 +148,18 @@ import { api } from 'boot/api'
 interface ChannelFromApi {
   id: number
   title: string
-  availability: string          // ⬅️ obyčajný string, nech sedí s ChannelBar prop
+  availability: string
   creatorId: number
   createdAt: string
   lastMessageAt: string | null
+}
+
+interface InviteFromApi {
+  id: number
+  channelId: number
+  title: string
+  availability: string
+  createdAt: string
 }
 
 interface CurrentUser {
@@ -179,32 +186,12 @@ export default defineComponent({
     const leftDrawerOpen = ref(false)
     const rightDrawerOpen = ref(false)
 
-    const invites = ref<ChannelFromApi[]>([
-      {
-        id: -1,
-        title: 'Tajný projekt',
-        availability: 'private',
-        creatorId: 0,
-        createdAt: new Date().toISOString(),
-        lastMessageAt: null,
-      },
-      {
-        id: -2,
-        title: 'Skola memes',
-        availability: 'private',
-        creatorId: 0,
-        createdAt: new Date().toISOString(),
-        lastMessageAt: null,
-      },
-    ])
-
+    const invites = ref<InviteFromApi[]>([])
     const channels = ref<ChannelFromApi[]>([])
     const channelSearch = ref('')
 
     const currentUser = ref<CurrentUser | null>(null)
 
-    const showComposer = computed(() => route.meta.showComposer === true)
-    const showRightDrawer = computed(() => route.meta.showRightDrawer === true)
     const showHeader = computed(() => route.meta.showHeader !== false)
 
     function toggleLeftDrawer () {
@@ -215,24 +202,45 @@ export default defineComponent({
       rightDrawerOpen.value = !rightDrawerOpen.value
     }
 
-    const handleAccept = (ch: ChannelFromApi) => {
-      invites.value = invites.value.filter((i) => i.id !== ch.id)
+    const handleAccept = async (inv: InviteFromApi) => {
+      try {
+        await api.post(`/invites/${inv.id}/accept`)
 
-      if (!channels.value.find((c) => c.id === ch.id)) {
-        channels.value.unshift(ch)
+        // odstráň pozvánku z UI
+        invites.value = invites.value.filter((i) => i.id !== inv.id)
+
+        // ak kanál ešte nemáme v zozname, pridaj ho
+        if (!channels.value.find((c) => c.id === inv.channelId)) {
+          channels.value.unshift({
+            id: inv.channelId,
+            title: inv.title,
+            availability: inv.availability,
+            creatorId: 0,
+            createdAt: inv.createdAt,
+            lastMessageAt: null,
+          })
+        }
+
+        console.log('Pozvánka prijatá:', inv.title)
+      } catch (error) {
+        console.error('Chyba pri accept pozvánky', error)
       }
-      console.log('Pozvánka prijatá:', ch.title)
     }
 
-    const handleReject = (ch: ChannelFromApi) => {
-      invites.value = invites.value.filter((i) => i.id !== ch.id)
-      console.log('Pozvánka odmietnutá:', ch.title)
+    const handleReject = async (inv: InviteFromApi) => {
+      try {
+        await api.post(`/invites/${inv.id}/reject`)
+        invites.value = invites.value.filter((i) => i.id !== inv.id)
+        console.log('Pozvánka odmietnutá:', inv.title)
+      } catch (error) {
+        console.error('Chyba pri reject pozvánky', error)
+      }
     }
 
     const onTextBarSend = (text: string) => {
       const cmd = text.trim().toLowerCase()
       if (cmd === '/list') {
-        if (showRightDrawer.value) rightDrawerOpen.value = true
+        rightDrawerOpen.value = true
         return
       }
       console.log('Správa:', text)
@@ -283,7 +291,7 @@ export default defineComponent({
         handleCurrentUserUpdated as EventListener,
       )
 
-      // 1) najprv načítaj currentUser z localStorage
+      // 1) načítaj currentUser z localStorage
       try {
         const raw = localStorage.getItem('currentUser')
         if (raw) {
@@ -293,17 +301,28 @@ export default defineComponent({
         console.error('Chyba pri čítaní currentUser z localStorage', e)
       }
 
-      // 2) potom zavolaj /channels s userId
-      try {
-        const userId = currentUser.value?.id ?? null
+      const userId = currentUser.value?.id ?? null
 
+      // 2) načítaj kanály (public + private podľa access)
+      try {
         const { data } = await api.get<ChannelFromApi[]>('/channels', {
           params: { userId },
         })
-
         channels.value = data
       } catch (error) {
         console.error('Chyba pri načítaní kanálov z API', error)
+      }
+
+      // 3) načítaj invites pre daného usera z channel_invites
+      try {
+        if (userId) {
+          const { data } = await api.get<InviteFromApi[]>('/invites', {
+            params: { userId },
+          })
+          invites.value = data
+        }
+      } catch (error) {
+        console.error('Chyba pri načítaní invites z API', error)
       }
     })
 
@@ -317,8 +336,6 @@ export default defineComponent({
     return {
       leftDrawerOpen,
       rightDrawerOpen,
-      showComposer,
-      showRightDrawer,
       showHeader,
       toggleLeftDrawer,
       toggleRightDrawer,

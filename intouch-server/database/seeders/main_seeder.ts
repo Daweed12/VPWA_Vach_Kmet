@@ -7,6 +7,7 @@ import Access from '#models/access'
 import Message from '#models/message'
 import Mention from '#models/mention'
 import KickVote from '#models/kick_vote'
+import ChannelInvite from '#models/channel_invite'
 
 export default class MainSeeder extends BaseSeeder {
   public async run () {
@@ -127,19 +128,16 @@ export default class MainSeeder extends BaseSeeder {
       filip,
     ] = users
 
-    // 2) CHANNELS – všetky public okrem VPWA
+    // 2) CHANNELS – všetky public okrem VPWA a 3 extra private
     const [
       vpwa,
-
       design,
-
       random,
-
-
       product,
-
-      it
-
+      it,
+      secretAlpha,
+      secretBeta,
+      secretGamma,
     ] = await Channel.createMany([
       {
         title: 'VPWA - projekt',
@@ -216,28 +214,76 @@ export default class MainSeeder extends BaseSeeder {
         availability: 'public',
         creatorId: anna.id,
       },
+      // nové private kanály pre pozvánky
+      {
+        title: 'Alpha Squad',
+        availability: 'private',
+        creatorId: zuzana.id,
+      },
+      {
+        title: 'Beta Experiments',
+        availability: 'private',
+        creatorId: anna.id,
+      },
+      {
+        title: 'Gamma Secret Ops',
+        availability: 'private',
+        creatorId: tomas.id,
+      },
     ])
 
-    // 3) ACCESS – práva do private kanálov
+    // 3) ACCESS – David + Kristof majú access do VPWA (reálny private channel)
     await Access.createMany([
-      { userId: david.id,   channelId: vpwa.id },
+      { userId: david.id, channelId: vpwa.id },
       { userId: kristof.id, channelId: vpwa.id },
     ])
 
     // 4) CHANNEL MEMBERS – členovia kanálov
     await ChannelMember.createMany([
       // VPWA (private) – len David + Kristof
-      { userId: david.id,   channelId: vpwa.id, status: 'owner' },
+      { userId: david.id, channelId: vpwa.id, status: 'owner' },
       { userId: kristof.id, channelId: vpwa.id, status: 'member' },
 
       // pár ukážkových členstiev do public kanálov
       { userId: david.id, channelId: it.id, status: 'member' },
       { userId: david.id, channelId: product.id, status: 'member' },
       { userId: lucia.id, channelId: design.id, status: 'member' },
-      { userId: anna.id,  channelId: design.id, status: 'member' },
+      { userId: anna.id, channelId: design.id, status: 'member' },
     ])
 
-    // 5) MESSAGES – demo správy
+    // 5) CHANNEL INVITES
+    // user 1 (David) – pending do všetkých troch nových private kanálov
+    // user 2 (Kristof) – pending iba do Alpha Squad, iné pending nemá
+    await ChannelInvite.createMany([
+      // David -> všetky 3
+      {
+        channelId: secretAlpha.id,
+        userId: david.id,
+        inviterId: kristof.id,
+        status: 'pending',
+      },
+      {
+        channelId: secretBeta.id,
+        userId: david.id,
+        inviterId: zuzana.id,
+        status: 'pending',
+      },
+      {
+        channelId: secretGamma.id,
+        userId: david.id,
+        inviterId: anna.id,
+        status: 'pending',
+      },
+      // Kristof -> len Alpha Squad
+      {
+        channelId: secretAlpha.id,
+        userId: kristof.id,
+        inviterId: david.id,
+        status: 'pending',
+      },
+    ])
+
+    // 6) MESSAGES – demo správy
     const [m2, m3] = await Message.createMany([
       {
         senderId: david.id,
@@ -266,13 +312,13 @@ export default class MainSeeder extends BaseSeeder {
       },
     ])
 
-    // 6) MENTIONS
+    // 7) MENTIONS
     await Mention.createMany([
       { messageId: m2.id, userId: kristof.id },
       { messageId: m3.id, userId: david.id },
     ])
 
-    // 7) KICK VOTES – len príklad
+    // 8) KICK VOTES – len príklad
     await KickVote.createMany([
       {
         channelId: random.id,
@@ -286,6 +332,6 @@ export default class MainSeeder extends BaseSeeder {
       },
     ])
 
-    console.log('✅ MainSeeder finished – users, channels, access, members, messages.')
+    console.log('✅ MainSeeder finished – users, channels, access, invites, members, messages.')
   }
 }
