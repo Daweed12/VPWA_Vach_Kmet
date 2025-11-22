@@ -15,6 +15,25 @@ router.get('/', async () => {
   return { hello: 'world' }
 })
 
+router.get('/channels/:id/members', async ({ params }) => {
+  const channel = await Channel.query()
+    .where('id', params.id)
+    .preload('members', (query) => {
+      query.pivotColumns(['status', 'joined_at'])
+    })
+    .firstOrFail()
+
+  return channel.members.map((u) => ({
+    id: u.id,
+    name:
+      u.nickname ||
+      `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() ||
+      u.email,
+    status: u.$extras.pivot_status || 'offline'
+  }))
+})
+
+
 /**
  * GET /channels
  * - bez userId: všetky PUBLIC

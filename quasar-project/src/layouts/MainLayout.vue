@@ -163,6 +163,7 @@
       <MemberList
         v-if="!isSettingsPage"
         v-model="rightDrawerOpen"
+        :channel-id="currentChannel?.id ?? null"
       />
 
       <!-- HLAVNÝ OBSAH -->
@@ -542,6 +543,7 @@ export default {
       filteredChannels,
       channelSearch,
       currentChannelTitle,
+      currentChannel,
 
       showHeader,
       isSettingsPage,

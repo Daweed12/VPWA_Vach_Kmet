@@ -1,6 +1,7 @@
 <script lang="ts">
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, ref, computed, watch } from 'vue';
 import AddUserToChannel from './AddUserToChannel.vue';
+import { api } from 'boot/api';
 
 type Status = 'online' | 'offline' | 'away' | 'dnd';
 type Member = { id: number; name: string; status: Status };
@@ -8,7 +9,10 @@ type Member = { id: number; name: string; status: Status };
 export default defineComponent({
   name: 'MemberList',
   components: { AddUserToChannel },
-  props: { modelValue: { type: Boolean, required: true } },
+  props: {
+    modelValue: { type: Boolean, required: true },
+    channelId: { type: Number as () => number | null, default: null }
+  },
   emits: ['update:modelValue', 'add'],
   setup (props, { emit }) {
     const isOpen = computed({
@@ -17,21 +21,40 @@ export default defineComponent({
     });
 
     const showAddDialog = ref(false);
+    const members = ref<Member[]>([]);
+    const loading = ref(false);
 
-    const members = ref<Member[]>([
-      { id: 1,  name: 'Jozko Mrkvicka', status: 'online'  },
-      { id: 2,  name: 'Anna Hrušková',   status: 'online'  },
-      { id: 3,  name: 'Peter Kôstka',    status: 'offline' },
-      { id: 4,  name: 'Eva Nováková',    status: 'online'  },
-      { id: 5,  name: 'Martin Kováč',    status: 'offline' },
-      { id: 6,  name: 'Lucia Biela',     status: 'away'    },
-      { id: 7,  name: 'Juraj Rybár',     status: 'away'    },
-      { id: 8,  name: 'Mária Košíková',  status: 'offline' },
-      { id: 9,  name: 'Igor Oriešok',    status: 'away'    },
-      { id:10,  name: 'Jana Šipka',      status: 'dnd'     },
-      { id:11,  name: 'Kamil Polesný',   status: 'dnd'     },
-      { id:12,  name: 'Laura Dúhová',    status: 'online'  }
-    ]);
+    const fetchMembers = async () => {
+      if (!props.channelId) {
+        members.value = [];
+        return;
+      }
+
+      loading.value = true;
+      try {
+        const response = await api.get(`/channels/${props.channelId}/members`);
+        members.value = response.data.map((m: { id: number; name: string; status: string }) => ({
+          id: m.id,
+          name: m.name,
+          status: (m.status || 'offline') as Status
+        }));
+      } catch (error) {
+        console.error('Error fetching members:', error);
+        members.value = [];
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    // Fetch members when channelId changes
+    watch(() => props.channelId, fetchMembers, { immediate: true });
+
+    // Also fetch when drawer opens (in case channelId was set before drawer opened)
+    watch(() => props.modelValue, (isOpen) => {
+      if (isOpen && props.channelId) {
+        void fetchMembers();
+      }
+    });
 
     const getInitials = (fullName: string) =>
       fullName.trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
@@ -59,7 +82,7 @@ export default defineComponent({
       emit('add');
     };
 
-    return { isOpen, members, getInitials, statusText, statusColor, addMember, showAddDialog };
+    return { isOpen, members, loading, getInitials, statusText, statusColor, addMember, showAddDialog };
   }
 });
 </script>
@@ -83,7 +106,16 @@ export default defineComponent({
     </div>
 
     <div class="col bg-orange-2 q-pa-lg hide-scrollbar" style="margin: 0 16px 8px 16px; border-radius: 16px; overflow-y: auto;">
-      <div class="row q-col-gutter-md">
+      <div v-if="loading" class="flex flex-center" style="min-height: 200px;">
+        <q-spinner color="primary" size="3em" />
+      </div>
+      <div v-else-if="members.length === 0" class="flex flex-center text-grey-6" style="min-height: 200px;">
+        <div class="text-center">
+          <q-icon name="people" size="3em" class="q-mb-sm" />
+          <div>Žiadni členovia</div>
+        </div>
+      </div>
+      <div v-else class="row q-col-gutter-md">
         <div class="col-4" v-for="m in members" :key="m.id">
           <div class="relative-position flex flex-center" style="height:96px;">
             <q-avatar
