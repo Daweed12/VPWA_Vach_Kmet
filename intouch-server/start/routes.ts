@@ -314,9 +314,92 @@ router.get('/channels/:id/messages', async ({ params, response }) => {
     .orderBy('timestamp', 'asc')
 
   // frontend očakáva: { id, content, timestamp, senderId, sender: { ... } }
-  return messages.map((m) => m.serialize())
+  return messages.map((m) => {
+    const serialized = m.serialize()
+    return {
+      ...serialized,
+      timestamp: m.timestamp.toISO(),
+      sender: m.sender ? {
+        id: m.sender.id,
+        nickname: m.sender.nickname,
+        firstname: m.sender.firstname,
+        surname: m.sender.surname,
+        email: m.sender.email,
+        profilePicture: m.sender.profilePicture,
+      } : null
+    }
+  })
 })
 
+// POST /channels/:id/messages – vytvorí správu v kanáli
+router.post('/channels/:id/messages', async ({ params, request, response }) => {
+  const channelId = Number(params.id)
+  const { content, senderId } = request.only(['content', 'senderId'])
+
+  if (Number.isNaN(channelId)) {
+    return response.badRequest({ message: 'Neplatné ID kanála.' })
+  }
+
+  if (!content || !content.trim()) {
+    return response.badRequest({ message: 'Obsah správy je povinný.' })
+  }
+
+  if (!senderId) {
+    return response.badRequest({ message: 'senderId je povinný.' })
+  }
+
+  // kontrola, či kanál existuje
+  const channel = await Channel.find(channelId)
+  if (!channel) {
+    return response.notFound({ message: 'Kanál neexistuje.' })
+  }
+
+  // kontrola, či používateľ existuje
+  const user = await User.find(senderId)
+  if (!user) {
+    return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  // vytvor správu
+  const message = await Message.create({
+    channelId,
+    senderId,
+    content: content.trim(),
+  })
+
+  // načítaj správu s odosielateľom pre odpoveď
+  await message.load('sender')
+
+  // Serializuj správu s odosielateľom
+  const serialized = message.serialize()
+  const responseMessage = {
+    ...serialized,
+    timestamp: message.timestamp.toISO(),
+    sender: message.sender ? {
+      id: message.sender.id,
+      nickname: message.sender.nickname,
+      firstname: message.sender.firstname,
+      surname: message.sender.surname,
+      email: message.sender.email,
+      profilePicture: message.sender.profilePicture,
+    } : null
+  }
+
+  // broadcast cez socket.io
+  const { getIO } = await import('#start/socket')
+  const io = getIO()
+  if (io) {
+    // Pridaj channelId do serializovanej správy
+    const messageToBroadcast = {
+      ...responseMessage,
+      channelId: channelId,
+      channel_id: channelId
+    }
+    io.emit('chat:message', messageToBroadcast)
+  }
+
+  return responseMessage
+})
 
 router.post('/channels', async ({ request, response }) => {
   const { title, availability, creatorId } = request.only([

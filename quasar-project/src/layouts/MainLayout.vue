@@ -439,13 +439,35 @@ export default {
       }
     })
 
-    const onTextBarSend = (text: string) => {
+    const onTextBarSend = async (text: string) => {
       const cmd = text.trim().toLowerCase()
       if (cmd === '/list') {
         rightDrawerOpen.value = true
         return
       }
-      console.log('Správa:', text)
+
+      // Ak nie je vybraný kanál alebo používateľ, nič nerob
+      if (!currentChannel.value || !currentUser.value) {
+        return
+      }
+
+      // Ak je príkaz, zatiaľ len logujeme
+      if (text.trim().startsWith('/')) {
+        console.log('Príkaz:', text)
+        return
+      }
+
+      // Pošli správu na backend
+      try {
+        await api.post(`/channels/${currentChannel.value.id}/messages`, {
+          content: text.trim(),
+          senderId: currentUser.value.id
+        })
+        // Správa sa automaticky aktualizuje cez socket.io alebo refresh
+      } catch (error) {
+        console.error('Chyba pri odosielaní správy:', error)
+        window.alert('Nepodarilo sa odoslať správu. Skús to znova.')
+      }
     }
 
     // CREATE CHANNEL handlers

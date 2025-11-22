@@ -117,6 +117,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
+import { io } from 'socket.io-client'
 
 /* ===== typy z API ===== */
 
@@ -168,6 +169,70 @@ const loading = ref(false)
 
 const scrollArea = ref<HTMLElement | null>(null)
 
+/* ===== socket.io connection ===== */
+
+interface SocketClient {
+  id: string
+  on(event: string, callback: (...args: unknown[]) => void): void
+  emit(event: string, data: unknown): void
+  disconnect(): void
+}
+
+let socket: SocketClient | null = null
+
+const initSocket = () => {
+  if (socket) return // už je inicializovaný
+
+  socket = io('http://localhost:3333', {
+    transports: ['websocket', 'polling']
+  }) as SocketClient
+
+  socket.on('connect', () => {
+    console.log('Socket.IO connected:', socket?.id)
+  })
+
+  socket.on('disconnect', () => {
+    console.log('Socket.IO disconnected')
+  })
+
+  socket.on('chat:message', (data: unknown) => {
+    const message = data as MessageFromApi & { channelId?: number; channel_id?: number }
+    // Pridaj správu len ak je pre aktuálny kanál
+    if (activeChannelId.value && message.sender && message.content) {
+      // Skontroluj, či správa patrí do aktuálneho kanála
+      const messageChannelId = message.channelId || message.channel_id
+      
+      if (messageChannelId && messageChannelId === activeChannelId.value) {
+        // Skontroluj, či správa už neexistuje (aby sme nepridali duplikát)
+        const exists = rawMessages.value.some(m => m.id === message.id)
+        if (!exists) {
+          rawMessages.value.push(message)
+          
+          // Aktualizuj visibleCount ak je potrebné
+          const total = rawMessages.value.length
+          if (visibleCount.value < total) {
+            visibleCount.value = Math.min(visibleCount.value + 1, total)
+          }
+          
+          // Scroll to bottom
+          void nextTick(() => {
+            if (scrollArea.value) {
+              scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+            }
+          })
+        }
+      }
+    }
+  })
+}
+
+const disconnectSocket = () => {
+  if (socket) {
+    socket.disconnect()
+    socket = null
+  }
+}
+
 /* ===== infinite scroll paging ===== */
 
 const step = 15                           // koľko správ naraz
@@ -181,28 +246,30 @@ const infiniteKey = ref(0)
 /* ===== odvodené hodnoty ===== */
 
 const uiMessages = computed<UiMessage[]>(() => {
-  return rawMessages.value.map((m) => {
-    const s = m.sender
-    const fullName =
-      `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
-      s.nickname ||
-      s.email
+  return rawMessages.value
+    .filter((m) => m.sender) // Filter out messages without sender
+    .map((m) => {
+      const s = m.sender
+      const fullName =
+        `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
+        s.nickname ||
+        s.email
 
-    const meId = currentUser.value?.id ?? null
-    const isMe = meId !== null && s.id === meId
+      const meId = currentUser.value?.id ?? null
+      const isMe = meId !== null && s.id === meId
 
-    const avatar =
-      s.profilePicture ||
-      'https://cdn.quasar.dev/img/avatar.png'
+      const avatar =
+        s.profilePicture ||
+        'https://cdn.quasar.dev/img/avatar.png'
 
-    return {
-      id: m.id,
-      name: fullName,
-      avatar,
-      sent: isMe,
-      text: m.content,
-    }
-  })
+      return {
+        id: m.id,
+        name: fullName,
+        avatar,
+        sent: isMe,
+        text: m.content,
+      }
+    })
 })
 
 const totalMessages = computed(() => uiMessages.value.length)
@@ -241,7 +308,8 @@ const loadMessagesForChannel = async () => {
     const { data } = await api.get<MessageFromApi[]>(
       `/channels/${activeChannelId.value}/messages`,
     )
-    rawMessages.value = data
+    console.log('Loaded messages from API:', data)
+    rawMessages.value = data || []
 
     const total = totalMessages.value
     visibleCount.value = Math.min(step, total)
@@ -390,6 +458,9 @@ onMounted(() => {
   const stored = localStorage.getItem('currentUser')
   if (stored) currentUser.value = JSON.parse(stored)
 
+  // Initialize socket.io connection
+  initSocket()
+
   window.addEventListener(
     'channelSelected',
     handleChannelSelected as EventListener,
@@ -420,6 +491,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // Disconnect socket.io
+  disconnectSocket()
+
   window.removeEventListener(
     'channelSelected',
     handleChannelSelected as EventListener,
