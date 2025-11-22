@@ -14,7 +14,9 @@ export default defineComponent({
     channelId: { type: Number as () => number | null, default: null },
     inviterId: { type: Number as () => number | null, default: null },
     currentUserStatus: { type: String as () => string | null, default: null },
-    currentUserId: { type: Number as () => number | null, default: null }
+    currentUserId: { type: Number as () => number | null, default: null },
+    channelAvailability: { type: String as () => string | null, default: null },
+    isChannelOwner: { type: Boolean, default: false }
   },
   emits: ['update:modelValue', 'add'],
   setup (props, { emit }) {
@@ -107,7 +109,16 @@ export default defineComponent({
       void fetchMembers();
     };
 
-    return { isOpen, members, loading, getInitials, statusText, statusColor, addMember, showAddDialog, handleInviteSent };
+    const canInvite = computed(() => {
+      // For private channels, only owner can invite
+      if (props.channelAvailability === 'private') {
+        return props.isChannelOwner;
+      }
+      // For public channels, all members can invite (or we can restrict this too if needed)
+      return true;
+    });
+
+    return { isOpen, members, loading, getInitials, statusText, statusColor, addMember, showAddDialog, handleInviteSent, canInvite };
   }
 });
 </script>
@@ -174,6 +185,7 @@ export default defineComponent({
 
     <div class="q-pa-md flex flex-center bg-orange-5">
       <q-btn
+        v-if="canInvite"
         color="primary"
         icon="person_add"
         label="Pridať člena"
@@ -184,6 +196,10 @@ export default defineComponent({
       >
         <q-tooltip>Pridať nového člena</q-tooltip>
       </q-btn>
+      <div v-else class="text-center text-grey-6 q-pa-sm">
+        <q-icon name="lock" size="24px" class="q-mb-xs" />
+        <div class="text-caption">Len vlastník môže pozývať</div>
+      </div>
     </div>
   </q-drawer>
 

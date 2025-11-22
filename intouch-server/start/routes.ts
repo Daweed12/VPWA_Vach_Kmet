@@ -392,6 +392,20 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
     return response.badRequest({ message: 'Nemôžeš pozvať sám seba.' })
   }
 
+  // kontrola, či je kanál private a či je inviter owner
+  if (channel.availability === 'private') {
+    const inviterMember = await ChannelMember.query()
+      .where('userId', inviterId)
+      .where('channelId', channelId)
+      .first()
+
+    if (!inviterMember || inviterMember.status !== 'owner') {
+      return response.forbidden({ 
+        message: 'Len vlastník súkromného kanála môže pozývať používateľov.' 
+      })
+    }
+  }
+
   // kontrola, či už nie je členom
   const existingMember = await ChannelMember.query()
     .where('userId', userId)

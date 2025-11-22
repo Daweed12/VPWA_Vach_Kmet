@@ -170,6 +170,8 @@
         :inviter-id="currentUser?.id ?? null"
         :current-user-status="currentUser?.status ?? null"
         :current-user-id="currentUser?.id ?? null"
+        :channel-availability="currentChannel?.availability ?? null"
+        :is-channel-owner="canDeleteCurrentChannel"
       />
 
       <!-- HLAVNÝ OBSAH -->
