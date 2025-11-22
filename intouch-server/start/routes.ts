@@ -29,7 +29,7 @@ router.get('/channels/:id/members', async ({ params }) => {
       u.nickname ||
       `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() ||
       u.email,
-    status: u.$extras.pivot_status || 'offline'
+    status: u.status || 'offline'
   }))
 })
 
