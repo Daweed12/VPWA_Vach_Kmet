@@ -54,7 +54,10 @@
         class="bg-orange-5 column"
       >
         <!-- Logo -->
-        <div style="margin: 10px 15px 10px 15px;">
+        <div 
+          style="margin: 10px 15px 10px 15px; cursor: pointer;"
+          @click="navigateHome"
+        >
           <img
             src="../assets/intouch-logo-name.svg"
             alt="logo"
@@ -164,6 +167,9 @@
         v-if="!isSettingsPage"
         v-model="rightDrawerOpen"
         :channel-id="currentChannel?.id ?? null"
+        :inviter-id="currentUser?.id ?? null"
+        :current-user-status="currentUser?.status ?? null"
+        :current-user-id="currentUser?.id ?? null"
       />
 
       <!-- HLAVNÝ OBSAH -->
@@ -245,7 +251,7 @@
 
 <script lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
 import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
@@ -293,6 +299,7 @@ export default {
     const rightDrawerOpen = ref(false)
 
     const route = useRoute()
+    const router = useRouter()
 
     const invites = ref<InviteFromApi[]>([])
     const channels = ref<ChannelFromApi[]>([])
@@ -412,6 +419,22 @@ export default {
 
       const invRes = await api.get('/invites', { params: { userId } })
       invites.value = invRes.data
+
+      // Listen for currentUser updates from Settings page
+      const handleUserUpdate = (event: Event) => {
+        const customEvent = event as CustomEvent<CurrentUser>
+        if (customEvent.detail) {
+          currentUser.value = customEvent.detail
+          localStorage.setItem('currentUser', JSON.stringify(customEvent.detail))
+        }
+      }
+
+      window.addEventListener('currentUserUpdated', handleUserUpdate)
+
+      // Cleanup on unmount
+      return () => {
+        window.removeEventListener('currentUserUpdated', handleUserUpdate)
+      }
     })
 
     const onTextBarSend = (text: string) => {
@@ -532,6 +555,21 @@ export default {
       }
     }
 
+    const navigateHome = () => {
+      void router.push('/app')
+      // Reset current channel when navigating home
+      currentChannel.value = null
+      currentChannelTitle.value = null
+      window.dispatchEvent(
+        new CustomEvent('channelSelected', {
+          detail: {
+            id: null,
+            title: null
+          }
+        })
+      )
+    }
+
     return {
       leftDrawerOpen,
       rightDrawerOpen,
@@ -553,6 +591,7 @@ export default {
       handleReject,
       handleChannelClick,
 
+      currentUser,
       currentUserName,
       currentUserAvatar,
       currentUserStatus,
@@ -571,7 +610,9 @@ export default {
 
       canDeleteCurrentChannel,
       deletingChannel,
-      onDeleteCurrentChannel
+      onDeleteCurrentChannel,
+
+      navigateHome
     }
   }
 }

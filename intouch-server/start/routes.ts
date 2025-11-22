@@ -217,6 +217,51 @@ router.post('/register', async ({ request, response }) => {
 })
 
 /**
+ * GET /users/search?q=... – vyhľadá používateľov podľa nickname alebo emailu
+ * MUST be defined BEFORE /users/:id to avoid route conflicts
+ */
+router.get('/users/search', async ({ request, response }) => {
+  try {
+    const query = request.input('q') as string | null
+
+    if (!query || query.trim().length < 2) {
+      return []
+    }
+
+    const searchTerm = query.trim().toLowerCase()
+
+    const users = await User.query()
+      .where((builder) => {
+        builder
+          .whereRaw('LOWER(nickname) LIKE ?', [`%${searchTerm}%`])
+          .orWhereRaw('LOWER(email) LIKE ?', [`%${searchTerm}%`])
+          .orWhere((subBuilder) => {
+            subBuilder
+              .whereRaw('LOWER(firstname) LIKE ?', [`%${searchTerm}%`])
+              .orWhereRaw('LOWER(surname) LIKE ?', [`%${searchTerm}%`])
+          })
+      })
+      .limit(10)
+
+    return users.map((u) => ({
+      id: u.id,
+      nickname: u.nickname,
+      email: u.email,
+      firstname: u.firstname,
+      surname: u.surname,
+      name: u.nickname || `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() || u.email,
+      status: u.status,
+    }))
+  } catch (error) {
+    console.error('Error in /users/search:', error)
+    return response.internalServerError({ 
+      message: 'Chyba pri vyhľadávaní používateľov.',
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+})
+
+/**
  * GET /users/:id – detail pre SettingsPage
  */
 router.get('/users/:id', async ({ params, response }) => {
@@ -315,6 +360,92 @@ router.post('/channels', async ({ request, response }) => {
   })
 
   return channel
+})
+
+/**
+ * POST /channels/:id/invites – vytvorí pozvánku pre používateľa do kanála
+ */
+router.post('/channels/:id/invites', async ({ params, request, response }) => {
+  const channelId = Number(params.id)
+  const { userId, inviterId } = request.only(['userId', 'inviterId'])
+
+  if (Number.isNaN(channelId)) {
+    return response.badRequest({ message: 'Neplatné ID kanála.' })
+  }
+
+  if (!userId || !inviterId) {
+    return response.badRequest({ message: 'userId a inviterId sú povinné.' })
+  }
+
+  const channel = await Channel.find(channelId)
+  if (!channel) {
+    return response.notFound({ message: 'Kanál neexistuje.' })
+  }
+
+  const user = await User.find(userId)
+  if (!user) {
+    return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  // kontrola, či sa používateľ nesnaží pozvať sám seba
+  if (userId === inviterId) {
+    return response.badRequest({ message: 'Nemôžeš pozvať sám seba.' })
+  }
+
+  // kontrola, či už nie je členom
+  const existingMember = await ChannelMember.query()
+    .where('userId', userId)
+    .where('channelId', channelId)
+    .first()
+
+  if (existingMember) {
+    return response.conflict({ message: 'Používateľ už je členom tohto kanála.' })
+  }
+
+  // kontrola, či už nemá pending pozvánku
+  const existingInvite = await ChannelInvite.query()
+    .where('userId', userId)
+    .where('channelId', channelId)
+    .where('status', 'pending')
+    .first()
+
+  if (existingInvite) {
+    return response.conflict({ message: 'Používateľ už má pending pozvánku do tohto kanála.' })
+  }
+
+  // kontrola, či už existuje akákoľvek pozvánka (aj accepted/rejected) - kvôli unique constraintu
+  const anyInvite = await ChannelInvite.query()
+    .where('userId', userId)
+    .where('channelId', channelId)
+    .first()
+
+  if (anyInvite) {
+    // ak je accepted, používateľ by už mal byť členom
+    // ak je rejected, môžeme vytvoriť novú pozvánku, ale musíme najprv vymazať starú
+    if (anyInvite.status === 'rejected') {
+      await anyInvite.delete()
+    } else if (anyInvite.status === 'accepted') {
+      return response.conflict({ message: 'Používateľ už má pozvánku do tohto kanála.' })
+    }
+  }
+
+  try {
+    const invite = await ChannelInvite.create({
+      channelId,
+      userId,
+      inviterId,
+      status: 'pending',
+    })
+
+    return invite
+  } catch (error) {
+    // catch database constraint violations
+    const dbError = error as { code?: string; message?: string }
+    if (dbError.code === '23505') { // PostgreSQL unique violation
+      return response.conflict({ message: 'Pozvánka pre tohto používateľa už existuje.' })
+    }
+    throw error
+  }
 })
 
 

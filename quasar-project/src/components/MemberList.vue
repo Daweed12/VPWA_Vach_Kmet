@@ -11,7 +11,10 @@ export default defineComponent({
   components: { AddUserToChannel },
   props: {
     modelValue: { type: Boolean, required: true },
-    channelId: { type: Number as () => number | null, default: null }
+    channelId: { type: Number as () => number | null, default: null },
+    inviterId: { type: Number as () => number | null, default: null },
+    currentUserStatus: { type: String as () => string | null, default: null },
+    currentUserId: { type: Number as () => number | null, default: null }
   },
   emits: ['update:modelValue', 'add'],
   setup (props, { emit }) {
@@ -33,11 +36,18 @@ export default defineComponent({
       loading.value = true;
       try {
         const response = await api.get(`/channels/${props.channelId}/members`);
-        members.value = response.data.map((m: { id: number; name: string; status: string }) => ({
-          id: m.id,
-          name: m.name,
-          status: (m.status || 'offline') as Status
-        }));
+        members.value = response.data.map((m: { id: number; name: string; status: string }) => {
+          // If this is the current user, use their status from props (synchronized with avatar)
+          const status = (props.currentUserId === m.id && props.currentUserStatus)
+            ? (props.currentUserStatus as Status)
+            : (m.status || 'offline') as Status;
+          
+          return {
+            id: m.id,
+            name: m.name,
+            status
+          };
+        });
       } catch (error) {
         console.error('Error fetching members:', error);
         members.value = [];
@@ -53,6 +63,16 @@ export default defineComponent({
     watch(() => props.modelValue, (isOpen) => {
       if (isOpen && props.channelId) {
         void fetchMembers();
+      }
+    });
+
+    // Update current user's status in member list when it changes
+    watch(() => props.currentUserStatus, () => {
+      if (props.currentUserId && members.value.length > 0) {
+        const currentUserMember = members.value.find(m => m.id === props.currentUserId);
+        if (currentUserMember && props.currentUserStatus) {
+          currentUserMember.status = props.currentUserStatus as Status;
+        }
       }
     });
 
@@ -82,7 +102,12 @@ export default defineComponent({
       emit('add');
     };
 
-    return { isOpen, members, loading, getInitials, statusText, statusColor, addMember, showAddDialog };
+    const handleInviteSent = () => {
+      // Refresh members list after invite is sent
+      void fetchMembers();
+    };
+
+    return { isOpen, members, loading, getInitials, statusText, statusColor, addMember, showAddDialog, handleInviteSent };
   }
 });
 </script>
@@ -163,7 +188,12 @@ export default defineComponent({
   </q-drawer>
 
   <q-dialog v-model="showAddDialog" persistent transition-show="scale" transition-hide="scale">
-    <AddUserToChannel @close="showAddDialog = false" />
+    <AddUserToChannel
+      :channel-id="channelId"
+      :inviter-id="inviterId"
+      @close="showAddDialog = false"
+      @invite-sent="handleInviteSent"
+    />
   </q-dialog>
 </template>
 

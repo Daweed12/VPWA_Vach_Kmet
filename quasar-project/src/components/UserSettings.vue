@@ -335,6 +335,34 @@ const statusSelect = computed({
   set: (val: string | null) => {
     const v = (val ?? 'ONLINE').toLowerCase()
     form.status = v
+    
+    // Update status immediately (before save) if user is logged in
+    if (currentUser.value) {
+      const updatedCurrent: CurrentUser = {
+        ...currentUser.value,
+        status: v,
+      }
+      currentUser.value = updatedCurrent
+      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+      
+      // Dispatch event to update MainLayout immediately
+      const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
+        detail: updatedCurrent,
+      })
+      window.dispatchEvent(event)
+      
+      // Save status to backend immediately (fire and forget)
+      void (async () => {
+        try {
+          await api.put(`/users/${currentUser.value!.id}`, {
+            status: v,
+          })
+        } catch (error) {
+          console.error('Error updating status:', error)
+          // Don't show error to user, just log it
+        }
+      })()
+    }
   },
 })
 
