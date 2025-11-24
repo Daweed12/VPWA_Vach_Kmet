@@ -201,19 +201,22 @@ const initSocket = () => {
   console.log('🔗 Connecting to:', socketUrl)
   
   socket = io(socketUrl, {
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'], // Try polling first, then websocket
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: Infinity,
     timeout: 20000,
     forceNew: false,
-    autoConnect: true
+    autoConnect: true,
+    upgrade: true, // Allow upgrade from polling to websocket
+    rememberUpgrade: false
   })
 
   socket.on('connect', () => {
-    console.log('✅ Socket.IO connected:', socket?.id)
+    console.log('✅ Socket.IO connected:', socket?.id, 'Total connected clients should be visible on server')
     // Rejoin current channel if one is selected
     if (activeChannelId.value) {
+      console.log('🔄 Rejoining channel after connection:', activeChannelId.value)
       joinChannel(activeChannelId.value)
     }
   })
@@ -227,16 +230,24 @@ const initSocket = () => {
   })
 
   socket.on('chat:message', (data: unknown) => {
-    console.log('🔵 Received chat:message event:', data)
+    console.log('🔵🔵🔵 RECEIVED chat:message event:', data)
+    console.log('🔵 Current user ID:', currentUser.value?.id, 'Active channel ID:', activeChannelId.value)
+    console.log('🔵 Socket connected?', socket?.connected, 'Socket ID:', socket?.id)
+    
     const message = data as MessageFromApi & { channelId?: number; channel_id?: number }
     
-    // Pridaj správu len ak je pre aktuálny kanál
-    if (!message.sender || !message.content) {
-      console.warn('⚠️ Received message without sender or content:', message)
+    // Validate message structure
+    if (!message.sender) {
+      console.warn('⚠️ Received message without sender:', message)
+      return
+    }
+    
+    if (!message.content) {
+      console.warn('⚠️ Received message without content:', message)
       return
     }
 
-    // Skontroluj, či správa patrí do aktuálneho kanála
+    // Get channel ID from message
     const messageChannelId = message.channelId || message.channel_id
     
     if (!messageChannelId) {
@@ -244,13 +255,24 @@ const initSocket = () => {
       return
     }
 
-    console.log(`📨 Message for channel ${messageChannelId}, active channel: ${activeChannelId.value}`)
+    console.log(`📨 Message details:`, {
+      messageId: message.id,
+      channelId: messageChannelId,
+      activeChannelId: activeChannelId.value,
+      senderId: message.sender.id,
+      currentUserId: currentUser.value?.id,
+      isFromCurrentUser: currentUser.value?.id === message.sender.id,
+      content: message.content.substring(0, 50) + '...'
+    })
 
     // If we have an active channel, only show messages for that channel
-    if (activeChannelId.value && messageChannelId !== activeChannelId.value) {
-      console.log('ℹ️ Message is for different channel, ignoring')
+    // BUT: if no channel is active, we should still show it (for cases where user just opened the app)
+    if (activeChannelId.value !== null && messageChannelId !== activeChannelId.value) {
+      console.log(`ℹ️ Ignoring message - active channel (${activeChannelId.value}) != message channel (${messageChannelId})`)
       return
     }
+    
+    console.log('✅ Message passed channel filter, processing...')
 
     // Check if this is from current user - might be replacing optimistic message
     const isFromCurrentUser = currentUser.value && message.sender.id === currentUser.value.id
@@ -276,14 +298,14 @@ const initSocket = () => {
       }
     }
 
-    // Skontroluj, či správa už neexistuje (aby sme nepridali duplikát)
+    // Check if message already exists (avoid duplicates)
     const exists = rawMessages.value.some(m => m.id === message.id && m.id > 0)
     if (exists) {
-      console.log('ℹ️ Message already exists, skipping')
+      console.log('ℹ️ Message already exists, skipping (duplicate)')
       return
     }
 
-    console.log('✅ Adding new message to chat')
+    console.log('✅ Adding new message to chat (from another user)')
     // Add the message
     rawMessages.value.push(message)
     
@@ -303,12 +325,38 @@ const initSocket = () => {
 }
 
 const joinChannel = (channelId: number) => {
-  if (!socket?.connected) {
-    console.warn('Socket not connected, cannot join channel')
+  if (!socket) {
+    console.warn('⚠️ Socket not initialized, initializing now...')
+    initSocket()
+    // Wait a bit for socket to initialize, then try again
+    setTimeout(() => {
+      if (socket?.connected) {
+        socket.emit('channel:join', channelId)
+        console.log('✅ Joined channel after initialization:', channelId)
+      } else {
+        socket?.once('connect', () => {
+          socket?.emit('channel:join', channelId)
+          console.log('✅ Joined channel after delayed connection:', channelId)
+        })
+      }
+    }, 100)
     return
   }
+  
+  if (!socket.connected) {
+    console.warn('⚠️ Socket not connected, will join when connected. Channel:', channelId)
+    // Wait for connection and then join
+    const connectHandler = () => {
+      socket?.emit('channel:join', channelId)
+      console.log('✅ Joined channel after reconnection:', channelId)
+      socket?.off('connect', connectHandler) // Remove listener to avoid duplicates
+    }
+    socket.once('connect', connectHandler)
+    return
+  }
+  
   socket.emit('channel:join', channelId)
-  console.log('Joined channel:', channelId)
+  console.log('✅ Emitted channel:join for channel:', channelId)
 }
 
 const leaveChannel = (channelId: number) => {
@@ -494,6 +542,8 @@ const handleChannelSelected = (event: Event) => {
   const detail = (event as CustomEvent<{ id: number; title: string }>).detail
   const previousChannelId = activeChannelId.value
   
+  console.log('📺 Channel selected:', detail.id, 'Previous:', previousChannelId)
+  
   // Leave previous channel if any
   if (previousChannelId && previousChannelId !== detail.id) {
     leaveChannel(previousChannelId)
@@ -502,7 +552,13 @@ const handleChannelSelected = (event: Event) => {
   activeChannelId.value = detail.id
   activeChannelTitle.value = detail.title
   
-  // Join new channel
+  // Ensure socket is initialized and connected
+  if (!socket) {
+    console.warn('⚠️ Socket not initialized, initializing now...')
+    initSocket()
+  }
+  
+  // Join new channel (will wait for connection if needed)
   joinChannel(detail.id)
   
   void loadMessagesForChannel()
@@ -613,18 +669,30 @@ onMounted(() => {
   if (socket) {
     if (socket.connected) {
       // Already connected, join channel if needed
+      console.log('✅ Socket already connected on mount')
       if (activeChannelId.value) {
         joinChannel(activeChannelId.value)
       }
     } else {
       // Wait for connection
+      console.log('⏳ Waiting for socket connection...')
       socket.once('connect', () => {
-        console.log('✅ Socket connected after mount')
+        console.log('✅ Socket connected after mount, joining channel if needed')
         if (activeChannelId.value) {
           joinChannel(activeChannelId.value)
         }
       })
     }
+    
+    // Also listen for any future reconnections
+    socket.on('reconnect', () => {
+      console.log('🔄 Socket reconnected, rejoining channel if needed')
+      if (activeChannelId.value) {
+        joinChannel(activeChannelId.value)
+      }
+    })
+  } else {
+    console.error('❌ Failed to initialize socket')
   }
 
   window.addEventListener(

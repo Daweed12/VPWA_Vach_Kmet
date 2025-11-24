@@ -2,26 +2,34 @@
 import { Server } from 'socket.io'
 import server from '@adonisjs/core/services/server'
 import Env from '#start/env'
-import Message from '#models/message'  // uprav podľa tvojho modelu
-import ChannelMember from '#models/channel_member' // ak chceš validovať členstvo
+import Message from '#models/message'
 
 let io: Server
 
-server.booted(() => {
-  io = new Server(server.getNodeServer(), {
+export async function boot() {
+  // Wait until Adonis boots the HTTP server
+  await server.booted
+
+  const httpServer = server.getNodeServer()
+
+  io = new Server(httpServer, {
     path: '/ws',
     cors: {
       origin: Env.get('FRONTEND_ORIGIN', 'http://localhost:9000'),
       methods: ['GET', 'POST'],
       credentials: true,
     },
+    transports: ['polling', 'websocket'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
   })
 
   // (voliteľné) jednoduchý auth middleware
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token
       // ak máš auth tokeny, tu si ich vieš overiť
+      // const token = socket.handshake.auth?.token
       // napr. cez auth.verify(token)
       // zatiaľ pustíme každého
       next()
@@ -31,51 +39,62 @@ server.booted(() => {
   })
 
   io.on('connection', (socket) => {
-    console.log('WS connected', socket.id)
+    console.log('✅ WS connected:', socket.id, 'Total clients:', io.sockets.sockets.size)
 
     socket.on('channel:join', async (channelId: number) => {
       const room = `channel:${channelId}`
       socket.join(room)
-      console.log(`socket ${socket.id} joined ${room}`)
+      console.log(`📥 Socket ${socket.id} joined room ${room}`)
     })
 
     socket.on('channel:leave', (channelId: number) => {
       const room = `channel:${channelId}`
       socket.leave(room)
+      console.log(`📤 Socket ${socket.id} left room ${room}`)
     })
 
     socket.on('chat:message', async (payload: {
       channelId: number
-      userId: number
-      text: string
-    }, ack?: (res: any) => void) => {
+      senderId: number
+      content: string
+    }, ack?: (res: { ok: boolean; message?: any; error?: string }) => void) => {
       try {
-        const { channelId, userId, text } = payload
+        const { channelId, senderId, content } = payload
 
         // (voliteľné) over, že user je člen kanála
         // await ChannelMember.query()
         //  .where('channel_id', channelId)
-        //  .where('user_id', userId)
+        //  .where('user_id', senderId)
         //  .firstOrFail()
 
         const msg = await Message.create({
           channelId,
-          userId,
-          text,
+          senderId,
+          content: content.trim(),
         })
+
+        // Load sender relationship
+        await msg.load('sender')
 
         const serialized = {
           id: msg.id,
           channelId: msg.channelId,
-          userId: msg.userId,
-          text: msg.text,
-          createdAt: msg.createdAt,
+          content: msg.content,
+          timestamp: msg.timestamp.toISO(),
+          sender: msg.sender ? {
+            id: msg.sender.id,
+            nickname: msg.sender.nickname,
+            firstname: msg.sender.firstname,
+            surname: msg.sender.surname,
+            email: msg.sender.email,
+            profilePicture: msg.sender.profilePicture,
+          } : null
         }
 
         io.to(`channel:${channelId}`).emit('chat:message', serialized)
         ack?.({ ok: true, message: serialized })
       } catch (e) {
-        console.error(e)
+        console.error('Error creating message:', e)
         ack?.({ ok: false, error: 'Cannot send message' })
       }
     })
@@ -88,11 +107,17 @@ server.booted(() => {
       socket.to(`channel:${data.channelId}`).emit('typing:stop', data)
     })
 
-    socket.on('disconnect', () => {
-      console.log('WS disconnected', socket.id)
+    socket.on('disconnect', (reason) => {
+      console.log('WS disconnected:', socket.id, reason)
+    })
+
+    socket.on('error', (error) => {
+      console.error('Socket error:', error)
     })
   })
-})
+
+  console.log('Socket.IO initialized (ws.ts)')
+}
 
 export function getIo() {
   return io

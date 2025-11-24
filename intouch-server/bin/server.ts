@@ -39,6 +39,16 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
   })
   .httpServer()
   .start()
+  .then(async () => {
+    // Initialize Socket.IO after HTTP server is ready
+    console.log('🚀 HTTP server started, initializing Socket.IO...')
+    try {
+      const socketModule = await import('#start/socket')
+      await socketModule.boot()
+    } catch (error) {
+      console.error('❌ Failed to initialize Socket.IO:', error)
+    }
+  })
   .catch((error) => {
     process.exitCode = 1
     prettyPrintError(error)
