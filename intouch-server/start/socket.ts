@@ -56,6 +56,25 @@ export async function boot() {
         io?.emit('chat:message', msg)
       })
 
+      socket.on('typing:update', (data: { channelId: number; userId: number; userName: string; userAvatar?: string; draftContent?: string }) => {
+        const room = `channel:${data.channelId}`
+        // Broadcast to others in the channel (not to sender) with draft content
+        socket.to(room).emit('typing:update', {
+          userId: data.userId,
+          userName: data.userName,
+          userAvatar: data.userAvatar,
+          draftContent: data.draftContent || ''
+        })
+      })
+
+      socket.on('typing:stop', (data: { channelId: number; userId: number }) => {
+        const room = `channel:${data.channelId}`
+        // Broadcast to others in the channel (not to sender)
+        socket.to(room).emit('typing:stop', {
+          userId: data.userId
+        })
+      })
+
       socket.on('disconnect', (reason) => {
         console.log('WS disconnected:', socket.id, reason)
       })

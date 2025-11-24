@@ -188,6 +188,7 @@
       <text-bar
         class="full-width full-height"
         @send="onTextBarSend"
+        @typing="onTextBarTyping"
       />
     </q-footer>
 
@@ -439,6 +440,12 @@ export default {
       }
     })
 
+    const onTextBarTyping = (isTyping: boolean, draftContent?: string) => {
+      if (typeof window.emitTyping === 'function') {
+        window.emitTyping(isTyping, draftContent)
+      }
+    }
+
     const onTextBarSend = async (text: string) => {
       const cmd = text.trim().toLowerCase()
       if (cmd === '/list') {
@@ -456,6 +463,9 @@ export default {
         console.log('Príkaz:', text)
         return
       }
+
+      // Stop typing indicator when sending
+      onTextBarTyping(false)
 
       // Add message optimistically (show immediately)
       const messageText = text.trim()
@@ -630,6 +640,7 @@ export default {
       statusDotClass,
 
       onTextBarSend,
+      onTextBarTyping,
 
       createDialogOpen,
       newChannelTitle,

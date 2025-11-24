@@ -56,9 +56,43 @@
           </div>
         </div>
 
+        <!-- Typing indicator with draft preview - bottom left corner -->
+        <div
+          v-if="typingUsers.length > 0"
+          class="typing-indicator-fixed"
+        >
+          <q-card class="typing-card">
+            <q-card-section class="q-pa-sm">
+              <div
+                v-for="user in typingUsers"
+                :key="user.id"
+                class="typing-user-item"
+              >
+                <div class="row items-center q-mb-xs">
+                  <q-icon name="edit" size="14px" class="q-mr-xs text-grey-7" />
+                  <span class="text-caption text-weight-medium text-grey-8">
+                    {{ user.name }}
+                  </span>
+                </div>
+                <div
+                  v-if="user.draftContent"
+                  class="draft-content text-body2 text-grey-7 q-pl-md"
+                >
+                  "{{ user.draftContent }}"
+                </div>
+                <div
+                  v-else
+                  class="typing-dots q-pl-md"
+                >
+                  <span>.</span><span>.</span><span>.</span>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
         <!-- 4) Správy + infinite scroll -->
         <div
-          v-else
           class="q-pt-sm q-pb-lg"
         >
           <q-infinite-scroll
@@ -119,12 +153,7 @@ import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
 import { io, type Socket } from 'socket.io-client'
 
-// Extend Window interface for our custom function
-declare global {
-  interface Window {
-    addMessageToChat?: (content: string) => number | null
-  }
-}
+// Window interface will be extended later
 
 /* ===== typy z API ===== */
 
@@ -176,6 +205,17 @@ const loading = ref(false)
 
 const scrollArea = ref<HTMLElement | null>(null)
 
+// Typing indicators with draft content
+interface TypingUser {
+  id: number
+  name: string
+  avatar?: string
+  draftContent?: string
+}
+
+const typingUsers = ref<TypingUser[]>([])
+const typingTimeouts = new Map<number, ReturnType<typeof setTimeout>>()
+
 /* ===== socket.io connection ===== */
 
 let socket: Socket | null = null
@@ -193,13 +233,13 @@ const initSocket = () => {
   }
 
   console.log('🔌 Initializing Socket.IO connection to http://localhost:3333...')
-  
+
   // Get API base URL from the api instance
   const apiBaseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
   const socketUrl = apiBaseUrl.replace(/\/$/, '') // Remove trailing slash
-  
+
   console.log('🔗 Connecting to:', socketUrl)
-  
+
   socket = io(socketUrl, {
     transports: ['polling', 'websocket'], // Try polling first, then websocket
     reconnection: true,
@@ -229,19 +269,66 @@ const initSocket = () => {
     console.error('Socket.IO connection error:', error)
   })
 
+  // Typing indicators with draft content
+  socket.on('typing:update', (data: { userId: number; userName: string; userAvatar?: string; draftContent?: string }) => {
+    if (!data.userId || !data.userName) return
+    if (data.userId === currentUser.value?.id) return // Don't show yourself typing
+
+    // Clear existing timeout for this user
+    const existingTimeout = typingTimeouts.get(data.userId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+
+    // Add or update typing user with draft content
+    const existingUser = typingUsers.value.find(u => u.id === data.userId)
+
+    if (!existingUser) {
+      typingUsers.value.push({
+        id: data.userId,
+        name: data.userName,
+        ...(data.userAvatar && { avatar: data.userAvatar }),
+        draftContent: data.draftContent || ''
+      })
+    } else {
+      existingUser.draftContent = data.draftContent || ''
+    }
+    // Set timeout to remove typing indicator after 3 seconds
+    const timeout = setTimeout(() => {
+      typingUsers.value = typingUsers.value.filter(u => u.id !== data.userId)
+      typingTimeouts.delete(data.userId)
+    }, 3000)
+
+    typingTimeouts.set(data.userId, timeout)
+  })
+
+  socket.on('typing:stop', (data: { userId: number }) => {
+    if (!data.userId) return
+
+    // Clear timeout
+    const timeout = typingTimeouts.get(data.userId)
+    if (timeout) {
+      clearTimeout(timeout)
+      typingTimeouts.delete(data.userId)
+    }
+
+    // Remove from typing users
+    typingUsers.value = typingUsers.value.filter(u => u.id !== data.userId)
+  })
+
   socket.on('chat:message', (data: unknown) => {
     console.log('🔵🔵🔵 RECEIVED chat:message event:', data)
     console.log('🔵 Current user ID:', currentUser.value?.id, 'Active channel ID:', activeChannelId.value)
     console.log('🔵 Socket connected?', socket?.connected, 'Socket ID:', socket?.id)
-    
+
     const message = data as MessageFromApi & { channelId?: number; channel_id?: number }
-    
+
     // Validate message structure
     if (!message.sender) {
       console.warn('⚠️ Received message without sender:', message)
       return
     }
-    
+
     if (!message.content) {
       console.warn('⚠️ Received message without content:', message)
       return
@@ -249,7 +336,7 @@ const initSocket = () => {
 
     // Get channel ID from message
     const messageChannelId = message.channelId || message.channel_id
-    
+
     if (!messageChannelId) {
       console.warn('⚠️ Received message without channelId:', message)
       return
@@ -271,7 +358,7 @@ const initSocket = () => {
       console.log(`ℹ️ Ignoring message - active channel (${activeChannelId.value}) != message channel (${messageChannelId})`)
       return
     }
-    
+
     console.log('✅ Message passed channel filter, processing...')
 
     // Check if this is from current user - might be replacing optimistic message
@@ -282,13 +369,13 @@ const initSocket = () => {
       if (optimisticIndex !== -1) {
         console.log('✅ Replacing optimistic message with real one')
         rawMessages.value[optimisticIndex] = message
-        
+
         // Aktualizuj visibleCount ak je potrebné
         const total = rawMessages.value.length
         if (visibleCount.value < total) {
           visibleCount.value = Math.min(visibleCount.value + 1, total)
         }
-        
+
         void nextTick(() => {
           if (scrollArea.value) {
             scrollArea.value.scrollTop = scrollArea.value.scrollHeight
@@ -308,13 +395,13 @@ const initSocket = () => {
     console.log('✅ Adding new message to chat (from another user)')
     // Add the message
     rawMessages.value.push(message)
-    
+
     // Aktualizuj visibleCount ak je potrebné
     const total = rawMessages.value.length
     if (visibleCount.value < total) {
       visibleCount.value = Math.min(visibleCount.value + 1, total)
     }
-    
+
     // Scroll to bottom
     void nextTick(() => {
       if (scrollArea.value) {
@@ -342,7 +429,7 @@ const joinChannel = (channelId: number) => {
     }, 100)
     return
   }
-  
+
   if (!socket.connected) {
     console.warn('⚠️ Socket not connected, will join when connected. Channel:', channelId)
     // Wait for connection and then join
@@ -354,7 +441,7 @@ const joinChannel = (channelId: number) => {
     socket.once('connect', connectHandler)
     return
   }
-  
+
   socket.emit('channel:join', channelId)
   console.log('✅ Emitted channel:join for channel:', channelId)
 }
@@ -541,26 +628,31 @@ const chunks = (text: string): Chunk[] => {
 const handleChannelSelected = (event: Event) => {
   const detail = (event as CustomEvent<{ id: number; title: string }>).detail
   const previousChannelId = activeChannelId.value
-  
+
   console.log('📺 Channel selected:', detail.id, 'Previous:', previousChannelId)
-  
+
+  // Clear typing indicators when switching channels
+  typingUsers.value = []
+  typingTimeouts.forEach(timeout => clearTimeout(timeout))
+  typingTimeouts.clear()
+
   // Leave previous channel if any
   if (previousChannelId && previousChannelId !== detail.id) {
     leaveChannel(previousChannelId)
   }
-  
+
   activeChannelId.value = detail.id
   activeChannelTitle.value = detail.title
-  
+
   // Ensure socket is initialized and connected
   if (!socket) {
     console.warn('⚠️ Socket not initialized, initializing now...')
     initSocket()
   }
-  
+
   // Join new channel (will wait for connection if needed)
   joinChannel(detail.id)
-  
+
   void loadMessagesForChannel()
 }
 
@@ -590,12 +682,12 @@ const addMessageOptimistically = (content: string): number => {
   }
 
   rawMessages.value.push(optimisticMessage)
-  
+
   const total = rawMessages.value.length
   if (visibleCount.value < total) {
     visibleCount.value = Math.min(visibleCount.value + 1, total)
   }
-  
+
   void nextTick(() => {
     if (scrollArea.value) {
       scrollArea.value.scrollTop = scrollArea.value.scrollHeight
@@ -605,11 +697,41 @@ const addMessageOptimistically = (content: string): number => {
   return optimisticMessage.id
 }
 
-// Expose function to window for MainLayout to call
+// Expose functions to window for MainLayout to call
+declare global {
+  interface Window {
+    addMessageToChat: (content: string) => number | null;
+    emitTyping: (isTyping: boolean, draftContent?: string) => void;
+  }
+}
+
 if (typeof window !== 'undefined') {
   window.addMessageToChat = (content: string): number | null => {
     if (!activeChannelId.value || !currentUser.value) return null
     return addMessageOptimistically(content)
+  }
+
+  window.emitTyping = (isTyping: boolean, draftContent?: string) => {
+    if (!socket?.connected || !activeChannelId.value || !currentUser.value) return
+
+    const userName = currentUser.value.firstname && currentUser.value.surname
+      ? `${currentUser.value.firstname} ${currentUser.value.surname}`
+      : currentUser.value.nickname || currentUser.value.email
+
+    if (isTyping) {
+      socket.emit('typing:update', {
+        channelId: activeChannelId.value,
+        userId: currentUser.value.id,
+        userName: userName,
+        userAvatar: currentUser.value.profilePicture,
+        draftContent: draftContent || ''
+      })
+    } else {
+      socket.emit('typing:stop', {
+        channelId: activeChannelId.value,
+        userId: currentUser.value.id
+      })
+    }
   }
 }
 
@@ -664,7 +786,7 @@ onMounted(() => {
 
   // Initialize socket.io connection immediately
   initSocket()
-  
+
   // Ensure socket connects and joins channel when ready
   if (socket) {
     if (socket.connected) {
@@ -683,7 +805,7 @@ onMounted(() => {
         }
       })
     }
-    
+
     // Also listen for any future reconnections
     socket.on('reconnect', () => {
       console.log('🔄 Socket reconnected, rejoining channel if needed')
@@ -816,5 +938,69 @@ onUnmounted(() => {
   background-color: #43a047;
   color: white;
   font-weight: 600;
+}
+
+/* Typing indicator - fixed bottom left */
+.typing-indicator-fixed {
+  position: fixed;
+  bottom: 80px;
+  left: 20px;
+  z-index: 2000;
+  max-width: 300px;
+  min-width: 200px;
+}
+
+.typing-card {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(8px);
+}
+
+.typing-user-item {
+  margin-bottom: 8px;
+}
+
+.typing-user-item:last-child {
+  margin-bottom: 0;
+}
+
+.draft-content {
+  font-style: italic;
+  word-break: break-word;
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  color: #666;
+}
+
+.typing-dots {
+  display: inline-flex;
+  margin-left: 0;
+}
+
+.typing-dots span {
+  animation: typing-dot 1.4s infinite;
+  margin: 0 2px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
 }
 </style>

@@ -6,6 +6,8 @@
       borderless
       placeholder="Napíš správu..."
       @keyup.enter="sendMessage"
+      @input="handleTyping"
+      @keydown="handleTyping"
       class="col"
     />
     <q-btn
@@ -61,11 +63,14 @@ import type { QInput } from 'quasar'
 
 export default defineComponent({
   name: 'TextBar',
-  emits: ['send'],
+  emits: ['send', 'typing'],
   setup(_, { emit }) {
     const message = ref('')
     const inputRef = ref<QInput | null>(null)
     const emojiMenuRef = ref()
+    
+    let typingTimeout: ReturnType<typeof setTimeout> | null = null
+    let lastTypingEmit = 0
 
     const emojis = [
       '😀','😁','😂','🤣','😊','😍','😎','🤔','😅','🙃',
@@ -82,10 +87,40 @@ export default defineComponent({
       message.value += e
       emojiMenuRef.value?.hide()
       setTimeout(focusInput, 0)
+      handleTyping()
+    }
+
+    const handleTyping = () => {
+      const now = Date.now()
+      // Throttle typing events to max once per 200ms for real-time feel
+      if (now - lastTypingEmit < 200) return
+      lastTypingEmit = now
+      
+      // Emit typing with current message content
+      emit('typing', true, message.value)
+      
+      // Clear existing timeout
+      if (typingTimeout) {
+        clearTimeout(typingTimeout)
+      }
+      
+      // Stop typing after 2 seconds of inactivity
+      typingTimeout = setTimeout(() => {
+        emit('typing', false)
+        typingTimeout = null
+      }, 2000)
     }
 
     const sendMessage = () => {
       if (message.value.trim() === '') return
+      
+      // Stop typing indicator
+      if (typingTimeout) {
+        clearTimeout(typingTimeout)
+        typingTimeout = null
+      }
+      emit('typing', false)
+      
       emit('send', message.value)
       message.value = ''
       focusInput()
@@ -96,6 +131,7 @@ export default defineComponent({
       emojis,
       addEmoji,
       sendMessage,
+      handleTyping,
       inputRef,
       emojiMenuRef
     }
