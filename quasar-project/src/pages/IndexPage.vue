@@ -117,7 +117,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
-import { io } from 'socket.io-client'
+import { io, type Socket } from 'socket.io-client'
+
+// Extend Window interface for our custom function
+declare global {
+  interface Window {
+    addMessageToChat?: (content: string) => number | null
+  }
+}
 
 /* ===== typy z API ===== */
 
@@ -171,59 +178,145 @@ const scrollArea = ref<HTMLElement | null>(null)
 
 /* ===== socket.io connection ===== */
 
-interface SocketClient {
-  id: string
-  on(event: string, callback: (...args: unknown[]) => void): void
-  emit(event: string, data: unknown): void
-  disconnect(): void
-}
-
-let socket: SocketClient | null = null
+let socket: Socket | null = null
 
 const initSocket = () => {
-  if (socket) return // už je inicializovaný
+  // Don't recreate if already exists and connected
+  if (socket) {
+    if (socket.connected) {
+      console.log('Socket already connected')
+      return
+    }
+    // If socket exists but not connected, disconnect and recreate
+    socket.disconnect()
+    socket = null
+  }
 
-  socket = io('http://localhost:3333', {
-    transports: ['websocket', 'polling']
-  }) as SocketClient
-
-  socket.on('connect', () => {
-    console.log('Socket.IO connected:', socket?.id)
+  console.log('🔌 Initializing Socket.IO connection to http://localhost:3333...')
+  
+  // Get API base URL from the api instance
+  const apiBaseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
+  const socketUrl = apiBaseUrl.replace(/\/$/, '') // Remove trailing slash
+  
+  console.log('🔗 Connecting to:', socketUrl)
+  
+  socket = io(socketUrl, {
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionAttempts: Infinity,
+    timeout: 20000,
+    forceNew: false,
+    autoConnect: true
   })
 
-  socket.on('disconnect', () => {
-    console.log('Socket.IO disconnected')
+  socket.on('connect', () => {
+    console.log('✅ Socket.IO connected:', socket?.id)
+    // Rejoin current channel if one is selected
+    if (activeChannelId.value) {
+      joinChannel(activeChannelId.value)
+    }
+  })
+
+  socket.on('disconnect', (reason) => {
+    console.log('Socket.IO disconnected:', reason)
+  })
+
+  socket.on('connect_error', (error) => {
+    console.error('Socket.IO connection error:', error)
   })
 
   socket.on('chat:message', (data: unknown) => {
+    console.log('🔵 Received chat:message event:', data)
     const message = data as MessageFromApi & { channelId?: number; channel_id?: number }
+    
     // Pridaj správu len ak je pre aktuálny kanál
-    if (activeChannelId.value && message.sender && message.content) {
-      // Skontroluj, či správa patrí do aktuálneho kanála
-      const messageChannelId = message.channelId || message.channel_id
-      
-      if (messageChannelId && messageChannelId === activeChannelId.value) {
-        // Skontroluj, či správa už neexistuje (aby sme nepridali duplikát)
-        const exists = rawMessages.value.some(m => m.id === message.id)
-        if (!exists) {
-          rawMessages.value.push(message)
-          
-          // Aktualizuj visibleCount ak je potrebné
-          const total = rawMessages.value.length
-          if (visibleCount.value < total) {
-            visibleCount.value = Math.min(visibleCount.value + 1, total)
-          }
-          
-          // Scroll to bottom
-          void nextTick(() => {
-            if (scrollArea.value) {
-              scrollArea.value.scrollTop = scrollArea.value.scrollHeight
-            }
-          })
+    if (!message.sender || !message.content) {
+      console.warn('⚠️ Received message without sender or content:', message)
+      return
+    }
+
+    // Skontroluj, či správa patrí do aktuálneho kanála
+    const messageChannelId = message.channelId || message.channel_id
+    
+    if (!messageChannelId) {
+      console.warn('⚠️ Received message without channelId:', message)
+      return
+    }
+
+    console.log(`📨 Message for channel ${messageChannelId}, active channel: ${activeChannelId.value}`)
+
+    // If we have an active channel, only show messages for that channel
+    if (activeChannelId.value && messageChannelId !== activeChannelId.value) {
+      console.log('ℹ️ Message is for different channel, ignoring')
+      return
+    }
+
+    // Check if this is from current user - might be replacing optimistic message
+    const isFromCurrentUser = currentUser.value && message.sender.id === currentUser.value.id
+    if (isFromCurrentUser) {
+      // Try to find and replace optimistic message (negative ID)
+      const optimisticIndex = rawMessages.value.findIndex(m => m.id < 0 && m.content === message.content)
+      if (optimisticIndex !== -1) {
+        console.log('✅ Replacing optimistic message with real one')
+        rawMessages.value[optimisticIndex] = message
+        
+        // Aktualizuj visibleCount ak je potrebné
+        const total = rawMessages.value.length
+        if (visibleCount.value < total) {
+          visibleCount.value = Math.min(visibleCount.value + 1, total)
         }
+        
+        void nextTick(() => {
+          if (scrollArea.value) {
+            scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+          }
+        })
+        return
       }
     }
+
+    // Skontroluj, či správa už neexistuje (aby sme nepridali duplikát)
+    const exists = rawMessages.value.some(m => m.id === message.id && m.id > 0)
+    if (exists) {
+      console.log('ℹ️ Message already exists, skipping')
+      return
+    }
+
+    console.log('✅ Adding new message to chat')
+    // Add the message
+    rawMessages.value.push(message)
+    
+    // Aktualizuj visibleCount ak je potrebné
+    const total = rawMessages.value.length
+    if (visibleCount.value < total) {
+      visibleCount.value = Math.min(visibleCount.value + 1, total)
+    }
+    
+    // Scroll to bottom
+    void nextTick(() => {
+      if (scrollArea.value) {
+        scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+      }
+    })
   })
+}
+
+const joinChannel = (channelId: number) => {
+  if (!socket?.connected) {
+    console.warn('Socket not connected, cannot join channel')
+    return
+  }
+  socket.emit('channel:join', channelId)
+  console.log('Joined channel:', channelId)
+}
+
+const leaveChannel = (channelId: number) => {
+  if (!socket?.connected) {
+    return
+  }
+  socket.emit('channel:leave', channelId)
+  console.log('Left channel:', channelId)
 }
 
 const disconnectSocket = () => {
@@ -399,14 +492,69 @@ const chunks = (text: string): Chunk[] => {
 
 const handleChannelSelected = (event: Event) => {
   const detail = (event as CustomEvent<{ id: number; title: string }>).detail
+  const previousChannelId = activeChannelId.value
+  
+  // Leave previous channel if any
+  if (previousChannelId && previousChannelId !== detail.id) {
+    leaveChannel(previousChannelId)
+  }
+  
   activeChannelId.value = detail.id
   activeChannelTitle.value = detail.title
+  
+  // Join new channel
+  joinChannel(detail.id)
+  
   void loadMessagesForChannel()
 }
 
 const handleCurrentUserUpdated = (event: Event) => {
   const detail = (event as CustomEvent<CurrentUser>).detail
   currentUser.value = detail
+}
+
+// Function to add a message optimistically (before server confirms)
+const addMessageOptimistically = (content: string): number => {
+  if (!currentUser.value || !activeChannelId.value) {
+    return -1
+  }
+
+  const optimisticMessage: MessageFromApi = {
+    id: -Date.now(), // Temporary negative ID
+    content: content,
+    timestamp: new Date().toISOString(),
+    sender: {
+      id: currentUser.value.id,
+      nickname: currentUser.value.nickname,
+      firstname: currentUser.value.firstname,
+      surname: currentUser.value.surname,
+      email: currentUser.value.email,
+      profilePicture: currentUser.value.profilePicture || null,
+    }
+  }
+
+  rawMessages.value.push(optimisticMessage)
+  
+  const total = rawMessages.value.length
+  if (visibleCount.value < total) {
+    visibleCount.value = Math.min(visibleCount.value + 1, total)
+  }
+  
+  void nextTick(() => {
+    if (scrollArea.value) {
+      scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+    }
+  })
+
+  return optimisticMessage.id
+}
+
+// Expose function to window for MainLayout to call
+if (typeof window !== 'undefined') {
+  window.addMessageToChat = (content: string): number | null => {
+    if (!activeChannelId.value || !currentUser.value) return null
+    return addMessageOptimistically(content)
+  }
 }
 
 /* ===== notifikácie (ako v pôvodnej verzii) ===== */
@@ -458,8 +606,26 @@ onMounted(() => {
   const stored = localStorage.getItem('currentUser')
   if (stored) currentUser.value = JSON.parse(stored)
 
-  // Initialize socket.io connection
+  // Initialize socket.io connection immediately
   initSocket()
+  
+  // Ensure socket connects and joins channel when ready
+  if (socket) {
+    if (socket.connected) {
+      // Already connected, join channel if needed
+      if (activeChannelId.value) {
+        joinChannel(activeChannelId.value)
+      }
+    } else {
+      // Wait for connection
+      socket.once('connect', () => {
+        console.log('✅ Socket connected after mount')
+        if (activeChannelId.value) {
+          joinChannel(activeChannelId.value)
+        }
+      })
+    }
+  }
 
   window.addEventListener(
     'channelSelected',

@@ -395,7 +395,26 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
       channelId: channelId,
       channel_id: channelId
     }
+    
+    console.log('📤 Broadcasting message via WebSocket:', {
+      channelId,
+      messageId: messageToBroadcast.id,
+      room: `channel:${channelId}`,
+      connectedClients: io.sockets.sockets.size
+    })
+    
+    // Broadcast to the specific channel room
+    const room = `channel:${channelId}`
+    const roomSockets = await io.in(room).fetchSockets()
+    console.log(`📡 Room "${room}" has ${roomSockets.length} connected clients`)
+    
+    io.to(room).emit('chat:message', messageToBroadcast)
+    // Also broadcast to all as fallback (in case some clients haven't joined the room)
     io.emit('chat:message', messageToBroadcast)
+    
+    console.log('✅ Message broadcasted to all clients')
+  } else {
+    console.warn('⚠️ Socket.IO not initialized, cannot broadcast message')
   }
 
   return responseMessage

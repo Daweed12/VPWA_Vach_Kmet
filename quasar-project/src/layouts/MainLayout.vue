@@ -457,16 +457,24 @@ export default {
         return
       }
 
+      // Add message optimistically (show immediately)
+      const messageText = text.trim()
+      if (typeof window.addMessageToChat === 'function') {
+        window.addMessageToChat(messageText)
+      }
+
       // Pošli správu na backend
       try {
-        await api.post(`/channels/${currentChannel.value.id}/messages`, {
-          content: text.trim(),
+        const response = await api.post(`/channels/${currentChannel.value.id}/messages`, {
+          content: messageText,
           senderId: currentUser.value.id
         })
-        // Správa sa automaticky aktualizuje cez socket.io alebo refresh
+        console.log('✅ Message sent successfully:', response.data)
+        // Správa sa automaticky aktualizuje cez socket.io (replaces optimistic message)
       } catch (error) {
-        console.error('Chyba pri odosielaní správy:', error)
+        console.error('❌ Chyba pri odosielaní správy:', error)
         window.alert('Nepodarilo sa odoslať správu. Skús to znova.')
+        // TODO: Remove optimistic message on error
       }
     }
 
