@@ -111,6 +111,7 @@
                 :key="'ch-' + ch.id"
                 :name="ch.title"
                 :availability="ch.availability"
+                :image-url="ch.logo ?? ''"
                 @click="() => handleChannelClick(ch)"
               />
             </q-list>
@@ -119,8 +120,11 @@
           <div v-else class="col full-height">
             <CommandPanel
               :history="commandHistory"
-              @execute="handleCommand"
+              :current-channel="currentChannel"
+              :current-user="currentUser"
               @close="showCmd = false"
+              @log="handleCmdLog"
+              @clear="handleCmdClear"
             />
           </div>
         </div>
@@ -132,7 +136,12 @@
           <q-item>
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
-                <img :src="currentUserAvatar" alt="avatar" />
+                <img
+                  :src="currentUserAvatar"
+                  alt="avatar"
+                  style="object-fit: cover; width: 100%; height: 100%;"
+                  @error="(e) => { (e.target as HTMLImageElement).src = 'https://cdn.quasar.dev/img/avatar4.jpg' }"
+                />
                 <div class="status-dot" :class="statusDotClass" />
               </q-avatar>
             </q-item-section>
@@ -261,12 +270,11 @@ import CommandPanel from 'components/CommandPanel.vue'
 import { api } from 'boot/api'
 
 // Interfaces
-interface ChannelFromApi { id: number; title: string; availability: string; creatorId?: number; createdAt?: string; lastMessageAt?: string | null; }
+interface ChannelFromApi { id: number; title: string; availability: string; creatorId?: number; createdAt?: string; lastMessageAt?: string | null; logo?: string | null; }
 interface InviteFromApi { id: number; channelId: number; title: string; availability: string; inviterId: number; createdAt: string; }
 interface CurrentUser { id: number; email: string; nickname: string; firstname: string | null; surname: string | null; status: string | null; profilePicture: string | null; }
 interface CmdLog { type: 'input' | 'output' | 'error'; text: string; }
 
-// Nové interface pre opravu chýb
 interface MemberListInstance {
   openAddDialog: () => void;
 }
@@ -294,7 +302,6 @@ export default {
     const rightDrawerOpen = ref(false)
     const showCmd = ref(false)
 
-    // OPRAVA: Typovanie refu, aby sme nemuseli pouzivat 'any'
     const memberListRef = ref<MemberListInstance | null>(null)
 
     const route = useRoute()
@@ -329,16 +336,23 @@ export default {
       return currentChannel.value.creatorId === currentUser.value.id
     })
 
-    // Handler pre klik na ikonu pridania usera
     const onAddPersonClick = () => {
       if (!currentChannel.value) {
         window.alert('Najprv musíš vybrať kanál.')
         return
       }
-      // OPRAVA: Teraz TypeScript vie, že openAddDialog existuje
       if (memberListRef.value) {
         memberListRef.value.openAddDialog()
       }
+    }
+
+    // Handlery pre CMD udalosti (emitované z CommandPanel)
+    const handleCmdLog = (entry: CmdLog) => {
+      commandHistory.value.push(entry)
+    }
+
+    const handleCmdClear = () => {
+      commandHistory.value = []
     }
 
     function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
@@ -374,14 +388,9 @@ export default {
     })
     const currentUserAvatar = computed(() => {
       const pic = currentUser.value?.profilePicture
-
-      // Default
       if (!pic) return 'https://cdn.quasar.dev/img/avatar4.jpg'
-
-      // Externý link
       if (pic.startsWith('http')) return pic
 
-      // Lokálny backend (pridáme localhost:3333)
       const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
       const cleanBase = baseUrl.replace(/\/$/, '')
       const cleanPath = pic.startsWith('/') ? pic : `/${pic}`
@@ -405,84 +414,14 @@ export default {
         await router.push('/app/settings')
       }
     }
-    const logToCmd = (text: string, type: 'output' | 'error' = 'output') => { commandHistory.value.push({ type, text }) }
-
-    const handleCommand = async (rawCmd: string) => {
-      commandHistory.value.push({ type: 'input', text: rawCmd })
-      const parts = rawCmd.trim().split(/\s+/)
-      const command = (parts[0] || '').toLowerCase()
-      const args = parts.slice(1)
-
-      switch (command) {
-        case '/help':
-          logToCmd('Dostupné príkazy:')
-          logToCmd('/list - otvorí zoznam členov')
-          logToCmd('/join [nazov] [private] - pripojí sa alebo vytvorí kanál')
-          logToCmd('/invite [nick] - pozve používateľa (len mock)')
-          logToCmd('/quit - zmaže aktuálny kanál (ak si vlastník)')
-          logToCmd('/clear - vymaže históriu')
-          logToCmd('/exit - zatvorí CMD')
-          break
-        case '/clear': commandHistory.value = []; break
-        case '/exit': showCmd.value = false; break
-        case '/list':
-          if (!currentChannel.value) { logToCmd('Nie si v žiadnom kanáli.', 'error'); return }
-          rightDrawerOpen.value = true; logToCmd('Otváram zoznam členov...'); break
-        case '/join': {
-          const channelName = args[0]; const mode = args[1]?.toLowerCase()
-          if (!channelName) { logToCmd('Použitie: /join <názov_kanála> [private]', 'error'); return }
-          const existing = channels.value.find(c => c.title.toLowerCase() === channelName.toLowerCase())
-          if (existing) { handleChannelClick(existing); logToCmd(`Prepínam na kanál #${existing.title}`) }
-          else {
-            if (!currentUser.value) { logToCmd('Musíš byť prihlásený na vytváranie kanálov.', 'error'); return }
-            logToCmd(`Vytváram kanál #${channelName}...`)
-            try {
-              const payload = { title: channelName, availability: mode === 'private' ? 'private' : 'public', creatorId: currentUser.value.id }
-              const res = await api.post('/channels', payload)
-              const newChannel = res.data as ChannelFromApi
-              channels.value.unshift(newChannel); handleChannelClick(newChannel)
-              logToCmd(`Kanál #${newChannel.title} bol vytvorený a vybraný.`)
-            } catch (err: unknown) {
-              // OPRAVA: Typovanie chyby
-              const error = err as ApiError;
-              logToCmd('Chyba pri vytváraní kanála: ' + (error.response?.data?.message || error.message), 'error')
-            }
-          }
-          break
-        }
-        case '/invite': {
-          if (!currentChannel.value) { logToCmd('Chyba: Nie si v žiadnom kanáli.', 'error'); return }
-          const nickToInvite = args[0]
-          if (!nickToInvite) { logToCmd('Použitie: /invite <nickName>', 'error'); return }
-          logToCmd(`Používateľ ${nickToInvite} bol pridaný do kanála #${currentChannel.value.title}. (Simulácia)`); break
-        }
-        case '/quit': {
-          if (!currentChannel.value) { logToCmd('Chyba: Nie je vybraný žiadny kanál.', 'error'); return }
-          if (!canDeleteCurrentChannel.value) { logToCmd('Chyba: Nemáš oprávnenie.', 'error'); return }
-          logToCmd(`Ruším kanál #${currentChannel.value.title}...`)
-          try {
-            await api.delete(`/channels/${currentChannel.value.id}`)
-            channels.value = channels.value.filter(c => c.id !== currentChannel.value!.id)
-            currentChannel.value = null; currentChannelTitle.value = null
-            window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }))
-            logToCmd('Kanál bol úspešne zmazaný.')
-          } catch (error) { console.error('Failed to delete channel:', error); logToCmd('Nepodarilo sa zmazať kanál.', 'error') }
-          break
-        }
-        default: logToCmd(`Neznámy príkaz: ${command}. Skús /help`, 'error')
-      }
-    }
 
     onMounted(async () => {
-      // 1. Najprv načítame z LocalStorage, aby tam niečo bolo hneď
       const stored = localStorage.getItem('currentUser')
       if (stored) currentUser.value = JSON.parse(stored)
 
-      // 2. Ak máme ID, stiahneme ČERSTVÉ dáta zo servera
       if (currentUser.value?.id) {
         try {
           const userRes = await api.get(`/users/${currentUser.value.id}`)
-          // Aktualizujeme premennú aj LocalStorage
           currentUser.value = userRes.data
           localStorage.setItem('currentUser', JSON.stringify(userRes.data))
         } catch (error) {
@@ -490,7 +429,6 @@ export default {
         }
       }
 
-      // 3. Načítanie kanálov a pozvánok (pôvodný kód)
       const userId = currentUser.value?.id
       if (userId) {
         const chRes = await api.get('/channels', { params: { userId } })
@@ -499,7 +437,6 @@ export default {
         invites.value = invRes.data
       }
 
-      // Event listener (pôvodný kód)
       const handleUserUpdate = (event: Event) => {
         const customEvent = event as CustomEvent<CurrentUser>
         if (customEvent.detail) {
@@ -544,7 +481,13 @@ export default {
         const res = await api.post('/channels', payload)
         const created = res.data as ChannelFromApi
         channels.value.unshift(created); handleChannelClick(created); createDialogOpen.value = false
-      } catch (error) { console.error('Chyba:', error); const err = error as { response?: { data?: { message?: string } } }; createChannelError.value = err.response?.data?.message ?? 'Chyba.' } finally { creatingChannel.value = false }
+      } catch (err: unknown) {
+        console.error('Chyba:', err);
+        const error = err as ApiError;
+        createChannelError.value = error.response?.data?.message ?? 'Chyba.'
+      } finally {
+        creatingChannel.value = false
+      }
     }
     const onDeleteCurrentChannel = async () => {
       if (!currentChannel.value || !currentUser.value || !canDeleteCurrentChannel.value) return
@@ -568,10 +511,12 @@ export default {
       onTextBarSend, onTextBarTyping,
       createDialogOpen, newChannelTitle, newChannelAvailability, creatingChannel, createChannelError, openCreateChannelDialog, closeCreateDialog, onCreateChannelConfirm,
       canDeleteCurrentChannel, deletingChannel, onDeleteCurrentChannel, navigateHome,
-      commandHistory, handleCommand, toggleSettings,
+      commandHistory, toggleSettings,
 
       memberListRef,
-      onAddPersonClick
+      onAddPersonClick,
+      handleCmdLog,
+      handleCmdClear
     }
   }
 }

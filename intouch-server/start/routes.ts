@@ -10,6 +10,8 @@ import ChannelMember from '#models/channel_member'
 import Access from '#models/access'
 import ChannelInvite from '#models/channel_invite'
 import Message from '#models/message'
+// TOTO TU CHÝBALO:
+import KickVote from '#models/kick_vote'
 
 /**
  * Root – test
@@ -39,20 +41,16 @@ router.get('/channels/:id/members', async ({ params }) => {
 
 /**
  * GET /channels
- * - bez userId: všetky PUBLIC
- * - s userId: PUBLIC + PRIVATE, kde má user záznam v access
  */
 router.get('/channels', async ({ request }) => {
   const userId = request.input('userId') as number | null
 
-  // neprihlásený → len public
   if (!userId) {
     return await Channel.query()
       .where('availability', 'public')
       .orderBy('title')
   }
 
-  // prihlásený → public + private s accessom
   const channels = await Channel.query()
     .where('availability', 'public')
     .orWhereIn('id', (sub) => {
@@ -68,8 +66,7 @@ router.get('/channels', async ({ request }) => {
 })
 
 /**
- * GET /invites?userId=1
- * Vracia pending pozvánky daného používateľa
+ * GET /invites
  */
 router.get('/invites', async ({ request }) => {
   const userId = Number(request.input('userId'))
@@ -92,8 +89,6 @@ router.get('/invites', async ({ request }) => {
 
 /**
  * POST /invites/:id/accept
- * - označí invite ako accepted
- * - vytvorí Access + ChannelMember
  */
 router.post('/invites/:id/accept', async ({ params, response }) => {
   const invite = await ChannelInvite.find(params.id)
@@ -122,7 +117,6 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
 
 /**
  * POST /invites/:id/reject
- * - označí invite ako rejected
  */
 router.post('/invites/:id/reject', async ({ params, response }) => {
   const invite = await ChannelInvite.find(params.id)
@@ -140,7 +134,7 @@ router.post('/invites/:id/reject', async ({ params, response }) => {
 })
 
 /**
- * POST /login – podľa nickname alebo emailu
+ * POST /login
  */
 router.post('/login', async ({ request, response }) => {
   const { username, password } = request.only(['username', 'password'])
@@ -165,7 +159,7 @@ router.post('/login', async ({ request, response }) => {
 })
 
 /**
- * POST /register – vytvorí usera + pridá ho do všetkých PUBLIC kanálov
+ * POST /register
  */
 router.post('/register', async ({ request, response }) => {
   const { firstName, lastName, email, nickname, password } = request.only([
@@ -230,13 +224,11 @@ router.post('/auth/change-password', async ({ request, response }) => {
     return response.badRequest({ message: 'Chýbajú údaje.' })
   }
 
-  // nájdi používateľa
   const user = await User.find(userId)
   if (!user) {
     return response.notFound({ message: 'Používateľ neexistuje.' })
   }
 
-  // over aktuálne heslo (momentálne máš heslá v plain texte)
   if (user.password !== currentPassword) {
     return response.unauthorized({ message: 'Aktuálne heslo je nesprávne.' })
   }
@@ -247,7 +239,6 @@ router.post('/auth/change-password', async ({ request, response }) => {
     })
   }
 
-  // ulož nové heslo
   user.password = newPassword
   await user.save()
 
@@ -258,8 +249,7 @@ router.post('/auth/change-password', async ({ request, response }) => {
 
 
 /**
- * GET /users/search?q=... – vyhľadá používateľov podľa nickname alebo emailu
- * MUST be defined BEFORE /users/:id to avoid route conflicts
+ * GET /users/search
  */
 router.get('/users/search', async ({ request, response }) => {
   try {
@@ -303,7 +293,7 @@ router.get('/users/search', async ({ request, response }) => {
 })
 
 /**
- * GET /users/:id – detail pre SettingsPage
+ * GET /users/:id
  */
 router.get('/users/:id', async ({ params, response }) => {
   const user = await User.find(params.id)
@@ -316,7 +306,7 @@ router.get('/users/:id', async ({ params, response }) => {
 })
 
 /**
- * PUT /users/:id – update profilu zo SettingsPage
+ * PUT /users/:id
  */
 router.put('/users/:id', async ({ params, request, response }) => {
   const user = await User.find(params.id)
@@ -340,7 +330,7 @@ router.put('/users/:id', async ({ params, request, response }) => {
   return user
 })
 
-// GET /channels/:id/messages – správy v kanáli
+// GET /channels/:id/messages
 router.get('/channels/:id/messages', async ({ params, response }) => {
   const channelId = Number(params.id)
 
@@ -348,13 +338,11 @@ router.get('/channels/:id/messages', async ({ params, response }) => {
     return response.badRequest({ message: 'Neplatné ID kanála.' })
   }
 
-  // načítaj správy pre kanál + autora správy
   const messages = await Message.query()
     .where('channelId', channelId)
     .preload('sender')
     .orderBy('timestamp', 'asc')
 
-  // frontend očakáva: { id, content, timestamp, senderId, sender: { ... } }
   return messages.map((m) => {
     const serialized = m.serialize()
     return {
@@ -372,7 +360,7 @@ router.get('/channels/:id/messages', async ({ params, response }) => {
   })
 })
 
-// POST /channels/:id/messages – vytvorí správu v kanáli
+// POST /channels/:id/messages
 router.post('/channels/:id/messages', async ({ params, request, response }) => {
   const channelId = Number(params.id)
   const { content, senderId } = request.only(['content', 'senderId'])
@@ -389,29 +377,24 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
     return response.badRequest({ message: 'senderId je povinný.' })
   }
 
-  // kontrola, či kanál existuje
   const channel = await Channel.find(channelId)
   if (!channel) {
     return response.notFound({ message: 'Kanál neexistuje.' })
   }
 
-  // kontrola, či používateľ existuje
   const user = await User.find(senderId)
   if (!user) {
     return response.notFound({ message: 'Používateľ neexistuje.' })
   }
 
-  // vytvor správu
   const message = await Message.create({
     channelId,
     senderId,
     content: content.trim(),
   })
 
-  // načítaj správu s odosielateľom pre odpoveď
   await message.load('sender')
 
-  // Serializuj správu s odosielateľom
   const serialized = message.serialize()
   const responseMessage = {
     ...serialized,
@@ -430,37 +413,20 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
   const { getIO } = await import('#start/socket')
   const io = getIO()
   if (io) {
-    // Pridaj channelId do serializovanej správy
     const messageToBroadcast = {
       ...responseMessage,
       channelId: channelId,
       channel_id: channelId
     }
-
-    console.log('📤 Broadcasting message via WebSocket:', {
-      channelId,
-      messageId: messageToBroadcast,
-      room: `channel:${channelId}`,
-      connectedClients: io.sockets.sockets.size
-    })
-
-    // Broadcast to the specific channel room
     const room = `channel:${channelId}`
-    const roomSockets = await io.in(room).fetchSockets()
-    console.log(`📡 Room "${room}" has ${roomSockets.length} connected clients`)
-
     io.to(room).emit('chat:message', messageToBroadcast)
-    // Also broadcast to all as fallback (in case some clients haven't joined the room)
     io.emit('chat:message', messageToBroadcast)
-
-    console.log('✅ Message broadcasted to all clients')
-  } else {
-    console.warn('⚠️ Socket.IO not initialized, cannot broadcast message')
   }
 
   return responseMessage
 })
 
+// POST /channels
 router.post('/channels', async ({ request, response }) => {
   const { title, availability, creatorId } = request.only([
     'title',
@@ -480,14 +446,12 @@ router.post('/channels', async ({ request, response }) => {
   const safeAvailability =
     availability === 'private' ? 'private' : 'public'
 
-  // 1) vytvoríme kanál
   const channel = await Channel.create({
     title,
     availability: safeAvailability,
     creatorId: user.id,
   })
 
-  // 2) ak je private, rovno mu dáme Access
   if (safeAvailability === 'private') {
     await Access.firstOrCreate({
       userId: user.id,
@@ -495,7 +459,6 @@ router.post('/channels', async ({ request, response }) => {
     })
   }
 
-  // 3) a nech je owner v ChannelMember
   await ChannelMember.create({
     userId: user.id,
     channelId: channel.id,
@@ -584,36 +547,23 @@ router.post('/channels/:id/leave', async ({ params, request, response }) => {
 
 
 /**
- * POST /channels/:id/invites – vytvorí pozvánku pre používateľa do kanála
+ * POST /channels/:id/invites
  */
 router.post('/channels/:id/invites', async ({ params, request, response }) => {
   const channelId = Number(params.id)
   const { userId, inviterId } = request.only(['userId', 'inviterId'])
 
-  if (Number.isNaN(channelId)) {
-    return response.badRequest({ message: 'Neplatné ID kanála.' })
-  }
-
-  if (!userId || !inviterId) {
-    return response.badRequest({ message: 'userId a inviterId sú povinné.' })
-  }
+  if (Number.isNaN(channelId)) return response.badRequest({ message: 'Neplatné ID kanála.' })
+  if (!userId || !inviterId) return response.badRequest({ message: 'userId a inviterId sú povinné.' })
 
   const channel = await Channel.find(channelId)
-  if (!channel) {
-    return response.notFound({ message: 'Kanál neexistuje.' })
-  }
+  if (!channel) return response.notFound({ message: 'Kanál neexistuje.' })
 
   const user = await User.find(userId)
-  if (!user) {
-    return response.notFound({ message: 'Používateľ neexistuje.' })
-  }
+  if (!user) return response.notFound({ message: 'Používateľ neexistuje.' })
 
-  // kontrola, či sa používateľ nesnaží pozvať sám seba
-  if (userId === inviterId) {
-    return response.badRequest({ message: 'Nemôžeš pozvať sám seba.' })
-  }
+  if (userId === inviterId) return response.badRequest({ message: 'Nemôžeš pozvať sám seba.' })
 
-  // kontrola, či je kanál private a či je inviter owner
   if (channel.availability === 'private') {
     const inviterMember = await ChannelMember.query()
       .where('userId', inviterId)
@@ -627,41 +577,31 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
     }
   }
 
-
-  // kontrola, či už nie je členom
   const existingMember = await ChannelMember.query()
     .where('userId', userId)
     .where('channelId', channelId)
     .first()
 
-  if (existingMember) {
-    return response.conflict({ message: 'Používateľ už je členom tohto kanála.' })
-  }
+  if (existingMember) return response.conflict({ message: 'Používateľ už je členom tohto kanála.' })
 
-  // kontrola, či už nemá pending pozvánku
   const existingInvite = await ChannelInvite.query()
     .where('userId', userId)
     .where('channelId', channelId)
     .where('status', 'pending')
     .first()
 
-  if (existingInvite) {
-    return response.conflict({ message: 'Používateľ už má pending pozvánku do tohto kanála.' })
-  }
+  if (existingInvite) return response.conflict({ message: 'Používateľ už má pending pozvánku.' })
 
-  // kontrola, či už existuje akákoľvek pozvánka (aj accepted/rejected) - kvôli unique constraintu
   const anyInvite = await ChannelInvite.query()
     .where('userId', userId)
     .where('channelId', channelId)
     .first()
 
   if (anyInvite) {
-    // ak je accepted, používateľ by už mal byť členom
-    // ak je rejected, môžeme vytvoriť novú pozvánku, ale musíme najprv vymazať starú
     if (anyInvite.status === 'rejected') {
       await anyInvite.delete()
     } else if (anyInvite.status === 'accepted') {
-      return response.conflict({ message: 'Používateľ už má pozvánku do tohto kanála.' })
+      return response.conflict({ message: 'Používateľ už má pozvánku.' })
     }
   }
 
@@ -672,80 +612,282 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
       inviterId,
       status: 'pending',
     })
-
     return invite
   } catch (error) {
-    // catch database constraint violations
     const dbError = error as { code?: string; message?: string }
-    if (dbError.code === '23505') { // PostgreSQL unique violation
+    if (dbError.code === '23505') {
       return response.conflict({ message: 'Pozvánka pre tohto používateľa už existuje.' })
     }
     throw error
   }
 })
 
+/**
+ * PUT /users/:id/photo
+ */
 router.put('/users/:id/photo', async ({ params, request, response }) => {
   const user = await User.find(params.id)
-
-  if (!user) {
-    return response.notFound({ message: 'Používateľ neexistuje.' })
-  }
+  if (!user) return response.notFound({ message: 'Používateľ neexistuje.' })
 
   const imageData = request.input('image') as string | null
+  if (!imageData) return response.badRequest({ message: 'Chýba obrázok.' })
 
-  if (!imageData) {
-    return response.badRequest({ message: 'Chýba obrázok.' })
-  }
-
-  // 1. Spracovanie Base64 obrázka
   const match = imageData.match(/^data:(.+);base64,(.+)$/)
-  if (!match) {
-    return response.badRequest({ message: 'Neplatný formát obrázka.' })
-  }
+  if (!match) return response.badRequest({ message: 'Neplatný formát obrázka.' })
 
   const mimeType = match[1]
   const base64 = match[2]
 
-  // 2. Zistenie prípony
   let ext = 'png'
   if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') ext = 'jpg'
   if (mimeType === 'image/webp') ext = 'webp'
 
   const buffer = Buffer.from(base64, 'base64')
-
-  // 3. Cesta k priečinku public/avatars
   const uploadDir = app.publicPath('avatars')
 
-  // Vytvoríme priečinok, ak neexistuje
   await fs.mkdir(uploadDir, { recursive: true })
 
-  // 4. Vytvorenie názvu súboru: ID_NICKNAME.pripona
-  // (Nickname prečistíme od divných znakov, aby to bol platný názov súboru)
   const safeNickname = user.nickname.replace(/[^a-zA-Z0-9_-]/g, '_')
   const fileName = `${user.id}_${safeNickname}.${ext}`
-
   const filePath = path.join(uploadDir, fileName)
 
-  // 5. Uloženie súboru na disk (prepíše starý ak existuje)
   await fs.writeFile(filePath, buffer)
 
-  // 6. Uloženie cesty do databázy
-  const publicPath = `avatars/${fileName}` // Relatívna cesta pre frontend
+  const publicPath = `avatars/${fileName}`
 
   user.profilePicture = publicPath
   await user.save()
 
-  return {
-    message: 'Foto uložené.',
-    profilePicture: publicPath,
-  }
+  return { message: 'Foto uložené.', profilePicture: publicPath }
 })
 
 /**
  * GET /avatars/:filename
- * Toto slúži na zobrazovanie nahraných profiloviek.
  */
 router.get('/avatars/:filename', async ({ params, response }) => {
   const filePath = app.publicPath(`avatars/${params.filename}`)
   return response.download(filePath)
 })
+
+
+/* ==========================================================================
+   COMMAND LINE ROUTES (S REALNOU DATABÁZOU A TVOJÍM MODELOM)
+   ========================================================================== */
+
+router.group(() => {
+
+  // /join
+  router.post('/join', async ({ request, response }) => {
+    const { userId, channelName, type } = request.all()
+    const safeTitle = channelName?.trim()
+    if (!userId || !safeTitle) return response.badRequest({ message: 'Chýbajú údaje.' })
+
+    const user = await User.find(userId)
+    if (!user) return response.notFound({ message: 'User nenájdený.' })
+
+    const existingChannel = await Channel.findBy('title', safeTitle)
+
+    if (existingChannel) {
+      if (existingChannel.availability === 'private') {
+        const hasAccess = await Access.query().where('user_id', userId).where('channel_id', existingChannel.id).first()
+        if (!hasAccess) return response.forbidden({ message: `Kanál '${safeTitle}' je súkromný. Musíš byť pozvaný.` })
+      }
+      const existingMember = await ChannelMember.query().where('user_id', userId).where('channel_id', existingChannel.id).first()
+      if (existingMember && existingMember.status === 'banned') return response.forbidden({ message: 'Máš ban v tomto kanáli.' })
+
+      await ChannelMember.firstOrCreate({ userId: user.id, channelId: existingChannel.id }, { status: 'member' })
+      return { message: `Pripojený do kanála #${safeTitle}`, channel: existingChannel }
+    } else {
+      const availability = (type === 'private') ? 'private' : 'public'
+      const channel = await Channel.create({ title: safeTitle, availability: availability, creatorId: user.id })
+      if (availability === 'private') await Access.create({ userId: user.id, channelId: channel.id })
+      await ChannelMember.create({ userId: user.id, channelId: channel.id, status: 'owner' })
+      return { message: `Kanál #${safeTitle} (${availability}) bol vytvorený.`, channel }
+    }
+  })
+
+  // /invite
+  router.post('/invite', async ({ request, response }) => {
+    const { userId, channelId, targetNick } = request.all()
+    const channel = await Channel.find(channelId)
+    const targetUser = await User.findBy('nickname', targetNick)
+    const requesterMember = await ChannelMember.query().where('user_id', userId).where('channel_id', channelId).first()
+
+    if (!channel || !targetUser || !requesterMember) return response.badRequest({ message: 'Kanál alebo používateľ neexistuje.' })
+
+    if (channel.availability === 'private') {
+      if (requesterMember.status !== 'owner') return response.forbidden({ message: 'Do súkromného kanála môže pozývať len správca.' })
+      await Access.firstOrCreate({ userId: targetUser.id, channelId: channel.id })
+      await ChannelMember.updateOrCreate({ userId: targetUser.id, channelId: channel.id }, { status: 'member' })
+
+      // Ak bol ban, zmažeme staré hlasy - používame tvoj názov stĺpcov
+      await KickVote.query().where('channel_id', channel.id).where('target_user_id', targetUser.id).delete()
+
+      return { message: `Používateľ ${targetNick} bol pridaný do súkromného kanála.` }
+    }
+
+    // Public logic
+    const targetMember = await ChannelMember.query().where('user_id', targetUser.id).where('channel_id', channelId).first()
+    if (targetMember && targetMember.status === 'banned') {
+      if (requesterMember.status === 'owner') {
+        targetMember.status = 'member'
+        await targetMember.save()
+        // Admin zrušil ban -> vymažeme hlasy z DB
+        await KickVote.query().where('channel_id', channel.id).where('target_user_id', targetUser.id).delete()
+
+        return { message: `Ban pre ${targetNick} bol zrušený správcom.` }
+      } else {
+        return response.forbidden({ message: 'Tento používateľ má ban. Len správca ho môže obnoviť.' })
+      }
+    }
+    if (!targetMember) {
+      await ChannelInvite.create({ channelId: channel.id, userId: targetUser.id, inviterId: userId, status: 'pending' })
+      return { message: `Pozvánka pre ${targetNick} bola odoslaná.` }
+    }
+    return { message: `${targetNick} už je členom kanála.` }
+  })
+
+  // /revoke
+  router.post('/revoke', async ({ request, response }) => {
+    const { userId, channelId, targetNick } = request.all()
+    const channel = await Channel.find(channelId)
+    const requesterMember = await ChannelMember.query().where('user_id', userId).where('channel_id', channelId).first()
+
+    if (channel?.availability !== 'private') return response.badRequest({ message: 'Príkaz /revoke funguje len v súkromných kanáloch.' })
+    if (requesterMember?.status !== 'owner') return response.forbidden({ message: 'Len správca môže odoberať prístup.' })
+
+    const targetUser = await User.findBy('nickname', targetNick)
+    if (!targetUser) return response.notFound({ message: 'Používateľ nenájdený.' })
+
+    await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
+    await ChannelMember.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
+    return { message: `Prístup pre ${targetNick} bol odobratý.` }
+  })
+
+  /**
+   * /kick [nickName] - S DATABÁZOVÝM HLASOVANÍM A TVOJIMI STĹPCAMI
+   */
+  router.post('/kick', async ({ request, response }) => {
+    const { userId, channelId, targetNick } = request.all()
+
+    // 1. Overenie vstupov
+    if (!targetNick) return response.badRequest({ message: 'Musíš zadať meno (nick).' })
+
+    const channel = await Channel.find(channelId)
+    if (!channel) return response.badRequest({ message: 'Chyba: Kanál sa nenašiel.' })
+
+    const targetUser = await User.findBy('nickname', targetNick)
+    if (!targetUser) return response.badRequest({ message: `Chyba: Používateľ s nickom '${targetNick}' neexistuje.` })
+
+    // requester = ten kto píše príkaz
+    const requester = await ChannelMember.query().where('user_id', userId).where('channel_id', channelId).first()
+    if (!requester) return response.badRequest({ message: 'Chyba: Ty nie si členom tohto kanála.' })
+
+    if (targetUser.id === userId) {
+      return response.badRequest({ message: 'Nemôžeš vyhodiť sám seba. Použi /cancel.' })
+    }
+
+    const targetMember = await ChannelMember.query().where('user_id', targetUser.id).where('channel_id', channelId).first()
+    if (!targetMember) {
+      return response.badRequest({ message: `Chyba: Používateľ '${targetNick}' nie je v tomto kanáli.` })
+    }
+
+    // === 1. ADMIN LOGIKA (Instant Ban = "Akože 3 hlasy") ===
+    if (requester.status === 'owner') {
+      targetMember.status = 'banned'
+      await targetMember.save()
+
+      if (channel.availability === 'private') {
+        await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
+      }
+
+      // Vyčistíme DB od hlasov (používame 'target_user_id')
+      await KickVote.query().where('channel_id', channelId).where('target_user_id', targetUser.id).delete()
+
+      return { message: `Správca udelil ban používateľovi ${targetNick}.` }
+    }
+
+    // === 2. PUBLIC MEMBER LOGIKA (Hlasovanie do DB) ===
+    if (channel.availability === 'public') {
+
+      // Skontrolujeme, či už hlasoval (používame 'voter_user_id')
+      const existingVote = await KickVote.query()
+        .where('channel_id', channelId)
+        .where('target_user_id', targetUser.id)
+        .where('voter_user_id', userId)
+        .first()
+
+      if (existingVote) {
+        return response.conflict({ message: 'Už si hlasoval za vyhodenie tohto člena.' })
+      }
+
+      // Vytvoríme nový hlas v DB (POZOR NA NÁZVY V TVOJOM MODELI)
+      await KickVote.create({
+        channelId: channelId,
+        targetUserId: targetUser.id,
+        voterUserId: userId // Toto je kľúčové podľa tvojho modelu
+      })
+
+      // Zrátame všetky hlasy pre tohto targetUsera v tomto kanáli
+      const votesCountResult = await KickVote.query()
+        .where('channel_id', channelId)
+        .where('target_user_id', targetUser.id)
+        .count('* as total')
+
+      const totalVotes = Number(votesCountResult[0].$extras.total)
+
+      // Kontrola, či máme dosť hlasov
+      if (totalVotes >= 3) {
+        targetMember.status = 'banned'
+        await targetMember.save()
+
+        // Vyčistíme hlasy, lebo už je zabanovaný
+        await KickVote.query().where('channel_id', channelId).where('target_user_id', targetUser.id).delete()
+
+        return { message: `Používateľ ${targetNick} dostal trvalý ban na základe hlasovania (${totalVotes} hlasov).` }
+      }
+
+      return { message: `Hlasoval si za kick ${targetNick}. Aktuálne hlasy: ${totalVotes}/3.` }
+    }
+
+    return response.badRequest({ message: 'V tomto type kanála nemôžeš kickovať.' })
+  })
+
+  // /quit
+  router.post('/quit', async ({ request, response }) => {
+    const { userId, channelId } = request.all()
+    const channel = await Channel.find(channelId)
+    if (!channel) return response.notFound()
+    if (channel.creatorId !== userId) return response.forbidden({ message: 'Len správca môže zrušiť kanál.' })
+
+    await KickVote.query().where('channel_id', channelId).delete()
+    await channel.delete()
+    return { message: 'Kanál bol úspešne zrušený.' }
+  })
+
+  // /cancel
+  router.post('/cancel', async ({ request, response }) => {
+    const { userId, channelId } = request.all()
+    const channel = await Channel.find(channelId)
+    if (!channel) return response.notFound()
+
+    if (channel.creatorId === userId) {
+      await channel.delete()
+      return { message: 'Opustil si kanál ako vlastník. Kanál bol zrušený.', action: 'deleted' }
+    }
+
+    await ChannelMember.query().where('user_id', userId).where('channel_id', channelId).delete()
+
+    // Zmažeme hlasy, ktoré user dal iným (voter_user_id)
+    await KickVote.query().where('channel_id', channelId).where('voter_user_id', userId).delete()
+
+    // Zmažeme hlasy PROTI nemu (target_user_id)
+    await KickVote.query().where('channel_id', channelId).where('target_user_id', userId).delete()
+
+    if (channel.availability === 'private') {
+      await Access.query().where('user_id', userId).where('channel_id', channelId).delete()
+    }
+    return { message: 'Opustil si kanál.', action: 'left' }
+  })
+
+}).prefix('/cmd')
