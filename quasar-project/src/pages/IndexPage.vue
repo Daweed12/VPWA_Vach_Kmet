@@ -2,18 +2,11 @@
   <q-page class="chat-page">
     <div class="chat-wrapper">
 
-
-
-
-
-
-      <!-- samotný chat -->
       <div
         ref="scrollArea"
         id="chat-scroll"
         class="chat-scroll"
       >
-        <!-- 1) Nie je zvolený žiadny kanál -->
         <div
           v-if="!activeChannelId"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
@@ -24,7 +17,6 @@
           </div>
         </div>
 
-        <!-- 2) Načítanie prvých správ -->
         <div
           v-else-if="loading && totalMessages === 0"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
@@ -35,7 +27,6 @@
           </div>
         </div>
 
-        <!-- 3) Kanál je prázdny -->
         <div
           v-else-if="!loading && totalMessages === 0"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
@@ -46,7 +37,6 @@
           </div>
         </div>
 
-        <!-- Typing indicator with draft preview - bottom left corner -->
         <div
           v-if="typingUsers.length > 0"
           class="typing-indicator-fixed"
@@ -81,7 +71,6 @@
           </q-card>
         </div>
 
-        <!-- 4) Správy + infinite scroll -->
         <div
           class="q-pt-sm q-pb-lg"
         >
@@ -96,7 +85,7 @@
             <div
               v-for="msg in visibleMessages"
               :key="msg.id"
-              :class="['q-px-sm q-py-xs', isMentioned(msg) ? 'mention-highlight' : '']"
+              class="q-px-sm q-py-xs"
             >
               <q-chat-message
                 :name="msg.name"
@@ -106,7 +95,6 @@
                 :text-color="msg.sent ? 'white' : 'black'"
                 class="shadow-sm"
               >
-                <!-- vlastný avatar s ikonkou -->
                 <template #avatar>
                   <q-avatar
                     size="38px"
@@ -117,20 +105,24 @@
                 </template>
 
                 <template #default>
-    <span class="bubble-text">
-      <span
-        v-for="(chunk, idx) in chunks(msg.text)"
-        :key="msg.id + '-' + idx"
-      >
-        <span
-          v-if="chunk.type === 'mention'"
-          class="mention"
-        >
-          @{{ chunk.value }}
-        </span>
-        <span v-else>{{ chunk.value }}</span>
-      </span>
-    </span>
+                  <span class="bubble-text">
+                    <span
+                      v-for="(chunk, idx) in chunks(msg.text)"
+                      :key="msg.id + '-' + idx"
+                    >
+                      <span
+                        v-if="chunk.type === 'mention'"
+                        :class="{
+                          'mention-me': chunk.value === currentUser?.nickname,
+                          'mention-text': chunk.value !== currentUser?.nickname
+                        }"
+                      >
+                        @{{ chunk.value }}
+                      </span>
+
+                      <span v-else>{{ chunk.value }}</span>
+                    </span>
+                  </span>
                 </template>
               </q-chat-message>
             </div>
@@ -152,15 +144,12 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
 import { io, type Socket } from 'socket.io-client'
-const defaultUserAvatar = new URL('../assets/0_DEFAULT_USER.png.png', import.meta.url).href
+const defaultUserAvatar = new URL('../assets/default_user_avatar.png', import.meta.url).href
 
 
 // Window interface will be extended later
 
 /* ===== typy z API ===== */
-interface MessageWithMentions extends MessageFromApi {
-  mentions?: { id: number; nickname: string }[]
-}
 
 interface CurrentUser {
   id: number
@@ -211,15 +200,6 @@ const rawMessages = ref<MessageFromApi[]>([])
 const loading = ref(false)
 
 const scrollArea = ref<HTMLElement | null>(null)
-
-const isMentioned = (msg: UiMessage & { mentions?: { id: number }[] }) => {
-  if (!currentUser.value) return false
-  if (!('mentions' in msg)) return false
-  if (!msg.mentions || msg.mentions.length === 0) return false
-
-  return msg.mentions.some(u => u.id === currentUser.value!.id)
-}
-
 
 const getFullAvatarUrl = (path: string | null | undefined) => {
   if (!path) return defaultUserAvatar // Ak nemá fotku, vráti lokálny default
@@ -503,12 +483,13 @@ const infiniteKey = ref(0)
 
 /* ===== odvodené hodnoty ===== */
 
-const uiMessages = computed(() => {
+const uiMessages = computed<UiMessage[]>(() => {
   return rawMessages.value
     .filter((m) => m.sender)
     .map((m) => {
       const s = m.sender
 
+      // 1️⃣ zobrazovaný názov – najprv nickname
       const displayName =
         s.nickname ||
         `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
@@ -517,6 +498,7 @@ const uiMessages = computed(() => {
       const meId = currentUser.value?.id ?? null
       const isMe = meId !== null && s.id === meId
 
+      // 2️⃣ formátovaný timestamp
       const stamp = new Date(m.timestamp).toLocaleString('sk-SK', {
         day: '2-digit',
         month: '2-digit',
@@ -524,18 +506,18 @@ const uiMessages = computed(() => {
         minute: '2-digit',
       })
 
+      const avatar = getFullAvatarUrl(s.profilePicture)
+
       return {
         id: m.id,
         name: displayName,
-        avatar: getFullAvatarUrl(s.profilePicture),
+        avatar,
         sent: isMe,
         text: m.content,
         stamp,
-        mentions: (m as MessageWithMentions).mentions ?? []
       }
     })
 })
-
 
 
 
@@ -910,15 +892,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-
-.mention-highlight {
-  background: #fff7c2;
-  border-left: 4px solid #f4c20d;
-  border-radius: 6px;
-  padding-left: 8px;
-}
-
-
 .chat-page {
   display: flex;
   flex-direction: column;
@@ -978,14 +951,21 @@ onUnmounted(() => {
   word-wrap: break-word;
 }
 
-.mention {
+/* Toto sa použije, ak ťa niekto označil (zelené pozadie) */
+.mention-me {
   display: inline-block;
   padding: 0 4px;
   margin: 0 1px;
   border-radius: 4px;
-  background-color: #43a047;
+  background-color: #43a047; /* Zelená */
   color: white;
   font-weight: 600;
+}
+
+/* Toto sa použije pre ostatné mentions (napr. len tučné písmo, žiadne pozadie) */
+.mention-text {
+  font-weight: 700;
+  color: #2c3e50; /* Alebo iná farba pre zvýraznenie textu */
 }
 
 /* Typing indicator - fixed bottom left */

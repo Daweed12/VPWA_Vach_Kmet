@@ -4,7 +4,7 @@ import app from '@adonisjs/core/services/app'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-//import Mention from '#models/mention' // Uisti sa, že máš tento model
+import Mention from '#models/mention'
 import Channel from '#models/channel'
 import User from '#models/user'
 import ChannelMember from '#models/channel_member'
@@ -25,22 +25,18 @@ router.get('/channels/:id/members', async ({ params }) => {
     .where('id', params.id)
     .preload('members', (query) => {
       query.pivotColumns(['status', 'joined_at'])
-      // TOTO JE TÁ KĽÚČOVÁ OPRAVA:
-      // Povieme databáze: "Vráť mi členov, LEN ak ich status v kanáli NIE JE 'banned'"
+      // Vrátime členov, LEN ak ich status v kanáli NIE JE 'banned'
       query.wherePivot('status', '!=', 'banned')
     })
     .firstOrFail()
 
   return channel.members.map((u) => ({
     id: u.id,
-    // Pozor: u.status je userov online/offline status z tabuľky users
-    // Ak by si chcel status v kanáli (owner/member), musel by si použiť u.$extras.pivot_status
     name:
       u.nickname ||
       `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() ||
       u.email,
     status: u.status || 'offline',
-    // Pre istotu môžeme poslať aj rolu v kanáli, ak by si to chcel v budúcnosti farebne odlíšiť
     channelRole: u.$extras.pivot_status
   }))
 })
@@ -394,11 +390,37 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
     return response.notFound({ message: 'Používateľ neexistuje.' })
   }
 
+  // 1. Vytvorenie správy
   const message = await Message.create({
     channelId,
     senderId,
     content: content.trim(),
   })
+
+  // === 2. LOGIKA PRE MENTIONS (Zmienky) ===
+  const mentionMatches = content.match(/\B@([\p{L}\p{N}_-]+)/gu)
+
+  if (mentionMatches && mentionMatches.length > 0) {
+    // 1. Odstránime duplicity cez Set a PREDTÝM TO PRETYPUJEME NA string[]
+    const uniqueMatches = [...new Set(mentionMatches)] as string[]
+
+    // 2. Odstránime zavináč (substring)
+    const nicknames = uniqueMatches.map((m) => m.substring(1))
+
+    // 3. Nájdeme userov
+    const mentionedUsers = await User.query().whereIn('nickname', nicknames)
+
+    // 4. Uložíme do DB
+    if (mentionedUsers.length > 0) {
+      const mentionsToCreate = mentionedUsers.map((u) => ({
+        messageId: message.id,
+        userId: u.id,
+      }))
+
+      await Mention.createMany(mentionsToCreate)
+    }
+  }
+  // =========================================
 
   await message.load('sender')
 
@@ -678,7 +700,7 @@ router.get('/avatars/:filename', async ({ params, response }) => {
 
 
 /* ==========================================================================
-   COMMAND LINE ROUTES (S REALNOU DATABÁZOU A TVOJÍM MODELOM)
+   COMMAND LINE ROUTES
    ========================================================================== */
 
 router.group(() => {
@@ -727,7 +749,7 @@ router.group(() => {
       await Access.firstOrCreate({ userId: targetUser.id, channelId: channel.id })
       await ChannelMember.updateOrCreate({ userId: targetUser.id, channelId: channel.id }, { status: 'member' })
 
-      // Ak bol ban, zmažeme staré hlasy - používame tvoj názov stĺpcov
+      // Ak bol ban, zmažeme staré hlasy
       await KickVote.query().where('channel_id', channel.id).where('target_user_id', targetUser.id).delete()
 
       return { message: `Používateľ ${targetNick} bol pridaný do súkromného kanála.` }
@@ -772,15 +794,11 @@ router.group(() => {
   })
 
   /**
-   * /kick [nickName] - OPRAVENÁ LOGIKA:
-   * 1. Ochrana správcu (nikto ho nemôže vyhodiť)
-   * 2. Správca vyhadzuje okamžite (BAN)
-   * 3. Členovia hlasujú (Public aj Private)
+   * /kick [nickName]
    */
   router.post('/kick', async ({ request, response }) => {
     const { userId, channelId, targetNick } = request.all()
 
-    // --- KONTROLY ---
     if (!targetNick) return response.badRequest({ message: 'Musíš zadať meno (nick).' })
 
     const channel = await Channel.find(channelId)
@@ -801,12 +819,12 @@ router.group(() => {
       return response.badRequest({ message: `Chyba: Používateľ '${targetNick}' nie je v tomto kanáli.` })
     }
 
-    // --- OCHRANA SPRÁVCU ---
+    // Ochrana správcu
     if (targetMember.status === 'owner') {
       return response.forbidden({ message: 'Nemôžeš vyhodiť správcu kanála!' })
     }
 
-    // --- SCENÁR A: SPRÁVCA (OKAMŽITÝ BAN) ---
+    // ADMIN LOGIKA (Instant Ban)
     if (requester.status === 'owner') {
       targetMember.status = 'banned'
       await targetMember.save()
@@ -815,16 +833,12 @@ router.group(() => {
         await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
       }
 
-      // Vyčistíme hlasy, lebo už je vybavený
       await KickVote.query().where('channel_id', channelId).where('target_user_id', targetUser.id).delete()
 
       return { message: `Správca udelil BAN používateľovi ${targetNick}.` }
     }
 
-    // --- SCENÁR B: ČLENOVIA (HLASOVANIE) ---
-    // (Platí pre Public aj Private, ak requester nie je owner)
-
-    // 1. Už hlasoval?
+    // MEMBER LOGIKA (Hlasovanie)
     const existingVote = await KickVote.query()
       .where('channel_id', channelId)
       .where('target_user_id', targetUser.id)
@@ -835,14 +849,12 @@ router.group(() => {
       return response.conflict({ message: 'Už si hlasoval za vyhodenie tohto člena.' })
     }
 
-    // 2. Pridať hlas
     await KickVote.create({
       channelId: channelId,
       targetUserId: targetUser.id,
       voterUserId: userId
     })
 
-    // 3. Spocitať hlasy
     const votesCountResult = await KickVote.query()
       .where('channel_id', channelId)
       .where('target_user_id', targetUser.id)
@@ -850,7 +862,6 @@ router.group(() => {
 
     const totalVotes = Number(votesCountResult[0].$extras.total)
 
-    // 4. Vyhodnotiť (3 a viac = BAN)
     if (totalVotes >= 3) {
       targetMember.status = 'banned'
       await targetMember.save()
@@ -892,10 +903,7 @@ router.group(() => {
 
     await ChannelMember.query().where('user_id', userId).where('channel_id', channelId).delete()
 
-    // Zmažeme hlasy, ktoré user dal iným (voter_user_id)
     await KickVote.query().where('channel_id', channelId).where('voter_user_id', userId).delete()
-
-    // Zmažeme hlasy PROTI nemu (target_user_id)
     await KickVote.query().where('channel_id', channelId).where('target_user_id', userId).delete()
 
     if (channel.availability === 'private') {
