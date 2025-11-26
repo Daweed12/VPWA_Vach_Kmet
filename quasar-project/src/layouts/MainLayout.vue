@@ -888,23 +888,6 @@ export default {
 </script>
 
 <style>
-.no-page-scroll,
-.no-page-scroll .q-page-container,
-.no-page-scroll .q-page {
-  height: 100%;
-  overflow: hidden;
-}
-
-/* In MainLayout.vue <style> */
-html, body, #q-app {
-  height: 100%;
-  overflow: hidden !important;
-}
-
-.no-page-scroll {
-  height: 100vh !important;
-  overflow: hidden !important;
-}
 
 /* Ensure the container doesn't scroll itself but allows children to size properly */
 .q-page-container {
