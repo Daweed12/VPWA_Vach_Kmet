@@ -537,6 +537,51 @@ router.delete('/channels/:id', async ({ params, response }) => {
   return { message: 'Kanál bol úspešne vymazaný.' }
 })
 
+router.post('/channels/:id/leave', async ({ params, request, response }) => {
+  const channelId = Number(params.id)
+  const userId = Number(request.input('userId'))
+
+  if (!userId || Number.isNaN(channelId)) {
+    return response.badRequest({ message: 'Neplatné dáta.' })
+  }
+
+  // Skontrolujeme, či kanál existuje
+  const channel = await Channel.find(channelId)
+  if (!channel) {
+    return response.notFound({ message: 'Kanál neexistuje.' })
+  }
+
+  // Nájdeme záznam v ChannelMember
+  const member = await ChannelMember
+    .query()
+    .where('channelId', channelId)
+    .where('userId', userId)
+    .first()
+
+  if (!member) {
+    return response.badRequest({ message: 'Nie si členom tohto kanála.' })
+  }
+
+  // Ak je používateľ OWNER → nesmie opustiť
+  if (member.status === 'owner') {
+    return response.forbidden({
+      message: 'Owner nemôže opustiť kanál. Môže ho iba vymazať.'
+    })
+  }
+
+  // Vymažeme ho z ChannelMember
+  await member.delete()
+
+  // Vymažeme aj access záznam
+  await Access.query().where('userId', userId).where('channelId', channelId).delete()
+
+  return {
+    message: 'Opustil si kanál.',
+    channelId
+  }
+})
+
+
 
 /**
  * POST /channels/:id/invites – vytvorí pozvánku pre používateľa do kanála
