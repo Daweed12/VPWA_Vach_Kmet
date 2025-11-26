@@ -489,11 +489,8 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
 
     console.log('📤 Broadcasting message via WebSocket:', {
       channelId,
-<<<<<<< HEAD
-      messageId: message.id, // <--- OPRAVA: Použitie message.id namiesto messageToBroadcast.id
-=======
+
       messageId: messageToBroadcast,
->>>>>>> origin/main
       room: `channel:${channelId}`,
       connectedClients: io.sockets.sockets.size
     })
