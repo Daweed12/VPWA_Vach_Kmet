@@ -161,86 +161,61 @@
                 </q-card-section>
               </q-card>
 
-              <!-- PRIVACY & TYPING -->
-              <q-card class="round-card">
-                <q-card-section class="text-subtitle1 compact-section">
-                  Privacy &amp; Typing
-                </q-card-section>
-                <q-separator />
-                <q-card-section class="q-gutter-md compact-section">
-                  <q-toggle
-                    v-model="typingVisible"
-                    label="Zobrazovať ostatným, že píšem"
-                  />
-                  <q-toggle
-                    v-model="typingPreview"
-                    label="Zdieľať náhľad rozpísanej správy"
-                  />
-                </q-card-section>
-              </q-card>
-
               <!-- MY CHANNELS – zatiaľ staticky -->
               <q-card class="round-card">
                 <q-card-section class="text-subtitle1 compact-section">
                   My channels
                 </q-card-section>
                 <q-separator />
-                <q-list separator>
-                  <q-item>
-                    <q-item-section>
-                      <q-item-label>#general</q-item-label>
-                      <q-item-label caption class="text-caption">
-                        Public • Active
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side class="row q-gutter-sm">
-                      <q-btn dense flat icon="logout" label="Leave" />
-                    </q-item-section>
-                  </q-item>
 
-                  <q-item>
+                <q-list v-if="myChannels.length" separator>
+                  <q-item
+                    v-for="ch in myChannels"
+                    :key="ch.id"
+                  >
                     <q-item-section>
-                      <q-item-label>#devs</q-item-label>
+                      <q-item-label>#{{ ch.title }}</q-item-label>
                       <q-item-label caption class="text-caption">
-                        Private • Active
-                        <q-badge color="purple" class="q-ml-sm">Admin</q-badge>
+                        {{ availabilityLabel(ch.availability) }} • Active
+                        <q-badge
+                          v-if="isChannelAdmin(ch)"
+                          color="purple"
+                          class="q-ml-sm"
+                        >
+                          Admin
+                        </q-badge>
                       </q-item-label>
                     </q-item-section>
+
                     <q-item-section side class="row q-gutter-sm">
-                      <q-btn dense flat icon="logout" label="Leave" />
                       <q-btn
+                        dense
+                        flat
+                        icon="logout"
+                        label="Leave"
+                        @click="onLeaveChannel(ch)"
+                      />
+                      <q-btn
+                        v-if="isChannelAdmin(ch)"
                         dense
                         flat
                         icon="delete"
                         color="negative"
                         label="Delete channel"
+                        @click="onDeleteChannel(ch)"
                       />
                     </q-item-section>
                   </q-item>
                 </q-list>
+
+                <q-card-section
+                  v-else
+                  class="compact-section text-grey-7 text-caption"
+                >
+                  Nie si členom žiadneho kanála.
+                </q-card-section>
               </q-card>
 
-              <!-- COMMAND HELP -->
-              <q-card class="round-card">
-                <q-expansion-item
-                  dense-expand
-                  label="Command quick help"
-                  expand-icon="expand_more"
-                >
-                  <q-separator />
-                  <q-card-section class="q-gutter-xs compact-section text-body2">
-                    <div><code>/join channelName [private]</code> – pridať sa / vytvoriť kanál</div>
-                    <div><code>/invite nickName</code> – pozvať používateľa</div>
-                    <div><code>/revoke nickName</code> – odobrať používateľovi prístup (private)</div>
-                    <div><code>/kick nickName</code> – vyhodiť člena</div>
-                    <div><code>/quit</code> – správca zruší kanál</div>
-                    <div><code>/cancel</code> – opustiť kanál</div>
-                    <div><code>/list</code> – zoznam členov kanála</div>
-                    <div><code>/change_channel_visibility</code> – zmeň kanál z private na public a naopak</div>
-                    <div><code>@nickname</code> – adresovať správu konkrétnemu používateľovi</div>
-                  </q-card-section>
-                </q-expansion-item>
-              </q-card>
             </div>
           </div>
         </div>
@@ -275,12 +250,22 @@ interface UserFromApi {
   notifyOnMentionOnly: boolean | null
 }
 
+interface ChannelFromApi {
+  id: number
+  title: string
+  availability: 'public' | 'private'
+  creatorId?: number
+  createdAt?: string
+  lastMessageAt?: string | null
+}
+
 const $q = useQuasar()
 const router = useRouter()
 
 const saving = ref(false)
 
 const currentUser = ref<CurrentUser | null>(null)
+const myChannels = ref<ChannelFromApi[]>([])
 
 const form = reactive({
   firstname: '',
@@ -300,11 +285,8 @@ const original = reactive({
   notifyOnMentionOnly: false,
 })
 
-// toggles, ktoré zatiaľ neposielame na server
 const notifAll = ref(true)
 const notifMuteInDnd = ref(true)
-const typingVisible = ref(true)
-const typingPreview = ref(true)
 
 const statusOptions = ['ONLINE', 'AWAY', 'DND', 'OFFLINE']
 
@@ -378,6 +360,19 @@ function resetForm () {
   copyForm(original, form)
 }
 
+async function loadChannels (userId: number) {
+  try {
+    const { data } = await api.get<ChannelFromApi[]>('/channels', {
+      params: { userId }
+    })
+    myChannels.value = data
+  } catch (error) {
+    console.error('Nepodarilo sa načítať kanály:', error)
+  }
+}
+
+
+
 async function loadUser () {
   try {
     const raw = localStorage.getItem('currentUser')
@@ -403,6 +398,9 @@ async function loadUser () {
     form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly)
 
     copyForm(form, original)
+
+    await loadChannels(basic.id)
+
   } catch (error: unknown) {
     let message = 'Nepodarilo sa načítať profil.'
 
@@ -493,6 +491,58 @@ function logout () {
   localStorage.removeItem('currentUser')
   void router.push('/auth/login')
 }
+
+const availabilityLabel = (availability: string) => {
+  return availability === 'public' ? 'Public' : 'Private'
+}
+
+const isChannelAdmin = (ch: ChannelFromApi) => {
+  return currentUser.value != null && ch.creatorId === currentUser.value.id
+}
+
+async function onLeaveChannel (ch: ChannelFromApi) {
+  if (!currentUser.value) return
+
+  const ok = window.confirm(`Naozaj chceš odísť z kanála #${ch.title}?`)
+  if (!ok) return
+
+  try {
+    // endpoint si uprav podľa backendu
+    await api.post(`/channels/${ch.id}/leave`, {
+      userId: currentUser.value.id
+    })
+    myChannels.value = myChannels.value.filter(c => c.id !== ch.id)
+  } catch (error) {
+    console.error('Chyba pri odchode z kanála', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Nepodarilo sa opustiť kanál.',
+      position: 'bottom'
+    })
+  }
+}
+
+async function onDeleteChannel (ch: ChannelFromApi) {
+  if (!currentUser.value || ch.creatorId !== currentUser.value.id) return
+
+  const ok = window.confirm(
+    `Naozaj chceš vymazať kanál "#${ch.title}"?\nTúto akciu nie je možné vrátiť.`
+  )
+  if (!ok) return
+
+  try {
+    await api.delete(`/channels/${ch.id}`)
+    myChannels.value = myChannels.value.filter(c => c.id !== ch.id)
+  } catch (error) {
+    console.error('Chyba pri mazaní kanála', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Kanál sa nepodarilo vymazať.',
+      position: 'bottom'
+    })
+  }
+}
+
 
 onMounted(() => {
   void loadUser()
