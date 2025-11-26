@@ -1,5 +1,8 @@
 <script lang="ts">
 import { defineComponent, computed } from 'vue'
+// 1. Importujeme defaultný obrázok (skontroluj či je to .png, .svg atď.)
+// Alias 'src/' funguje v Quasare štandardne a odkazuje na root src priečinka.
+import defaultChannelLogo from 'src/assets/default_channel_logo.png'
 
 export default defineComponent({
   name: 'ChannelBar',
@@ -16,7 +19,6 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    // tu príde cesta z DB (imagine_path)
     imageUrl: {
       type: String,
       default: '',
@@ -33,6 +35,7 @@ export default defineComponent({
       props.availability === 'private' ? 'private' : 'public',
     )
 
+    // Kontrola či máme custom obrázok
     const hasImage = computed(() => !!props.imageUrl)
 
     const handleClick = () => {
@@ -54,6 +57,8 @@ export default defineComponent({
       handleClick,
       acceptInvite,
       rejectInvite,
+      // 2. Vrátime default logo do template-u
+      defaultChannelLogo
     }
   },
 })
@@ -66,31 +71,21 @@ export default defineComponent({
     v-ripple
     @click="handleClick"
   >
-    <!-- AVATAR KANÁLA VĽAVO -->
     <q-item-section avatar class="q-mr-sm">
       <q-avatar rounded size="32px">
-        <!-- ak máme cestu, zobrazíme obrázok -->
         <img
-          v-if="hasImage"
-          :src="imageUrl"
+          :src="hasImage ? imageUrl : defaultChannelLogo"
           alt="Channel avatar"
         >
-        <!-- inak fallback ikonka -->
-        <q-icon
-          v-else
-          name="forum"
-        />
       </q-avatar>
     </q-item-section>
 
-    <!-- názov kanála -->
     <q-item-section
       :class="isInvite ? 'text-white text-weight-bold' : 'text-black text-weight-bold'"
     >
       {{ name }}
     </q-item-section>
 
-    <!-- badge PUBLIC / PRIVATE -->
     <q-badge
       v-if="!isInvite"
       :color="badgeColor"
@@ -100,7 +95,6 @@ export default defineComponent({
       {{ badgeText }}
     </q-badge>
 
-    <!-- invite – accept / reject -->
     <q-item-section v-if="isInvite" side>
       <div class="row items-center">
         <q-btn

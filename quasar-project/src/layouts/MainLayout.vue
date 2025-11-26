@@ -58,7 +58,10 @@
           />
         </div>
 
-        <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
+        <div
+          v-if="!showCmd"
+          class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar"
+        >
           <q-list>
             <div class="q-mb-sm">
               <ChannelSearchHeader
@@ -118,6 +121,17 @@
         </div>
 
         <div
+          v-else
+          class="col q-pa-md bg-orange-2 drawer-div-wrapper"
+        >
+          <CommandPanel
+            :history="commandHistory"
+            @execute="handleCommand"
+            @close="showCmd = false"
+          />
+        </div>
+
+        <div
           class="q-pa-none bg-orange-2 drawer-div-wrapper"
           style="margin-top: 10px; padding: 2px"
         >
@@ -140,25 +154,29 @@
                   flat
                   round
                   dense
-                  color="black"
+                  :color="showCmd ? 'green-8' : 'black'"
                   icon="terminal"
                   size="lg"
                   class="q-mr-xs"
-                  @click="console.log('CMD clicked')"
+                  @click="showCmd = !showCmd"
                 >
-                  <q-tooltip>Otvor CMD</q-tooltip>
+                  <q-tooltip>
+                    {{ showCmd ? 'Zavrieť CMD' : 'Otvor CMD' }}
+                  </q-tooltip>
                 </q-btn>
 
                 <q-btn
                   flat
                   round
                   dense
-                  color="black"
+                  :color="isSettingsPage ? 'green-8' : 'black'"
                   icon="settings"
                   size="lg"
-                  @click="$router.push('/app/settings')"
+                  @click="toggleSettings"
                 >
-                  <q-tooltip>Otvor nastavenia účtu</q-tooltip>
+                  <q-tooltip>
+                    {{ isSettingsPage ? 'Späť na chat' : 'Otvor nastavenia účtu' }}
+                  </q-tooltip>
                 </q-btn>
               </div>
             </q-item-section>
@@ -261,6 +279,7 @@ import textBar from 'src/components/TextBar.vue'
 import ChannelBar from 'components/ChannelBar.vue'
 import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
 import MemberList from 'components/MemberList.vue'
+import CommandPanel from 'components/CommandPanel.vue'
 import { api } from 'boot/api'
 
 interface ChannelFromApi {
@@ -291,17 +310,24 @@ interface CurrentUser {
   profilePicture: string | null
 }
 
+interface CmdLog {
+  type: 'input' | 'output' | 'error';
+  text: string;
+}
+
 export default {
   components: {
     ChannelSearchHeader,
     textBar,
     channel: ChannelBar,
-    MemberList
+    MemberList,
+    CommandPanel
   },
 
   setup () {
     const leftDrawerOpen = ref(true)
     const rightDrawerOpen = ref(false)
+    const showCmd = ref(false)
 
     const route = useRoute()
     const router = useRouter()
@@ -313,6 +339,12 @@ export default {
     const currentChannelTitle = ref<string | null>(null)
     const currentChannel = ref<ChannelFromApi | null>(null)
     const currentUser = ref<CurrentUser | null>(null)
+
+    // História príkazov pre CommandPanel
+    const commandHistory = ref<CmdLog[]>([
+      { type: 'output', text: 'Vitaj v Intouch CMD.' },
+      { type: 'output', text: 'Napíš /help pre pomoc.' }
+    ])
 
     const showHeader = computed(() => route.meta.showHeader !== false)
     const isSettingsPage = computed(() => route.path.startsWith('/app/settings'))
@@ -423,6 +455,186 @@ export default {
       }
     })
 
+    // ZMENA: Toggle funkcia pre tlačidlo Settings
+    const toggleSettings = async () => {
+      if (isSettingsPage.value) {
+        // Sme v nastaveniach -> vrátiť sa na chat
+        await router.push('/app')
+
+        // Ak bol vybraný kanál, musíme ho "znovu aktivovať", aby IndexPage načítala správy
+        if (currentChannel.value) {
+          // Krátke oneskorenie, aby stihla nabehnúť stránka a listener
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('channelSelected', {
+                detail: {
+                  id: currentChannel.value?.id,
+                  title: currentChannel.value?.title
+                }
+              })
+            )
+          }, 50)
+        }
+      } else {
+        // Nie sme v nastaveniach -> ísť do nastavení
+        await router.push('/app/settings')
+      }
+    }
+
+    // LOGIKA PRE PRÍKAZY (CMD)
+    const logToCmd = (text: string, type: 'output' | 'error' = 'output') => {
+      commandHistory.value.push({ type, text })
+    }
+
+    const handleCommand = async (rawCmd: string) => {
+      // 1. Zaloguj vstup používateľa
+      commandHistory.value.push({ type: 'input', text: rawCmd })
+
+      const parts = rawCmd.trim().split(/\s+/)
+      // FIX 1: Ošetrenie undefined parts[0]
+      const command = (parts[0] || '').toLowerCase()
+      const args = parts.slice(1)
+
+      switch (command) {
+        case '/help':
+          logToCmd('Dostupné príkazy:')
+          logToCmd('/list - otvorí zoznam členov')
+          logToCmd('/join [nazov] [private] - pripojí sa alebo vytvorí kanál')
+          logToCmd('/invite [nick] - pozve používateľa (len mock)')
+          logToCmd('/quit - zmaže aktuálny kanál (ak si vlastník)')
+          logToCmd('/clear - vymaže históriu')
+          logToCmd('/exit - zatvorí CMD')
+          break
+
+        case '/clear':
+          commandHistory.value = []
+          break
+
+        case '/exit':
+          showCmd.value = false
+          break
+
+        // --- 1. OTVORENIE MEMBER LISTU ---
+        case '/list':
+          if (!currentChannel.value) {
+            logToCmd('Nie si v žiadnom kanáli.', 'error')
+            return
+          }
+          // Otvor pravý drawer
+          rightDrawerOpen.value = true
+          logToCmd('Otváram zoznam členov...')
+          break
+
+        // --- 2. JOIN / CREATE CHANNEL ---
+        case '/join': {
+          const channelName = args[0]
+          const mode = args[1]?.toLowerCase() // 'private' alebo nič
+
+          if (!channelName) {
+            logToCmd('Použitie: /join <názov_kanála> [private]', 'error')
+            return
+          }
+
+          // 1. Skús nájsť kanál v existujúcom zozname (case-insensitive)
+          const existing = channels.value.find(c => c.title.toLowerCase() === channelName.toLowerCase())
+
+          if (existing) {
+            // Kanál existuje -> prepni sa naň
+            handleChannelClick(existing)
+            logToCmd(`Prepínam na kanál #${existing.title}`)
+          } else {
+            // Kanál neexistuje -> VYTVOR HO
+            if (!currentUser.value) {
+              logToCmd('Musíš byť prihlásený na vytváranie kanálov.', 'error')
+              return
+            }
+
+            logToCmd(`Vytváram kanál #${channelName}...`)
+            try {
+              const payload = {
+                title: channelName,
+                availability: mode === 'private' ? 'private' : 'public',
+                creatorId: currentUser.value.id
+              }
+
+              const res = await api.post('/channels', payload)
+              const newChannel = res.data as ChannelFromApi
+
+              // Pridaj do zoznamu
+              channels.value.unshift(newChannel)
+              // Hneď ho aj vyber
+              handleChannelClick(newChannel)
+
+              logToCmd(`Kanál #${newChannel.title} bol vytvorený a vybraný.`)
+            } catch (err: any) { // eslint-disable-line
+              logToCmd('Chyba pri vytváraní kanála: ' + (err.response?.data?.message || err.message), 'error')
+            }
+          }
+          break
+        }
+
+        // --- 3. INVITE USER (Mock) ---
+        case '/invite': {
+          if (!currentChannel.value) {
+            logToCmd('Chyba: Nie si v žiadnom kanáli. Najprv vyber kanál.', 'error')
+            return
+          }
+
+          const nickToInvite = args[0]
+          if (!nickToInvite) {
+            logToCmd('Použitie: /invite <nickName>', 'error')
+            return
+          }
+
+          // Tu by bola API požiadavka, zatiaľ len simulujeme
+          // await api.post(...)
+
+          logToCmd(`Používateľ ${nickToInvite} bol pridaný do kanála #${currentChannel.value.title}. (Simulácia)`)
+          break
+        }
+
+        // --- 4. QUIT (Delete channel) ---
+        case '/quit': {
+          if (!currentChannel.value) {
+            logToCmd('Chyba: Nie je vybraný žiadny kanál.', 'error')
+            return
+          }
+
+          // Skontroluj či je owner (použijeme existujúci computed 'canDeleteCurrentChannel')
+          if (!canDeleteCurrentChannel.value) {
+            logToCmd('Chyba: Nemáš oprávnenie zrušiť tento kanál (nie si vlastník).', 'error')
+            return
+          }
+
+          logToCmd(`Ruším kanál #${currentChannel.value.title}...`)
+
+          try {
+            await api.delete(`/channels/${currentChannel.value.id}`)
+
+            // UI update
+            channels.value = channels.value.filter(c => c.id !== currentChannel.value!.id)
+            currentChannel.value = null
+            currentChannelTitle.value = null
+            window.dispatchEvent(
+              new CustomEvent('channelSelected', {
+                detail: { id: null, title: null }
+              })
+            )
+
+            logToCmd('Kanál bol úspešne zmazaný.')
+          } catch (error) {
+            // FIX 2: Použitie premennej error pre logovanie, aby ESLint neplakal
+            console.error('Failed to delete channel:', error)
+            logToCmd('Nepodarilo sa zmazať kanál.', 'error')
+          }
+          break
+        }
+
+        default:
+          logToCmd(`Neznámy príkaz: ${command}. Skús /help`, 'error')
+      }
+    }
+
     onMounted(async () => {
       const stored = localStorage.getItem('currentUser')
       if (stored) currentUser.value = JSON.parse(stored)
@@ -492,11 +704,9 @@ export default {
           senderId: currentUser.value.id
         })
         console.log('✅ Message sent successfully:', response.data)
-        // Správa sa automaticky aktualizuje cez socket.io (replaces optimistic message)
       } catch (error) {
         console.error('❌ Chyba pri odosielaní správy:', error)
         window.alert('Nepodarilo sa odoslať správu. Skús to znova.')
-        // TODO: Remove optimistic message on error
       }
     }
 
@@ -629,6 +839,7 @@ export default {
       rightDrawerOpen,
       toggleLeftDrawer,
       toggleRightDrawer,
+      showCmd,
 
       invites,
       channels,
@@ -667,7 +878,10 @@ export default {
       deletingChannel,
       onDeleteCurrentChannel,
 
-      navigateHome
+      navigateHome,
+      commandHistory,
+      handleCommand,
+      toggleSettings
     }
   }
 }
