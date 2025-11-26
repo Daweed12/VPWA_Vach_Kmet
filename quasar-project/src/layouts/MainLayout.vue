@@ -316,7 +316,7 @@ export default {
     const currentUser = ref<CurrentUser | null>(null)
 
     const commandHistory = ref<CmdLog[]>([
-      { type: 'output', text: 'Vitaj v Intouch CMD.' },
+      { type: 'output', text: 'Vitaj v inTouch CMD.' },
       { type: 'output', text: 'Napíš /help pre pomoc.' }
     ])
 

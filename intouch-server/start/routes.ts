@@ -4,13 +4,13 @@ import app from '@adonisjs/core/services/app'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+//import Mention from '#models/mention' // Uisti sa, že máš tento model
 import Channel from '#models/channel'
 import User from '#models/user'
 import ChannelMember from '#models/channel_member'
 import Access from '#models/access'
 import ChannelInvite from '#models/channel_invite'
 import Message from '#models/message'
-// TOTO TU CHÝBALO:
 import KickVote from '#models/kick_vote'
 
 /**
@@ -25,16 +25,23 @@ router.get('/channels/:id/members', async ({ params }) => {
     .where('id', params.id)
     .preload('members', (query) => {
       query.pivotColumns(['status', 'joined_at'])
+      // TOTO JE TÁ KĽÚČOVÁ OPRAVA:
+      // Povieme databáze: "Vráť mi členov, LEN ak ich status v kanáli NIE JE 'banned'"
+      query.wherePivot('status', '!=', 'banned')
     })
     .firstOrFail()
 
   return channel.members.map((u) => ({
     id: u.id,
+    // Pozor: u.status je userov online/offline status z tabuľky users
+    // Ak by si chcel status v kanáli (owner/member), musel by si použiť u.$extras.pivot_status
     name:
       u.nickname ||
       `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() ||
       u.email,
-    status: u.status || 'offline'
+    status: u.status || 'offline',
+    // Pre istotu môžeme poslať aj rolu v kanáli, ak by si to chcel v budúcnosti farebne odlíšiť
+    channelRole: u.$extras.pivot_status
   }))
 })
 
@@ -765,21 +772,23 @@ router.group(() => {
   })
 
   /**
-   * /kick [nickName] - S DATABÁZOVÝM HLASOVANÍM A TVOJIMI STĹPCAMI
+   * /kick [nickName] - OPRAVENÁ LOGIKA:
+   * 1. Ochrana správcu (nikto ho nemôže vyhodiť)
+   * 2. Správca vyhadzuje okamžite (BAN)
+   * 3. Členovia hlasujú (Public aj Private)
    */
   router.post('/kick', async ({ request, response }) => {
     const { userId, channelId, targetNick } = request.all()
 
-    // 1. Overenie vstupov
+    // --- KONTROLY ---
     if (!targetNick) return response.badRequest({ message: 'Musíš zadať meno (nick).' })
 
     const channel = await Channel.find(channelId)
     if (!channel) return response.badRequest({ message: 'Chyba: Kanál sa nenašiel.' })
 
     const targetUser = await User.findBy('nickname', targetNick)
-    if (!targetUser) return response.badRequest({ message: `Chyba: Používateľ s nickom '${targetNick}' neexistuje.` })
+    if (!targetUser) return response.badRequest({ message: `Chyba: Používateľ '${targetNick}' neexistuje.` })
 
-    // requester = ten kto píše príkaz
     const requester = await ChannelMember.query().where('user_id', userId).where('channel_id', channelId).first()
     if (!requester) return response.badRequest({ message: 'Chyba: Ty nie si členom tohto kanála.' })
 
@@ -792,7 +801,12 @@ router.group(() => {
       return response.badRequest({ message: `Chyba: Používateľ '${targetNick}' nie je v tomto kanáli.` })
     }
 
-    // === 1. ADMIN LOGIKA (Instant Ban = "Akože 3 hlasy") ===
+    // --- OCHRANA SPRÁVCU ---
+    if (targetMember.status === 'owner') {
+      return response.forbidden({ message: 'Nemôžeš vyhodiť správcu kanála!' })
+    }
+
+    // --- SCENÁR A: SPRÁVCA (OKAMŽITÝ BAN) ---
     if (requester.status === 'owner') {
       targetMember.status = 'banned'
       await targetMember.save()
@@ -801,56 +815,56 @@ router.group(() => {
         await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
       }
 
-      // Vyčistíme DB od hlasov (používame 'target_user_id')
+      // Vyčistíme hlasy, lebo už je vybavený
       await KickVote.query().where('channel_id', channelId).where('target_user_id', targetUser.id).delete()
 
-      return { message: `Správca udelil ban používateľovi ${targetNick}.` }
+      return { message: `Správca udelil BAN používateľovi ${targetNick}.` }
     }
 
-    // === 2. PUBLIC MEMBER LOGIKA (Hlasovanie do DB) ===
-    if (channel.availability === 'public') {
+    // --- SCENÁR B: ČLENOVIA (HLASOVANIE) ---
+    // (Platí pre Public aj Private, ak requester nie je owner)
 
-      // Skontrolujeme, či už hlasoval (používame 'voter_user_id')
-      const existingVote = await KickVote.query()
-        .where('channel_id', channelId)
-        .where('target_user_id', targetUser.id)
-        .where('voter_user_id', userId)
-        .first()
+    // 1. Už hlasoval?
+    const existingVote = await KickVote.query()
+      .where('channel_id', channelId)
+      .where('target_user_id', targetUser.id)
+      .where('voter_user_id', userId)
+      .first()
 
-      if (existingVote) {
-        return response.conflict({ message: 'Už si hlasoval za vyhodenie tohto člena.' })
-      }
-
-      // Vytvoríme nový hlas v DB (POZOR NA NÁZVY V TVOJOM MODELI)
-      await KickVote.create({
-        channelId: channelId,
-        targetUserId: targetUser.id,
-        voterUserId: userId // Toto je kľúčové podľa tvojho modelu
-      })
-
-      // Zrátame všetky hlasy pre tohto targetUsera v tomto kanáli
-      const votesCountResult = await KickVote.query()
-        .where('channel_id', channelId)
-        .where('target_user_id', targetUser.id)
-        .count('* as total')
-
-      const totalVotes = Number(votesCountResult[0].$extras.total)
-
-      // Kontrola, či máme dosť hlasov
-      if (totalVotes >= 3) {
-        targetMember.status = 'banned'
-        await targetMember.save()
-
-        // Vyčistíme hlasy, lebo už je zabanovaný
-        await KickVote.query().where('channel_id', channelId).where('target_user_id', targetUser.id).delete()
-
-        return { message: `Používateľ ${targetNick} dostal trvalý ban na základe hlasovania (${totalVotes} hlasov).` }
-      }
-
-      return { message: `Hlasoval si za kick ${targetNick}. Aktuálne hlasy: ${totalVotes}/3.` }
+    if (existingVote) {
+      return response.conflict({ message: 'Už si hlasoval za vyhodenie tohto člena.' })
     }
 
-    return response.badRequest({ message: 'V tomto type kanála nemôžeš kickovať.' })
+    // 2. Pridať hlas
+    await KickVote.create({
+      channelId: channelId,
+      targetUserId: targetUser.id,
+      voterUserId: userId
+    })
+
+    // 3. Spocitať hlasy
+    const votesCountResult = await KickVote.query()
+      .where('channel_id', channelId)
+      .where('target_user_id', targetUser.id)
+      .count('* as total')
+
+    const totalVotes = Number(votesCountResult[0].$extras.total)
+
+    // 4. Vyhodnotiť (3 a viac = BAN)
+    if (totalVotes >= 3) {
+      targetMember.status = 'banned'
+      await targetMember.save()
+
+      if (channel.availability === 'private') {
+        await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
+      }
+
+      await KickVote.query().where('channel_id', channelId).where('target_user_id', targetUser.id).delete()
+
+      return { message: `Používateľ ${targetNick} bol zabanovaný na základe hlasovania (${totalVotes} hlasov).` }
+    }
+
+    return { message: `Hlasoval si za kick ${targetNick}. Aktuálne hlasy: ${totalVotes}/3.` }
   })
 
   // /quit
