@@ -55,7 +55,7 @@
                         dense
                         outlined
                         label="First Name"
-                        v-model.lazy()="form.firstname"
+                        v-model.lazy="form.firstname"
                       />
                     </div>
                     <div class="col-12 col-md-6">
@@ -63,7 +63,7 @@
                         dense
                         outlined
                         label="Last Name"
-                        v-model.lazy()="form.surname"
+                        v-model.lazy="form.surname"
                       />
                     </div>
                     <div class="col-12 col-md-6">
@@ -85,7 +85,7 @@
                       />
                     </div>
                     <div class="col-12 col-md-6">
-                      <!-- zatiaľ iba read-only, heslo nemeníme v DB -->
+                      <!-- zatiaľ read-only, user mení heslo cez Reset password -->
                       <q-input
                         dense
                         outlined
@@ -114,17 +114,6 @@
                   </div>
                 </q-card-section>
               </q-card>
-
-              <!-- LOGOUT -->
-              <q-btn
-                class="q-mt-sm"
-                color="negative"
-                unelevated
-                no-caps
-                icon="meeting_room"
-                label="Logout"
-                @click="logout"
-              />
             </div>
           </div>
 
@@ -161,66 +150,164 @@
                 </q-card-section>
               </q-card>
 
-              <!-- MY CHANNELS – zatiaľ staticky -->
-              <q-card class="round-card">
+              <!-- MY CHANNELS -->
+              <q-card class="round-card my-channels-card">
                 <q-card-section class="text-subtitle1 compact-section">
                   My channels
                 </q-card-section>
                 <q-separator />
+                <div class="my-channels-scroll">
+                  <q-list v-if="myChannels.length" separator>
+                    <q-item
+                      v-for="ch in myChannels"
+                      :key="ch.id"
+                    >
+                      <q-item-section>
+                        <q-item-label>#{{ ch.title }}</q-item-label>
+                        <q-item-label caption class="text-caption">
+                          {{ availabilityLabel(ch.availability) }} • Active
+                          <q-badge
+                            v-if="isChannelAdmin(ch)"
+                            color="purple"
+                            class="q-ml-sm"
+                          >
+                            Admin
+                          </q-badge>
+                        </q-item-label>
+                      </q-item-section>
 
-                <q-list v-if="myChannels.length" separator>
-                  <q-item
-                    v-for="ch in myChannels"
-                    :key="ch.id"
-                  >
-                    <q-item-section>
-                      <q-item-label>#{{ ch.title }}</q-item-label>
-                      <q-item-label caption class="text-caption">
-                        {{ availabilityLabel(ch.availability) }} • Active
-                        <q-badge
+                      <q-item-section side class="row q-gutter-sm">
+                        <q-btn
+                          dense
+                          flat
+                          icon="logout"
+                          label="Leave"
+                          @click="onLeaveChannel(ch)"
+                        />
+                        <q-btn
                           v-if="isChannelAdmin(ch)"
-                          color="purple"
-                          class="q-ml-sm"
-                        >
-                          Admin
-                        </q-badge>
-                      </q-item-label>
-                    </q-item-section>
+                          dense
+                          flat
+                          icon="delete"
+                          color="negative"
+                          label="Delete channel"
+                          @click="onDeleteChannel(ch)"
+                        />
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
 
-                    <q-item-section side class="row q-gutter-sm">
-                      <q-btn
-                        dense
-                        flat
-                        icon="logout"
-                        label="Leave"
-                        @click="onLeaveChannel(ch)"
-                      />
-                      <q-btn
-                        v-if="isChannelAdmin(ch)"
-                        dense
-                        flat
-                        icon="delete"
-                        color="negative"
-                        label="Delete channel"
-                        @click="onDeleteChannel(ch)"
-                      />
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-
-                <q-card-section
-                  v-else
-                  class="compact-section text-grey-7 text-caption"
-                >
-                  Nie si členom žiadneho kanála.
-                </q-card-section>
+                  <q-card-section
+                    v-else
+                    class="compact-section text-grey-7 text-caption"
+                  >
+                    Nie si členom žiadneho kanála.
+                  </q-card-section>
+                </div>
               </q-card>
+
+              <!-- ACTION BUTTONS -->
+              <div class="row q-gutter-sm channels-actions">
+                <q-btn
+                  class="col"
+                  color="primary"
+                  unelevated
+                  no-caps
+                  icon="lock_reset"
+                  label="Reset password"
+                  @click="resetDialogOpen = true"
+                />
+
+                <q-btn
+                  class="col"
+                  color="negative"
+                  unelevated
+                  no-caps
+                  icon="delete_forever"
+                  :loading="deletingProfile"
+                  label="Delete profile"
+                  @click="onDeleteProfile"
+                />
+
+                <q-btn
+                  class="col"
+                  color="negative"
+                  unelevated
+                  no-caps
+                  icon="meeting_room"
+                  label="Logout"
+                  @click="logout"
+                />
+              </div>
 
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- RESET PASSWORD DIALOG -->
+    <q-dialog v-model="resetDialogOpen" persistent>
+      <q-card style="min-width: 360px">
+        <q-card-section>
+          <div class="text-h6">Reset password</div>
+          <div class="text-caption text-grey-7 q-mt-xs">
+            Zmeň svoje heslo k účtu.
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none q-gutter-md">
+          <q-input
+            v-model="resetPasswordForm.currentPassword"
+            label="Current password"
+            type="password"
+            dense
+            outlined
+            autofocus
+          />
+
+          <q-input
+            v-model="resetPasswordForm.newPassword"
+            label="New password"
+            type="password"
+            dense
+            outlined
+          />
+
+          <q-input
+            v-model="resetPasswordForm.confirmPassword"
+            label="Confirm new password"
+            type="password"
+            dense
+            outlined
+          />
+
+          <div
+            v-if="resetError"
+            class="text-negative text-caption q-mt-xs"
+          >
+            {{ resetError }}
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            label="Cancel"
+            color="grey"
+            :disable="resetLoading"
+            @click="closeResetDialog"
+          />
+          <q-btn
+            unelevated
+            label="Change password"
+            color="primary"
+            :loading="resetLoading"
+            @click="submitResetPassword"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -263,6 +350,7 @@ const $q = useQuasar()
 const router = useRouter()
 
 const saving = ref(false)
+const deletingProfile = ref(false)
 
 const currentUser = ref<CurrentUser | null>(null)
 const myChannels = ref<ChannelFromApi[]>([])
@@ -273,7 +361,7 @@ const form = reactive({
   nickname: '',
   email: '',
   status: 'online',
-  notifyOnMentionOnly: false,
+  notifyOnMentionOnly: false
 })
 
 const original = reactive({
@@ -282,13 +370,24 @@ const original = reactive({
   nickname: '',
   email: '',
   status: 'online',
-  notifyOnMentionOnly: false,
+  notifyOnMentionOnly: false
 })
 
 const notifAll = ref(true)
 const notifMuteInDnd = ref(true)
 
 const statusOptions = ['ONLINE', 'AWAY', 'DND', 'OFFLINE']
+
+// RESET PASSWORD STATE
+const resetDialogOpen = ref(false)
+const resetLoading = ref(false)
+const resetError = ref('')
+
+const resetPasswordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
 
 const displayName = computed(() => {
   const full = `${form.firstname} ${form.surname}`.trim()
@@ -317,34 +416,30 @@ const statusSelect = computed({
     const v = (val ?? 'ONLINE').toLowerCase()
     form.status = v
 
-    // Update status immediately (before save) if user is logged in
     if (currentUser.value) {
       const updatedCurrent: CurrentUser = {
         ...currentUser.value,
-        status: v,
+        status: v
       }
       currentUser.value = updatedCurrent
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
 
-      // Dispatch event to update MainLayout immediately
       const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
-        detail: updatedCurrent,
+        detail: updatedCurrent
       })
       window.dispatchEvent(event)
 
-      // Save status to backend immediately (fire and forget)
       void (async () => {
         try {
           await api.put(`/users/${currentUser.value!.id}`, {
-            status: v,
+            status: v
           })
         } catch (error) {
           console.error('Error updating status:', error)
-          // Don't show error to user, just log it
         }
       })()
     }
-  },
+  }
 })
 
 function copyForm (src: typeof form, dst: typeof form) {
@@ -360,6 +455,81 @@ function resetForm () {
   copyForm(original, form)
 }
 
+/* RESET PASSWORD LOGIC */
+function closeResetDialog () {
+  if (resetLoading.value) return
+  resetDialogOpen.value = false
+  resetError.value = ''
+  resetPasswordForm.currentPassword = ''
+  resetPasswordForm.newPassword = ''
+  resetPasswordForm.confirmPassword = ''
+}
+
+async function submitResetPassword () {
+  resetError.value = ''
+
+  if (!currentUser.value) {
+    resetError.value = 'Nie si prihlásený.'
+    return
+  }
+
+  if (!resetPasswordForm.currentPassword || !resetPasswordForm.newPassword) {
+    resetError.value = 'Vyplň všetky polia.'
+    return
+  }
+
+  if (resetPasswordForm.newPassword.length < 6) {
+    resetError.value = 'Nové heslo musí mať aspoň 6 znakov.'
+    return
+  }
+
+  if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
+    resetError.value = 'Nové heslá sa nezhodujú.'
+    return
+  }
+
+  try {
+    resetLoading.value = true
+
+    await api.post('/auth/change-password', {
+      userId: currentUser.value.id,
+      currentPassword: resetPasswordForm.currentPassword,
+      newPassword: resetPasswordForm.newPassword
+    })
+
+    $q.notify({
+      type: 'positive',
+      message: 'Heslo bolo zmenené.',
+      position: 'bottom',
+      timeout: 2000
+    })
+
+    closeResetDialog()
+  } catch (error: unknown) {
+    console.error('Chyba pri zmene hesla:', error)
+
+    let message = 'Nepodarilo sa zmeniť heslo.'
+    if (axios.isAxiosError(error)) {
+      const serverData = error.response?.data
+      if (serverData && typeof serverData === 'object' && 'message' in serverData) {
+        message = (serverData as { message: string }).message
+      }
+    }
+
+    resetError.value = message
+
+    $q.notify({
+      type: 'negative',
+      message,
+      position: 'bottom',
+      timeout: 2500
+    })
+  } finally {
+    resetLoading.value = false
+  }
+}
+
+/* LOAD USER + CHANNELS */
 async function loadChannels (userId: number) {
   try {
     const { data } = await api.get<ChannelFromApi[]>('/channels', {
@@ -370,8 +540,6 @@ async function loadChannels (userId: number) {
     console.error('Nepodarilo sa načítať kanály:', error)
   }
 }
-
-
 
 async function loadUser () {
   try {
@@ -385,7 +553,7 @@ async function loadUser () {
       nickname: basic.nickname,
       firstname: basic.firstname ?? null,
       surname: basic.surname ?? null,
-      status: basic.status ?? null,
+      status: basic.status ?? null
     }
 
     const { data } = await api.get<UserFromApi>(`/users/${basic.id}`)
@@ -400,7 +568,6 @@ async function loadUser () {
     copyForm(form, original)
 
     await loadChannels(basic.id)
-
   } catch (error: unknown) {
     let message = 'Nepodarilo sa načítať profil.'
 
@@ -415,7 +582,7 @@ async function loadUser () {
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500,
+      timeout: 2500
     })
   }
 }
@@ -432,7 +599,7 @@ async function saveChanges () {
       nickname: form.nickname,
       email: form.email,
       status: form.status,
-      notifyOnMentionOnly: form.notifyOnMentionOnly,
+      notifyOnMentionOnly: form.notifyOnMentionOnly
     })
 
     form.firstname = data.firstname ?? ''
@@ -449,14 +616,13 @@ async function saveChanges () {
       nickname: data.nickname,
       firstname: data.firstname ?? null,
       surname: data.surname ?? null,
-      status: data.status ?? null,
+      status: data.status ?? null
     }
     currentUser.value = updatedCurrent
     localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
 
-    // pošli event, aby MainLayout vedel, že sa user zmenil
     const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
-      detail: updatedCurrent,
+      detail: updatedCurrent
     })
     window.dispatchEvent(event)
 
@@ -464,7 +630,7 @@ async function saveChanges () {
       type: 'positive',
       message: 'Profil bol uložený.',
       position: 'bottom',
-      timeout: 2000,
+      timeout: 2000
     })
   } catch (error: unknown) {
     let message = 'Ukladanie zlyhalo.'
@@ -480,7 +646,7 @@ async function saveChanges () {
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500,
+      timeout: 2500
     })
   } finally {
     saving.value = false
@@ -492,6 +658,7 @@ function logout () {
   void router.push('/auth/login')
 }
 
+/* MY CHANNELS HELPERS */
 const availabilityLabel = (availability: string) => {
   return availability === 'public' ? 'Public' : 'Private'
 }
@@ -507,7 +674,6 @@ async function onLeaveChannel (ch: ChannelFromApi) {
   if (!ok) return
 
   try {
-    // endpoint si uprav podľa backendu
     await api.post(`/channels/${ch.id}/leave`, {
       userId: currentUser.value.id
     })
@@ -543,6 +709,51 @@ async function onDeleteChannel (ch: ChannelFromApi) {
   }
 }
 
+/* DELETE PROFILE */
+async function onDeleteProfile () {
+  if (!currentUser.value) return
+
+  const ok = window.confirm(
+    'Naozaj chceš natrvalo vymazať svoj profil?\nTúto akciu nie je možné vrátiť.'
+  )
+  if (!ok) return
+
+  try {
+    deletingProfile.value = true
+
+    await api.delete(`/users/${currentUser.value.id}`)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Profil bol vymazaný.',
+      position: 'bottom',
+      timeout: 2000
+    })
+
+    localStorage.removeItem('currentUser')
+    currentUser.value = null
+    void router.push('/auth/login')
+  } catch (error) {
+    console.error('Chyba pri mazaní profilu:', error)
+
+    let message = 'Profil sa nepodarilo vymazať.'
+    if (axios.isAxiosError(error)) {
+      const serverData = error.response?.data
+      if (serverData && typeof serverData === 'object' && 'message' in serverData) {
+        message = (serverData as { message: string }).message
+      }
+    }
+
+    $q.notify({
+      type: 'negative',
+      message,
+      position: 'bottom',
+      timeout: 2500
+    })
+  } finally {
+    deletingProfile.value = false
+  }
+}
 
 onMounted(() => {
   void loadUser()
@@ -550,17 +761,34 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* In UserSettings.vue */
-
 .round-card { border-radius: 16px; }
 .compact-section { padding: 16px; }
+
+.channels-actions {
+  margin-top: 8px;
+}
+
+/* tlačidlám dáme rovnakú šírku v rade */
+.channels-actions .q-btn {
+  flex: 1 1 0;
+}
+
+/* na mobiloch nech idú pod seba */
+@media (max-width: 700px) {
+  .channels-actions {
+    flex-wrap: wrap;
+  }
+  .channels-actions .q-btn {
+    flex: 1 1 100%;
+  }
+}
+
 
 .settings-root {
   display: flex;
   flex-direction: column;
-  /* This ensures it takes the full height passed from SettingsPage */
   height: 100%;
-  overflow: hidden; /* Prevent double scrollbars */
+  overflow: hidden;
 }
 
 .scroll-outer {
@@ -568,26 +796,19 @@ onMounted(() => {
   overflow-y: auto;
   padding-block: 12px;
   scroll-behavior: smooth;
-
-  /* 1. Skrytie pre Firefox */
   scrollbar-width: none;
-
-  /* 2. Skrytie pre IE a starý Edge */
   -ms-overflow-style: none;
 }
 
-/* 3. Skrytie pre Chrome, Safari, Brave, Edge (Webkit) */
 .scroll-outer::-webkit-scrollbar {
   display: none;
 }
 
-/* Custom scrollbar styling (optional, keeps it clean) */
 .custom-scroll {
-  scrollbar-width: thin; /* Firefox */
+  scrollbar-width: thin;
   scrollbar-color: rgba(0,0,0,0.2) transparent;
 }
 
-/* Webkit (Chrome/Edge/Brave) Scrollbar styling */
 .custom-scroll::-webkit-scrollbar {
   width: 6px;
 }
@@ -603,10 +824,8 @@ onMounted(() => {
   width: 100%;
   --page-gutter: clamp(12px, 3vw, 32px);
   padding-inline: var(--page-gutter);
-
-
   padding-top: 8px;
-  padding-bottom: 65px; /* <--- Pridaj veľa miesta naspodok (napr. 100px) */
+  padding-bottom: 65px;
 }
 
 .status-row {
@@ -621,6 +840,28 @@ onMounted(() => {
 
 @media (max-width: 600px) {
   .status-select { flex-basis: 100%; }
+}
+
+.my-channels-card {
+  /* celková max výška boxu (môžeš si doladiť) */
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* vnútorná časť, ktorá sa bude scrollovať */
+.my-channels-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* voliteľne trochu schovať scrollbar */
+.my-channels-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.my-channels-scroll::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background-color: rgba(0,0,0,0.2);
 }
 
 </style>

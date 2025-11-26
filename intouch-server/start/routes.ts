@@ -269,6 +269,44 @@ router.post('/register', async ({ request, response }) => {
   }
 })
 
+router.post('/auth/change-password', async ({ request, response }) => {
+  const { userId, currentPassword, newPassword } = request.only([
+    'userId',
+    'currentPassword',
+    'newPassword',
+  ])
+
+  if (!userId || !currentPassword || !newPassword) {
+    return response.badRequest({ message: 'Chýbajú údaje.' })
+  }
+
+  // nájdi používateľa
+  const user = await User.find(userId)
+  if (!user) {
+    return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  // over aktuálne heslo (momentálne máš heslá v plain texte)
+  if (user.password !== currentPassword) {
+    return response.unauthorized({ message: 'Aktuálne heslo je nesprávne.' })
+  }
+
+  if (newPassword.length < 6) {
+    return response.badRequest({
+      message: 'Nové heslo musí mať aspoň 6 znakov.',
+    })
+  }
+
+  // ulož nové heslo
+  user.password = newPassword
+  await user.save()
+
+  return {
+    message: 'Heslo bolo úspešne zmenené.',
+  }
+})
+
+
 /**
  * GET /users/search?q=... – vyhľadá používateľov podľa nickname alebo emailu
  * MUST be defined BEFORE /users/:id to avoid route conflicts
@@ -451,7 +489,11 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
 
     console.log('📤 Broadcasting message via WebSocket:', {
       channelId,
+<<<<<<< HEAD
       messageId: message.id, // <--- OPRAVA: Použitie message.id namiesto messageToBroadcast.id
+=======
+      messageId: messageToBroadcast,
+>>>>>>> origin/main
       room: `channel:${channelId}`,
       connectedClients: io.sockets.sockets.size
     })
@@ -560,6 +602,7 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
       })
     }
   }
+
 
   // kontrola, či už nie je členom
   const existingMember = await ChannelMember.query()
