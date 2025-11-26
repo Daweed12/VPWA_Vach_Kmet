@@ -1,6 +1,8 @@
 // start/routes.ts
 import router from '@adonisjs/core/services/router'
 import app from '@adonisjs/core/services/app'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import Channel from '#models/channel'
 import User from '#models/user'
@@ -118,58 +120,6 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
   return { ok: true }
 })
 
-//OBRAZKY
-router.post('/users/:id/avatar', async ({ params, request, response }) => {
-  const user = await User.find(params.id)
-
-  if (!user) {
-    return response.notFound({ message: 'Používateľ neexistuje.' })
-  }
-
-  // 1. Získame súbor z requestu (kľúč 'avatar')
-  const avatar = request.file('avatar', {
-    size: '2mb',
-    extnames: ['jpg', 'png', 'jpeg', 'webp'],
-  })
-
-  // 2. Validácia (či je to obrázok a či nie je príliš veľký)
-  if (!avatar) {
-    return response.badRequest({ message: 'Musíš nahrať obrázok.' })
-  }
-  if (!avatar.isValid) {
-    return response.badRequest(avatar.errors)
-  }
-
-  // 3. Vygenerovanie názvu: ID_NICKNAME.prípona
-  // Odstránime medzery z nickname pre istotu
-  const safeNickname = user.nickname.replace(/\s+/g, '_')
-  const fileName = `${user.id}_${safeNickname}.${avatar.extname}`
-
-  // 4. Presun súboru do priečinka public/avatars
-  await avatar.move(app.publicPath('avatars'), {
-    name: fileName,
-    overwrite: true, // Ak už existuje, prepíšeme ho
-  })
-
-  // 5. Uloženie cesty do databázy
-  // Ukladáme cestu prístupnú cez URL, nie fyzickú cestu na disku!
-  user.profilePicture = `/avatars/${fileName}`
-  await user.save()
-
-  return {
-    message: 'Avatar úspešne zmenený.',
-    profilePicture: user.profilePicture
-  }
-})
-
-//blablablablablab
-router.get('/avatars/:filename', async ({ params, response }) => {
-  // Zistíme cestu k súboru na disku: /cesta/k/projektu/public/avatars/nazov.png
-  const filePath = app.publicPath(`avatars/${params.filename}`)
-
-  // Stiahneme/zobrazíme súbor
-  return response.download(filePath)
-})
 /**
  * POST /invites/:id/reject
  * - označí invite ako rejected
@@ -489,7 +439,6 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
 
     console.log('📤 Broadcasting message via WebSocket:', {
       channelId,
-
       messageId: messageToBroadcast,
       room: `channel:${channelId}`,
       connectedClients: io.sockets.sockets.size
@@ -655,4 +604,70 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
     }
     throw error
   }
+})
+
+router.put('/users/:id/photo', async ({ params, request, response }) => {
+  const user = await User.find(params.id)
+
+  if (!user) {
+    return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  const imageData = request.input('image') as string | null
+
+  if (!imageData) {
+    return response.badRequest({ message: 'Chýba obrázok.' })
+  }
+
+  // 1. Spracovanie Base64 obrázka
+  const match = imageData.match(/^data:(.+);base64,(.+)$/)
+  if (!match) {
+    return response.badRequest({ message: 'Neplatný formát obrázka.' })
+  }
+
+  const mimeType = match[1]
+  const base64 = match[2]
+
+  // 2. Zistenie prípony
+  let ext = 'png'
+  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') ext = 'jpg'
+  if (mimeType === 'image/webp') ext = 'webp'
+
+  const buffer = Buffer.from(base64, 'base64')
+
+  // 3. Cesta k priečinku public/avatars
+  const uploadDir = app.publicPath('avatars')
+
+  // Vytvoríme priečinok, ak neexistuje
+  await fs.mkdir(uploadDir, { recursive: true })
+
+  // 4. Vytvorenie názvu súboru: ID_NICKNAME.pripona
+  // (Nickname prečistíme od divných znakov, aby to bol platný názov súboru)
+  const safeNickname = user.nickname.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const fileName = `${user.id}_${safeNickname}.${ext}`
+
+  const filePath = path.join(uploadDir, fileName)
+
+  // 5. Uloženie súboru na disk (prepíše starý ak existuje)
+  await fs.writeFile(filePath, buffer)
+
+  // 6. Uloženie cesty do databázy
+  const publicPath = `avatars/${fileName}` // Relatívna cesta pre frontend
+
+  user.profilePicture = publicPath
+  await user.save()
+
+  return {
+    message: 'Foto uložené.',
+    profilePicture: publicPath,
+  }
+})
+
+/**
+ * GET /avatars/:filename
+ * Toto slúži na zobrazovanie nahraných profiloviek.
+ */
+router.get('/avatars/:filename', async ({ params, response }) => {
+  const filePath = app.publicPath(`avatars/${params.filename}`)
+  return response.download(filePath)
 })

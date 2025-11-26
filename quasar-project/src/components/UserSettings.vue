@@ -10,7 +10,7 @@
               <q-card class="round-card">
                 <q-card-section class="flex column items-center q-gutter-md compact-section">
                   <q-avatar size="140px">
-                    <img src="https://cdn.quasar.dev/img/avatar4.jpg" alt="avatar" />
+                    <img :src="avatarSrc" alt="avatar" />
                   </q-avatar>
 
                   <div class="text-h5 text-center">
@@ -37,7 +37,13 @@
                   </div>
 
                   <div class="q-mt-sm column q-gutter-sm self-stretch">
-                    <q-btn flat icon="photo_camera" label="Change photo" color="primary" />
+                    <q-btn
+                      flat
+                      icon="photo_camera"
+                      label="Change photo"
+                      color="primary"
+                      @click="openPhotoDialog"
+                    />
                   </div>
                 </q-card-section>
               </q-card>
@@ -82,17 +88,6 @@
                         label="Gmail"
                         type="email"
                         v-model.lazy="form.email"
-                      />
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <!-- zatiaľ read-only, user mení heslo cez Reset password -->
-                      <q-input
-                        dense
-                        outlined
-                        label="Password"
-                        type="password"
-                        :model-value="'********'"
-                        readonly
                       />
                     </div>
                   </div>
@@ -246,6 +241,91 @@
       </div>
     </div>
 
+    <!-- CHANGE PHOTO DIALOG -->
+    <q-dialog v-model="photoDialogOpen" persistent>
+      <q-card style="min-width: 420px; max-width: 640px">
+        <q-card-section>
+          <div class="text-h6">Change photo</div>
+          <div class="text-caption text-grey-7 q-mt-xs">
+            Pretiahni sem obrázok alebo ho vyber z počítača, potom ho priblíž sliderom a ulož.
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          <div
+            class="avatar-dropzone"
+            @dragover.prevent
+            @drop.prevent="onPhotoDrop"
+          >
+            <div class="avatar-preview-wrapper">
+              <div class="avatar-preview-circle">
+                <img
+                  v-if="previewImage"
+                  :src="previewImage"
+                  alt="preview"
+                  class="avatar-preview-img"
+                  :style="previewImgStyle"
+                >
+              </div>
+            </div>
+
+            <div class="text-caption text-grey-7 q-mt-sm">
+              Pretiahni obrázok sem alebo
+            </div>
+            <q-btn
+              class="q-mt-xs"
+              flat
+              color="primary"
+              label="Vybrať súbor"
+              size="sm"
+              @click="triggerFileInput"
+            />
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden-input"
+              @change="onPhotoFileChange"
+            />
+          </div>
+
+          <div class="q-mt-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Zoom</div>
+            <q-slider
+              v-model="zoom"
+              :min="1"
+              :max="3"
+              :step="0.05"
+            />
+          </div>
+
+          <div
+            v-if="photoError"
+            class="text-negative text-caption q-mt-sm"
+          >
+            {{ photoError }}
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            label="Cancel"
+            color="grey"
+            :disable="savingPhoto"
+            @click="closePhotoDialog"
+          />
+          <q-btn
+            unelevated
+            label="Save photo"
+            color="primary"
+            :loading="savingPhoto"
+            @click="savePhoto"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- RESET PASSWORD DIALOG -->
     <q-dialog v-model="resetDialogOpen" persistent>
       <q-card style="min-width: 360px">
@@ -325,6 +405,7 @@ interface CurrentUser {
   firstname: string | null
   surname: string | null
   status: string | null
+  profilePicture: string | null
 }
 
 interface UserFromApi {
@@ -335,6 +416,7 @@ interface UserFromApi {
   surname: string | null
   status: string | null
   notifyOnMentionOnly: boolean | null
+  profilePicture: string | null
 }
 
 interface ChannelFromApi {
@@ -388,6 +470,40 @@ const resetPasswordForm = reactive({
   newPassword: '',
   confirmPassword: ''
 })
+
+// CHANGE PHOTO STATE
+const photoDialogOpen = ref(false)
+const savingPhoto = ref(false)
+const photoError = ref('')
+const rawPhotoData = ref<string | null>(null)
+const zoom = ref(1.2)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+// default avatar
+const defaultAvatarUrl = 'https://cdn.quasar.dev/img/avatar4.jpg'
+
+const avatarSrc = computed(() => {
+  const pic = currentUser.value?.profilePicture
+  if (!pic) return defaultAvatarUrl
+
+  // ak je v DB už plná URL (napr. https://...)
+  if (pic.startsWith('http://') || pic.startsWith('https://')) {
+    return pic
+  }
+
+  // inak je to relatívna cesta z backendu (napr. /uploads/avatars/xyz.png)
+  const base = api.defaults.baseURL || ''
+  const needsSlash = pic.startsWith('/') ? '' : '/'
+  return `${base}${needsSlash}${pic}`
+})
+
+const previewImage = computed(() =>
+  rawPhotoData.value || avatarSrc.value
+)
+
+const previewImgStyle = computed(() => ({
+  transform: `scale(${zoom.value})`
+}))
 
 const displayName = computed(() => {
   const full = `${form.firstname} ${form.surname}`.trim()
@@ -453,6 +569,170 @@ function copyForm (src: typeof form, dst: typeof form) {
 
 function resetForm () {
   copyForm(original, form)
+}
+
+/* ==== CHANGE PHOTO – logika ==== */
+function openPhotoDialog () {
+  photoDialogOpen.value = true
+  photoError.value = ''
+  rawPhotoData.value = null
+  zoom.value = 1.2
+  if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+function closePhotoDialog () {
+  if (savingPhoto.value) return
+  photoDialogOpen.value = false
+  photoError.value = ''
+  rawPhotoData.value = null
+  zoom.value = 1.2
+  if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+function triggerFileInput () {
+  fileInputRef.value?.click()
+}
+
+function loadImageFile (file: File) {
+  photoError.value = ''
+
+  if (!file.type.startsWith('image/')) {
+    photoError.value = 'Prosím vyber obrázok.'
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    rawPhotoData.value = reader.result as string
+    zoom.value = 1.2
+  }
+  reader.onerror = () => {
+    photoError.value = 'Nepodarilo sa načítať obrázok.'
+  }
+  reader.readAsDataURL(file)
+}
+
+function onPhotoFileChange (evt: Event) {
+  const input = evt.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  loadImageFile(file)
+}
+
+function onPhotoDrop (evt: DragEvent) {
+  const file = evt.dataTransfer?.files?.[0]
+  if (!file) return
+  loadImageFile(file)
+}
+
+function generateCroppedImage (): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!rawPhotoData.value) {
+      reject(new Error('Žiadny obrázok'))
+      return
+    }
+
+    const img = new Image()
+    img.onload = () => {
+      const size = 400
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Canvas context chýba'))
+        return
+      }
+
+      ctx.clearRect(0, 0, size, size)
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+      ctx.closePath()
+      ctx.clip()
+
+      const zoomFactor = zoom.value || 1
+      const minDim = Math.min(img.width, img.height)
+      const baseSize = minDim / zoomFactor
+
+      const sx = (img.width - baseSize) / 2
+      const sy = (img.height - baseSize) / 2
+
+      ctx.drawImage(img, sx, sy, baseSize, baseSize, 0, 0, size, size)
+      ctx.restore()
+
+      const dataUrl = canvas.toDataURL('image/png')
+      resolve(dataUrl)
+    }
+    img.onerror = () => reject(new Error('Nepodarilo sa načítať obrázok'))
+    img.src = rawPhotoData.value
+  })
+}
+
+async function savePhoto () {
+  if (!currentUser.value) {
+    photoError.value = 'Nie si prihlásený.'
+    return
+  }
+
+  if (!rawPhotoData.value) {
+    photoError.value = 'Najprv vyber obrázok.'
+    return
+  }
+
+  try {
+    savingPhoto.value = true
+    photoError.value = ''
+
+    const cropped = await generateCroppedImage()
+
+    const { data } = await api.put<{ profilePicture: string }>(
+      `/users/${currentUser.value.id}/photo`,
+      { image: cropped }
+    )
+
+    const updatedCurrent: CurrentUser = {
+      ...currentUser.value,
+      profilePicture: data.profilePicture
+    }
+    currentUser.value = updatedCurrent
+    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+
+    const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
+      detail: updatedCurrent
+    })
+    window.dispatchEvent(event)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Fotka bola uložená.',
+      position: 'bottom',
+      timeout: 2000
+    })
+
+    closePhotoDialog()
+  } catch (error: unknown) {
+    console.error('Chyba pri ukladaní fotky:', error)
+
+    let message = 'Nepodarilo sa uložiť fotku.'
+    if (axios.isAxiosError(error)) {
+      const serverData = error.response?.data
+      if (serverData && typeof serverData === 'object' && 'message' in serverData) {
+        message = (serverData as { message: string }).message
+      }
+    }
+
+    photoError.value = message
+
+    $q.notify({
+      type: 'negative',
+      message,
+      position: 'bottom',
+      timeout: 2500
+    })
+  } finally {
+    savingPhoto.value = false
+  }
 }
 
 /* RESET PASSWORD LOGIC */
@@ -546,15 +826,7 @@ async function loadUser () {
     const raw = localStorage.getItem('currentUser')
     if (!raw) return
 
-    const basic = JSON.parse(raw) as CurrentUser
-    currentUser.value = {
-      id: basic.id,
-      email: basic.email,
-      nickname: basic.nickname,
-      firstname: basic.firstname ?? null,
-      surname: basic.surname ?? null,
-      status: basic.status ?? null
-    }
+    const basic = JSON.parse(raw) as Partial<CurrentUser>
 
     const { data } = await api.get<UserFromApi>(`/users/${basic.id}`)
 
@@ -567,7 +839,19 @@ async function loadUser () {
 
     copyForm(form, original)
 
-    await loadChannels(basic.id)
+    const updatedCurrent: CurrentUser = {
+      id: data.id,
+      email: data.email,
+      nickname: data.nickname,
+      firstname: data.firstname ?? null,
+      surname: data.surname ?? null,
+      status: data.status ?? null,
+      profilePicture: data.profilePicture ?? null
+    }
+    currentUser.value = updatedCurrent
+    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+
+    await loadChannels(data.id)
   } catch (error: unknown) {
     let message = 'Nepodarilo sa načítať profil.'
 
@@ -616,7 +900,8 @@ async function saveChanges () {
       nickname: data.nickname,
       firstname: data.firstname ?? null,
       surname: data.surname ?? null,
-      status: data.status ?? null
+      status: data.status ?? null,
+      profilePicture: data.profilePicture ?? currentUser.value.profilePicture
     }
     currentUser.value = updatedCurrent
     localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
@@ -783,6 +1068,46 @@ onMounted(() => {
   }
 }
 
+/* ===== Change photo dialog ===== */
+.avatar-dropzone {
+  border: 1px dashed #e0e0e0;
+  border-radius: 16px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  text-align: center;
+}
+
+.avatar-preview-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.avatar-preview-circle {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #eeeeee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.15s ease;
+}
+
+.hidden-input {
+  display: none;
+}
 
 .settings-root {
   display: flex;
@@ -843,19 +1168,16 @@ onMounted(() => {
 }
 
 .my-channels-card {
-  /* celková max výška boxu (môžeš si doladiť) */
   max-height: 420px;
   display: flex;
   flex-direction: column;
 }
 
-/* vnútorná časť, ktorá sa bude scrollovať */
 .my-channels-scroll {
   flex: 1;
   overflow-y: auto;
 }
 
-/* voliteľne trochu schovať scrollbar */
 .my-channels-scroll::-webkit-scrollbar {
   width: 6px;
 }
@@ -863,5 +1185,4 @@ onMounted(() => {
   border-radius: 10px;
   background-color: rgba(0,0,0,0.2);
 }
-
 </style>
