@@ -505,6 +505,39 @@ router.post('/channels', async ({ request, response }) => {
   return channel
 })
 
+
+router.delete('/channels/:id', async ({ params, response }) => {
+  const channelId = Number(params.id)
+
+  if (Number.isNaN(channelId)) {
+    return response.badRequest({ message: 'Neplatné ID kanála.' })
+  }
+
+  // 1. Skontrolujeme, či kanál existuje
+  const channel = await Channel.find(channelId)
+  if (!channel) {
+    return response.notFound({ message: 'Kanál neexistuje.' })
+  }
+
+  // 2. Vymažeme všetky správy
+  await Message.query().where('channelId', channelId).delete()
+
+  // 3. Vymažeme všetkých členov kanála
+  await ChannelMember.query().where('channelId', channelId).delete()
+
+  // 4. Vymažeme všetky access záznamy
+  await Access.query().where('channelId', channelId).delete()
+
+  // 5. Vymažeme všetky pozvánky
+  await ChannelInvite.query().where('channelId', channelId).delete()
+
+  // 6. Nakoniec vymažeme samotný kanál
+  await channel.delete()
+
+  return { message: 'Kanál bol úspešne vymazaný.' }
+})
+
+
 /**
  * POST /channels/:id/invites – vytvorí pozvánku pre používateľa do kanála
  */
