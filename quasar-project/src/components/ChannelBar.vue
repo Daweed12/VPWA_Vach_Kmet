@@ -16,6 +16,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // tu príde cesta z DB (imagine_path)
+    imageUrl: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['accept', 'reject', 'click'],
 
@@ -27,6 +32,8 @@ export default defineComponent({
     const badgeText = computed(() =>
       props.availability === 'private' ? 'private' : 'public',
     )
+
+    const hasImage = computed(() => !!props.imageUrl)
 
     const handleClick = () => {
       emit('click')
@@ -43,6 +50,7 @@ export default defineComponent({
     return {
       badgeColor,
       badgeText,
+      hasImage,
       handleClick,
       acceptInvite,
       rejectInvite,
@@ -58,12 +66,31 @@ export default defineComponent({
     v-ripple
     @click="handleClick"
   >
+    <!-- AVATAR KANÁLA VĽAVO -->
+    <q-item-section avatar class="q-mr-sm">
+      <q-avatar rounded size="32px">
+        <!-- ak máme cestu, zobrazíme obrázok -->
+        <img
+          v-if="hasImage"
+          :src="imageUrl"
+          alt="Channel avatar"
+        >
+        <!-- inak fallback ikonka -->
+        <q-icon
+          v-else
+          name="forum"
+        />
+      </q-avatar>
+    </q-item-section>
+
+    <!-- názov kanála -->
     <q-item-section
       :class="isInvite ? 'text-white text-weight-bold' : 'text-black text-weight-bold'"
     >
       {{ name }}
     </q-item-section>
 
+    <!-- badge PUBLIC / PRIVATE -->
     <q-badge
       v-if="!isInvite"
       :color="badgeColor"
@@ -73,16 +100,8 @@ export default defineComponent({
       {{ badgeText }}
     </q-badge>
 
-    <!-- normálny channel – icons person_add & close -->
-    <q-item-section v-if="!isInvite" side>
-      <div class="row items-center">
-        <q-btn flat round dense icon="person_add" color="orange-8" size="md" />
-        <q-btn flat round dense icon="close" color="red-8" size="md" />
-      </div>
-    </q-item-section>
-
     <!-- invite – accept / reject -->
-    <q-item-section v-else side>
+    <q-item-section v-if="isInvite" side>
       <div class="row items-center">
         <q-btn
           flat
@@ -116,7 +135,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   margin-bottom: 10px;
   transition: background-color 0.2s ease;
 }

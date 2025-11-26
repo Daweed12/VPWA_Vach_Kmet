@@ -36,6 +36,9 @@ export default class Channel extends BaseModel {
   @column.dateTime({ columnName: 'lastmessage_at' })
   declare lastMessageAt: DateTime | null
 
+  @column({ columnName: 'image_path' })
+  declare imagePath: string | null
+
   // === vzťahy ===
 
   @belongsTo(() => User, {

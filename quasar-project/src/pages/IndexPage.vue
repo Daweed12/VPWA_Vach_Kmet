@@ -1,21 +1,11 @@
 <template>
   <q-page class="chat-page">
     <div class="chat-wrapper">
-      <!-- malý info header pod hlavnou lištou -->
-      <div class="chat-header q-pa-md">
-        <div
-          v-if="activeChannelTitle"
-          class="text-caption text-grey-7"
-        >
-          Zobrazuješ konverzáciu v kanáli {{ activeChannelTitle }}.
-        </div>
-        <div
-          v-else
-          class="text-caption text-grey-7"
-        >
-          Vyber si kanál v ľavom paneli a zobrazia sa jeho správy.
-        </div>
-      </div>
+
+
+
+
+
 
       <!-- samotný chat -->
       <div
@@ -110,27 +100,39 @@
             >
               <q-chat-message
                 :name="msg.name"
-                :avatar="msg.avatar"
+                :stamp="msg.stamp"
                 :sent="msg.sent"
                 :bg-color="msg.sent ? 'primary' : 'grey-3'"
                 :text-color="msg.sent ? 'white' : 'black'"
                 class="shadow-sm"
               >
+                <!-- vlastný avatar s ikonkou -->
+                <template #avatar>
+                  <q-avatar
+                    size="26px"
+                    :class="['msg-avatar', msg.sent ? 'msg-avatar--sent' : 'msg-avatar--received']"
+                    :color="msg.sent ? 'orange-7' : 'orange-5'"
+                    text-color="white"
+                  >
+                    <q-icon name="person" size="16px" />
+                  </q-avatar>
+                </template>
+
                 <template #default>
-                  <span class="bubble-text">
-                    <span
-                      v-for="(chunk, idx) in chunks(msg.text)"
-                      :key="msg.id + '-' + idx"
-                    >
-                      <span
-                        v-if="chunk.type === 'mention'"
-                        class="mention"
-                      >
-                        @{{ chunk.value }}
-                      </span>
-                      <span v-else>{{ chunk.value }}</span>
-                    </span>
-                  </span>
+    <span class="bubble-text">
+      <span
+        v-for="(chunk, idx) in chunks(msg.text)"
+        :key="msg.id + '-' + idx"
+      >
+        <span
+          v-if="chunk.type === 'mention'"
+          class="mention"
+        >
+          @{{ chunk.value }}
+        </span>
+        <span v-else>{{ chunk.value }}</span>
+      </span>
+    </span>
                 </template>
               </q-chat-message>
             </div>
@@ -152,6 +154,8 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
 import { io, type Socket } from 'socket.io-client'
+const defaultUserAvatar = new URL('../assets/default_user_avatar.png', import.meta.url).href
+
 
 // Window interface will be extended later
 
@@ -187,11 +191,13 @@ type Chunk = { type: 'text' | 'mention'; value: string }
 
 interface UiMessage {
   id: number
-  name: string
+  name: string        // bude nickname
   avatar: string
   sent: boolean
   text: string
+  stamp: string       // formátovaný čas
 }
+
 
 /* ===== stav stránky ===== */
 
@@ -287,7 +293,7 @@ const initSocket = () => {
       typingUsers.value.push({
         id: data.userId,
         name: data.userName,
-        ...(data.userAvatar && { avatar: data.userAvatar }),
+        avatar: data.userAvatar || defaultUserAvatar,
         draftContent: data.draftContent || ''
       })
     } else {
@@ -475,30 +481,41 @@ const infiniteKey = ref(0)
 
 const uiMessages = computed<UiMessage[]>(() => {
   return rawMessages.value
-    .filter((m) => m.sender) // Filter out messages without sender
+    .filter((m) => m.sender)
     .map((m) => {
       const s = m.sender
-      const fullName =
-        `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
+
+      // 1️⃣ zobrazovaný názov – najprv nickname
+      const displayName =
         s.nickname ||
+        `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
         s.email
 
       const meId = currentUser.value?.id ?? null
       const isMe = meId !== null && s.id === meId
 
-      const avatar =
-        s.profilePicture ||
-        'https://cdn.quasar.dev/img/avatar.png'
+      // 2️⃣ formátovaný timestamp
+      const stamp = new Date(m.timestamp).toLocaleString('sk-SK', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+
+      const avatar = defaultUserAvatar
 
       return {
         id: m.id,
-        name: fullName,
+        name: displayName,
         avatar,
         sent: isMe,
         text: m.content,
+        stamp,
       }
     })
 })
+
+
 
 const totalMessages = computed(() => uiMessages.value.length)
 
@@ -1003,4 +1020,18 @@ onUnmounted(() => {
     opacity: 1;
   }
 }
+.msg-avatar {
+  flex-shrink: 0;
+}
+
+/* prijaté správy – avatar vľavo, trochu ďalej od bubliny */
+.msg-avatar--received {
+  margin-right: 8px;
+}
+
+/* odoslané správy – avatar vpravo, trochu ďalej od bubliny */
+.msg-avatar--sent {
+  margin-left: 8px;
+}
+
 </style>

@@ -48,6 +48,7 @@ export default class User extends BaseModel {
   })
   declare updatedAt: DateTime
 
+
   // === vzťahy ===
 
   @hasMany(() => Message, {

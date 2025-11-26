@@ -43,7 +43,7 @@ export default defineComponent({
           const status = (props.currentUserId === m.id && props.currentUserStatus)
             ? (props.currentUserStatus as Status)
             : (m.status || 'offline') as Status;
-          
+
           return {
             id: m.id,
             name: m.name,

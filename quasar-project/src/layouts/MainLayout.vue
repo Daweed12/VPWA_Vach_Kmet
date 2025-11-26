@@ -13,11 +13,9 @@
             Nastavenia používateľského účtu
           </span>
           <span v-else-if="currentChannelTitle">
-            # {{ currentChannelTitle }}
+            Channel - {{ currentChannelTitle }}
           </span>
-          <span v-else>
-            VPWA - projekt
-          </span>
+
         </q-toolbar-title>
 
         <!-- Ikonky vpravo – len mimo settings -->
@@ -54,7 +52,7 @@
         class="bg-orange-5 column"
       >
         <!-- Logo -->
-        <div 
+        <div
           style="margin: 10px 15px 10px 15px; cursor: pointer;"
           @click="navigateHome"
         >
