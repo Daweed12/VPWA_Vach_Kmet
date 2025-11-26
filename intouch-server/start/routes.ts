@@ -216,6 +216,44 @@ router.post('/register', async ({ request, response }) => {
   }
 })
 
+router.post('/auth/change-password', async ({ request, response }) => {
+  const { userId, currentPassword, newPassword } = request.only([
+    'userId',
+    'currentPassword',
+    'newPassword',
+  ])
+
+  if (!userId || !currentPassword || !newPassword) {
+    return response.badRequest({ message: 'Chýbajú údaje.' })
+  }
+
+  // nájdi používateľa
+  const user = await User.find(userId)
+  if (!user) {
+    return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  // over aktuálne heslo (momentálne máš heslá v plain texte)
+  if (user.password !== currentPassword) {
+    return response.unauthorized({ message: 'Aktuálne heslo je nesprávne.' })
+  }
+
+  if (newPassword.length < 6) {
+    return response.badRequest({
+      message: 'Nové heslo musí mať aspoň 6 znakov.',
+    })
+  }
+
+  // ulož nové heslo
+  user.password = newPassword
+  await user.save()
+
+  return {
+    message: 'Heslo bolo úspešne zmenené.',
+  }
+})
+
+
 /**
  * GET /users/search?q=... – vyhľadá používateľov podľa nickname alebo emailu
  * MUST be defined BEFORE /users/:id to avoid route conflicts
@@ -254,7 +292,7 @@ router.get('/users/search', async ({ request, response }) => {
     }))
   } catch (error) {
     console.error('Error in /users/search:', error)
-    return response.internalServerError({ 
+    return response.internalServerError({
       message: 'Chyba pri vyhľadávaní používateľov.',
       error: error instanceof Error ? error.message : String(error)
     })
@@ -395,23 +433,23 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
       channelId: channelId,
       channel_id: channelId
     }
-    
+
     console.log('📤 Broadcasting message via WebSocket:', {
       channelId,
-      messageId: messageToBroadcast.id,
+      messageId: messageToBroadcast,
       room: `channel:${channelId}`,
       connectedClients: io.sockets.sockets.size
     })
-    
+
     // Broadcast to the specific channel room
     const room = `channel:${channelId}`
     const roomSockets = await io.in(room).fetchSockets()
     console.log(`📡 Room "${room}" has ${roomSockets.length} connected clients`)
-    
+
     io.to(room).emit('chat:message', messageToBroadcast)
     // Also broadcast to all as fallback (in case some clients haven't joined the room)
     io.emit('chat:message', messageToBroadcast)
-    
+
     console.log('✅ Message broadcasted to all clients')
   } else {
     console.warn('⚠️ Socket.IO not initialized, cannot broadcast message')
@@ -502,11 +540,12 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
       .first()
 
     if (!inviterMember || inviterMember.status !== 'owner') {
-      return response.forbidden({ 
-        message: 'Len vlastník súkromného kanála môže pozývať používateľov.' 
+      return response.forbidden({
+        message: 'Len vlastník súkromného kanála môže pozývať používateľov.'
       })
     }
   }
+
 
   // kontrola, či už nie je členom
   const existingMember = await ChannelMember.query()
