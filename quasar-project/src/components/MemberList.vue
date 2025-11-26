@@ -19,7 +19,8 @@ export default defineComponent({
     isChannelOwner: { type: Boolean, default: false }
   },
   emits: ['update:modelValue', 'add'],
-  setup (props, { emit }) {
+  // ZMENA: Pridané 'expose' do parametrov setupu
+  setup (props, { emit, expose }) {
     const isOpen = computed({
       get: () => props.modelValue,
       set: (val: boolean) => emit('update:modelValue', val)
@@ -39,7 +40,6 @@ export default defineComponent({
       try {
         const response = await api.get(`/channels/${props.channelId}/members`);
         members.value = response.data.map((m: { id: number; name: string; status: string }) => {
-          // If this is the current user, use their status from props (synchronized with avatar)
           const status = (props.currentUserId === m.id && props.currentUserStatus)
             ? (props.currentUserStatus as Status)
             : (m.status || 'offline') as Status;
@@ -58,17 +58,14 @@ export default defineComponent({
       }
     };
 
-    // Fetch members when channelId changes
     watch(() => props.channelId, fetchMembers, { immediate: true });
 
-    // Also fetch when drawer opens (in case channelId was set before drawer opened)
     watch(() => props.modelValue, (isOpen) => {
       if (isOpen && props.channelId) {
         void fetchMembers();
       }
     });
 
-    // Update current user's status in member list when it changes
     watch(() => props.currentUserStatus, () => {
       if (props.currentUserId && members.value.length > 0) {
         const currentUserMember = members.value.find(m => m.id === props.currentUserId);
@@ -105,18 +102,18 @@ export default defineComponent({
     };
 
     const handleInviteSent = () => {
-      // Refresh members list after invite is sent
       void fetchMembers();
     };
 
     const canInvite = computed(() => {
-      // For private channels, only owner can invite
       if (props.channelAvailability === 'private') {
         return props.isChannelOwner;
       }
-      // For public channels, all members can invite (or we can restrict this too if needed)
       return true;
     });
+
+    // ZMENA: Exponovanie funkcie pre rodiča
+    expose({ openAddDialog: addMember });
 
     return { isOpen, members, loading, getInitials, statusText, statusColor, addMember, showAddDialog, handleInviteSent, canInvite };
   }
@@ -233,8 +230,6 @@ export default defineComponent({
 .status-dot.dnd     { background:#F44336; } /* červená */
 .status-dot.offline { background:#9E9E9E; } /* šedá */
 
-
-/* Štýl pre aktívne tlačidlo (pôvodné oranžové) */
 .add-member-btn {
   background-color: #fbe3bf;
   color: #b86b09;
@@ -249,13 +244,11 @@ export default defineComponent({
   transform: translateY(1px);
 }
 
-/* Štýl pre zamknuté tlačidlo (červenkasté) */
 .no-permission-btn {
-  background-color: #ffccbc !important; /* Svetlá červenkastá */
-  color: #d84315 !important;            /* Tmavšia červená na text/ikonku */
+  background-color: #ffccbc !important;
+  color: #d84315 !important;
   font-weight: 600;
   text-transform: uppercase;
-  opacity: 1 !important; /* Prepíšeme opacity aby bol text čitateľný */
+  opacity: 1 !important;
 }
-
 </style>

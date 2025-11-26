@@ -1,7 +1,6 @@
 <script lang="ts">
 import { defineComponent, computed } from 'vue'
-// 1. Importujeme defaultný obrázok (skontroluj či je to .png, .svg atď.)
-// Alias 'src/' funguje v Quasare štandardne a odkazuje na root src priečinka.
+import { api } from 'boot/api' // Dôležitý import pre adresu servera
 import defaultChannelLogo from 'src/assets/default_channel_logo.png'
 
 export default defineComponent({
@@ -35,8 +34,24 @@ export default defineComponent({
       props.availability === 'private' ? 'private' : 'public',
     )
 
-    // Kontrola či máme custom obrázok
-    const hasImage = computed(() => !!props.imageUrl)
+    // --- NOVÁ LOGIKA PRE OBRÁZKY ---
+    const finalImageUrl = computed(() => {
+      // 1. Ak nemáme URL, vrátime default
+      if (!props.imageUrl) return defaultChannelLogo
+
+      // 2. Ak je to externý link (https://...), vrátime ho
+      if (props.imageUrl.startsWith('http')) return props.imageUrl
+
+      // 3. Inak vyskladáme cestu k backendu
+      const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
+
+      // Očistíme URL od prebytočných lomiek
+      const cleanBase = baseUrl.replace(/\/$/, '')
+      const cleanPath = props.imageUrl.startsWith('/') ? props.imageUrl : `/${props.imageUrl}`
+
+      return `${cleanBase}${cleanPath}`
+    })
+    // -------------------------------
 
     const handleClick = () => {
       emit('click')
@@ -53,11 +68,10 @@ export default defineComponent({
     return {
       badgeColor,
       badgeText,
-      hasImage,
+      finalImageUrl, // Vrátime novú premennú
       handleClick,
       acceptInvite,
       rejectInvite,
-      // 2. Vrátime default logo do template-u
       defaultChannelLogo
     }
   },
@@ -74,8 +88,10 @@ export default defineComponent({
     <q-item-section avatar class="q-mr-sm">
       <q-avatar rounded size="32px">
         <img
-          :src="hasImage ? imageUrl : defaultChannelLogo"
+          :src="finalImageUrl"
           alt="Channel avatar"
+          style="object-fit: cover"
+          @error="(e) => { (e.target as HTMLImageElement).src = defaultChannelLogo }"
         >
       </q-avatar>
     </q-item-section>

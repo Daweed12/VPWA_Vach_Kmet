@@ -4,6 +4,7 @@ import {
   column,
   hasMany,
   manyToMany,
+  afterFind,
 } from '@adonisjs/lucid/orm'
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 
@@ -35,7 +36,7 @@ export default class User extends BaseModel {
   @column({ columnName: 'notify_on_mention_only' })
   declare notifyOnMentionOnly: boolean
 
-  @column()
+  @column({ serializeAs: null }) // Heslo neposielame na frontend
   declare password: string
 
   @column.dateTime({ autoCreate: true, columnName: 'created_at' })
@@ -48,8 +49,18 @@ export default class User extends BaseModel {
   })
   declare updatedAt: DateTime
 
+  // === LOGIKA PRE DEFAULT AVATAR ===
+  // Tento hook sa spustí vždy, keď vytiahneš usera z databázy (napr. User.find(1))
+  @afterFind()
+  public static async setDefaults(user: User) {
+    // Ak nemá nastavenú profilovku, nastavíme mu default
+    if (!user.profilePicture) {
+      // Predpokladáme, že defaultný obrázok je v priečinku public/avatars/
+      user.profilePicture = '/avatars/0_DEFAULT_USER.png'
+    }
+  }
 
-  // === vzťahy ===
+  // === VZŤAHY ===
 
   @hasMany(() => Message, {
     foreignKey: 'senderId',

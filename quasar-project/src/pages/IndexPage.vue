@@ -109,12 +109,10 @@
                 <!-- vlastný avatar s ikonkou -->
                 <template #avatar>
                   <q-avatar
-                    size="26px"
+                    size="38px"
                     :class="['msg-avatar', msg.sent ? 'msg-avatar--sent' : 'msg-avatar--received']"
-                    :color="msg.sent ? 'orange-7' : 'orange-5'"
-                    text-color="white"
                   >
-                    <q-icon name="person" size="16px" />
+                    <img :src="msg.avatar" style="object-fit: cover;" />
                   </q-avatar>
                 </template>
 
@@ -210,6 +208,20 @@ const rawMessages = ref<MessageFromApi[]>([])
 const loading = ref(false)
 
 const scrollArea = ref<HTMLElement | null>(null)
+
+const getFullAvatarUrl = (path: string | null | undefined) => {
+  if (!path) return defaultUserAvatar // Ak nemá fotku, vráti lokálny default
+  if (path.startsWith('http')) return path // Ak je to externá linka (napr. google), vráť ju
+
+  // Získaj base URL z API konfigurácie (napr. http://localhost:3333)
+  const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
+
+  // Odstránime koncovú lomku z baseUrl a začiatočnú z path, aby sme nemali //
+  const cleanBase = baseUrl.replace(/\/$/, '')
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+
+  return `${cleanBase}${cleanPath}`
+}
 
 // Typing indicators with draft content
 interface TypingUser {
@@ -502,7 +514,7 @@ const uiMessages = computed<UiMessage[]>(() => {
         minute: '2-digit',
       })
 
-      const avatar = defaultUserAvatar
+      const avatar = getFullAvatarUrl(s.profilePicture)
 
       return {
         id: m.id,

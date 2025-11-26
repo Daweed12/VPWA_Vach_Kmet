@@ -1,5 +1,6 @@
 // start/routes.ts
 import router from '@adonisjs/core/services/router'
+import app from '@adonisjs/core/services/app'
 
 import Channel from '#models/channel'
 import User from '#models/user'
@@ -117,6 +118,58 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
   return { ok: true }
 })
 
+//OBRAZKY
+router.post('/users/:id/avatar', async ({ params, request, response }) => {
+  const user = await User.find(params.id)
+
+  if (!user) {
+    return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  // 1. Získame súbor z requestu (kľúč 'avatar')
+  const avatar = request.file('avatar', {
+    size: '2mb',
+    extnames: ['jpg', 'png', 'jpeg', 'webp'],
+  })
+
+  // 2. Validácia (či je to obrázok a či nie je príliš veľký)
+  if (!avatar) {
+    return response.badRequest({ message: 'Musíš nahrať obrázok.' })
+  }
+  if (!avatar.isValid) {
+    return response.badRequest(avatar.errors)
+  }
+
+  // 3. Vygenerovanie názvu: ID_NICKNAME.prípona
+  // Odstránime medzery z nickname pre istotu
+  const safeNickname = user.nickname.replace(/\s+/g, '_')
+  const fileName = `${user.id}_${safeNickname}.${avatar.extname}`
+
+  // 4. Presun súboru do priečinka public/avatars
+  await avatar.move(app.publicPath('avatars'), {
+    name: fileName,
+    overwrite: true, // Ak už existuje, prepíšeme ho
+  })
+
+  // 5. Uloženie cesty do databázy
+  // Ukladáme cestu prístupnú cez URL, nie fyzickú cestu na disku!
+  user.profilePicture = `/avatars/${fileName}`
+  await user.save()
+
+  return {
+    message: 'Avatar úspešne zmenený.',
+    profilePicture: user.profilePicture
+  }
+})
+
+//blablablablablab
+router.get('/avatars/:filename', async ({ params, response }) => {
+  // Zistíme cestu k súboru na disku: /cesta/k/projektu/public/avatars/nazov.png
+  const filePath = app.publicPath(`avatars/${params.filename}`)
+
+  // Stiahneme/zobrazíme súbor
+  return response.download(filePath)
+})
 /**
  * POST /invites/:id/reject
  * - označí invite ako rejected
@@ -254,7 +307,7 @@ router.get('/users/search', async ({ request, response }) => {
     }))
   } catch (error) {
     console.error('Error in /users/search:', error)
-    return response.internalServerError({ 
+    return response.internalServerError({
       message: 'Chyba pri vyhľadávaní používateľov.',
       error: error instanceof Error ? error.message : String(error)
     })
@@ -395,23 +448,23 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
       channelId: channelId,
       channel_id: channelId
     }
-    
+
     console.log('📤 Broadcasting message via WebSocket:', {
       channelId,
-      messageId: messageToBroadcast.id,
+      messageId: message.id, // <--- OPRAVA: Použitie message.id namiesto messageToBroadcast.id
       room: `channel:${channelId}`,
       connectedClients: io.sockets.sockets.size
     })
-    
+
     // Broadcast to the specific channel room
     const room = `channel:${channelId}`
     const roomSockets = await io.in(room).fetchSockets()
     console.log(`📡 Room "${room}" has ${roomSockets.length} connected clients`)
-    
+
     io.to(room).emit('chat:message', messageToBroadcast)
     // Also broadcast to all as fallback (in case some clients haven't joined the room)
     io.emit('chat:message', messageToBroadcast)
-    
+
     console.log('✅ Message broadcasted to all clients')
   } else {
     console.warn('⚠️ Socket.IO not initialized, cannot broadcast message')
@@ -502,8 +555,8 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
       .first()
 
     if (!inviterMember || inviterMember.status !== 'owner') {
-      return response.forbidden({ 
-        message: 'Len vlastník súkromného kanála môže pozývať používateľov.' 
+      return response.forbidden({
+        message: 'Len vlastník súkromného kanála môže pozývať používateľov.'
       })
     }
   }
@@ -563,6 +616,3 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
     throw error
   }
 })
-
-
-
