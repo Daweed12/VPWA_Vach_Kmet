@@ -1,6 +1,5 @@
 <template>
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
-    <!-- HEADER -->
     <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
       <div style="height: 20px;" class="bg-primary" />
 
@@ -8,19 +7,18 @@
         <q-toolbar-title>
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
 
-          <!-- Titulok podľa stránky -->
           <span v-if="isSettingsPage">
             Nastavenia používateľského účtu
           </span>
           <span v-else-if="currentChannelTitle">
-            Channel - {{ currentChannelTitle }}
+            # {{ currentChannelTitle }}
           </span>
-
+          <span v-else>
+            VPWA - projekt
+          </span>
         </q-toolbar-title>
 
-        <!-- Ikonky vpravo – len mimo settings -->
         <template v-if="!isSettingsPage">
-          <!-- X len ak som owner daného kanála -->
           <q-btn
             v-if="canDeleteCurrentChannel"
             dense
@@ -42,16 +40,13 @@
       </q-toolbar>
     </q-header>
 
-    <!-- TELO -->
     <div class="column no-wrap test">
-      <!-- ĽAVÝ SIDEBAR -->
       <q-drawer
         show-if-above
         v-model="leftDrawerOpen"
         side="left"
         class="bg-orange-5 column"
       >
-        <!-- Logo -->
         <div
           style="margin: 10px 15px 10px 15px; cursor: pointer;"
           @click="navigateHome"
@@ -63,7 +58,6 @@
           />
         </div>
 
-        <!-- Invites + Channels -->
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper hide-scrollbar">
           <q-list>
             <div class="q-mb-sm">
@@ -73,7 +67,6 @@
               />
             </div>
 
-            <!-- INVITES -->
             <q-item-label header class="section-label">
               Invites
               <span
@@ -104,7 +97,6 @@
 
             <q-separator spaced />
 
-            <!-- CHANNELS -->
             <q-item-label header class="section-label">
               Channels
               <span
@@ -125,12 +117,11 @@
           </q-list>
         </div>
 
-        <!-- USER BADGE DOLE -->
         <div
           class="q-pa-none bg-orange-2 drawer-div-wrapper"
           style="margin-top: 10px; padding: 2px"
         >
-          <q-item v-ripple>
+          <q-item>
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
                 <img :src="currentUserAvatar" alt="avatar" />
@@ -144,15 +135,32 @@
             </q-item-section>
 
             <q-item-section side>
-              <q-btn
-                flat
-                round
-                dense
-                color="black"
-                icon="settings"
-                size="lg"
-                @click="$router.push('/app/settings')"
-              />
+              <div class="row items-center">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  color="black"
+                  icon="terminal"
+                  size="lg"
+                  class="q-mr-xs"
+                  @click="console.log('CMD clicked')"
+                >
+                  <q-tooltip>Otvor CMD</q-tooltip>
+                </q-btn>
+
+                <q-btn
+                  flat
+                  round
+                  dense
+                  color="black"
+                  icon="settings"
+                  size="lg"
+                  @click="$router.push('/app/settings')"
+                >
+                  <q-tooltip>Otvor nastavenia účtu</q-tooltip>
+                </q-btn>
+              </div>
             </q-item-section>
           </q-item>
         </div>
@@ -160,7 +168,6 @@
         <div style="height: 10px;" class="bg-primary" />
       </q-drawer>
 
-      <!-- PRAVÝ SIDEBAR (MemberList) – len mimo settings -->
       <MemberList
         v-if="!isSettingsPage"
         v-model="rightDrawerOpen"
@@ -172,13 +179,11 @@
         :is-channel-owner="canDeleteCurrentChannel"
       />
 
-      <!-- HLAVNÝ OBSAH -->
       <q-page-container class="bg-orange-3">
         <router-view />
       </q-page-container>
     </div>
 
-    <!-- TEXTBAR – vždy na /app, okrem /app/settings -->
     <q-footer
       v-if="showComposer"
       class="bg-orange-1 footer-wrapper q-pa-sm"
@@ -190,7 +195,6 @@
       />
     </q-footer>
 
-    <!-- DIALOG: Vytvoriť nový kanál -->
     <q-dialog v-model="createDialogOpen" persistent>
       <q-card style="min-width: 400px">
         <q-card-section>
@@ -380,13 +384,23 @@ export default {
       )
     })
 
+    // ZMENA: Prioritizácia prezývky
     const currentUserName = computed(() => {
       if (!currentUser.value) return 'User'
-      return (
-        `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim() ||
-        currentUser.value.nickname ||
-        currentUser.value.email
-      )
+
+      // 1. Skús nickname (ak existuje a nie je to len prázdna medzera)
+      if (currentUser.value.nickname && currentUser.value.nickname.trim() !== '') {
+        return currentUser.value.nickname
+      }
+
+      // 2. Skús Meno Priezvisko
+      const fullName = `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim()
+      if (fullName) {
+        return fullName
+      }
+
+      // 3. Fallback na email
+      return currentUser.value.email
     })
 
     const currentUserAvatar = computed(
@@ -667,13 +681,33 @@ export default {
   overflow: hidden;
 }
 
-.test {
+/* In MainLayout.vue <style> */
+html, body, #q-app {
+  height: 100%;
+  overflow: hidden !important;
+}
+
+.no-page-scroll {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+/* Ensure the container doesn't scroll itself but allows children to size properly */
+.q-page-container {
   height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.test {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 .footer-wrapper {
-  margin: 0.2cm;
+  /* margin: 0.2cm;  <-- TOTO BOLO VYMAZANÉ (fix spodného scrollbaru) */
   border-radius: 20px;
 }
 
@@ -731,9 +765,18 @@ export default {
   color: #4e342e;
 }
 
-html,
-body,
-#q-app {
-  height: 100%;
+
+
+/* FIX pre bočný scrollbar v sidebare */
+.q-drawer__content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.q-drawer__content {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow-x: hidden !important;
 }
 </style>

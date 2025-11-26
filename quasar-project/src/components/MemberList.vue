@@ -183,24 +183,27 @@ export default defineComponent({
       </div>
     </div>
 
-    <div class="q-pa-md flex flex-center bg-orange-5">
+    <div class="q-pa-md bg-orange-5">
       <q-btn
         v-if="canInvite"
-        color="primary"
         icon="person_add"
-        label="Pridať člena"
-        push
-        glossy
-        class="q-mt-sm"
+        label="PRIDAŤ ČLENA"
+        unelevated
+        class="full-width add-member-btn"
         @click="addMember"
-      >
-        <q-tooltip>Pridať nového člena</q-tooltip>
-      </q-btn>
-      <div v-else class="text-center text-grey-6 q-pa-sm">
-        <q-icon name="lock" size="24px" class="q-mb-xs" />
-        <div class="text-caption">Len vlastník môže pozývať</div>
-      </div>
+      />
+
+      <q-btn
+        v-else
+        icon="lock"
+        label="NEMÁŠ POVOLENIE"
+        unelevated
+        rounded
+        disable
+        class="full-width no-permission-btn"
+      />
     </div>
+
   </q-drawer>
 
   <q-dialog v-model="showAddDialog" persistent transition-show="scale" transition-hide="scale">
@@ -229,4 +232,30 @@ export default defineComponent({
 .status-dot.away    { background:#f2c037; } /* žltá */
 .status-dot.dnd     { background:#F44336; } /* červená */
 .status-dot.offline { background:#9E9E9E; } /* šedá */
+
+
+/* Štýl pre aktívne tlačidlo (pôvodné oranžové) */
+.add-member-btn {
+  background-color: #fbe3bf;
+  color: #b86b09;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.add-member-btn:hover {
+  background-color: #f5d3a3;
+}
+.add-member-btn:active {
+  transform: translateY(1px);
+}
+
+/* Štýl pre zamknuté tlačidlo (červenkasté) */
+.no-permission-btn {
+  background-color: #ffccbc !important; /* Svetlá červenkastá */
+  color: #d84315 !important;            /* Tmavšia červená na text/ikonku */
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 1 !important; /* Prepíšeme opacity aby bol text čitateľný */
+}
+
 </style>

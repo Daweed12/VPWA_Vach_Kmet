@@ -37,7 +37,6 @@
                   </div>
 
                   <div class="q-mt-sm column q-gutter-sm self-stretch">
-                    <q-btn flat icon="visibility" label="Public profile" color="primary" />
                     <q-btn flat icon="photo_camera" label="Change photo" color="primary" />
                   </div>
                 </q-card-section>
@@ -335,7 +334,7 @@ const statusSelect = computed({
   set: (val: string | null) => {
     const v = (val ?? 'ONLINE').toLowerCase()
     form.status = v
-    
+
     // Update status immediately (before save) if user is logged in
     if (currentUser.value) {
       const updatedCurrent: CurrentUser = {
@@ -344,13 +343,13 @@ const statusSelect = computed({
       }
       currentUser.value = updatedCurrent
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
-      
+
       // Dispatch event to update MainLayout immediately
       const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
         detail: updatedCurrent,
       })
       window.dispatchEvent(event)
-      
+
       // Save status to backend immediately (fire and forget)
       void (async () => {
         try {
@@ -501,32 +500,64 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* In UserSettings.vue */
+
 .round-card { border-radius: 16px; }
 .compact-section { padding: 16px; }
 
 .settings-root {
   display: flex;
   flex-direction: column;
+  /* This ensures it takes the full height passed from SettingsPage */
   height: 100%;
-  overflow: hidden;
+  overflow: hidden; /* Prevent double scrollbars */
 }
 
 .scroll-outer {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
+  flex: 1;
+  overflow-y: auto;
   padding-block: 12px;
+  scroll-behavior: smooth;
+
+  /* 1. Skrytie pre Firefox */
+  scrollbar-width: none;
+
+  /* 2. Skrytie pre IE a starý Edge */
+  -ms-overflow-style: none;
+}
+
+/* 3. Skrytie pre Chrome, Safari, Brave, Edge (Webkit) */
+.scroll-outer::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar styling (optional, keeps it clean) */
+.custom-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(0,0,0,0.2) transparent;
+}
+
+/* Webkit (Chrome/Edge/Brave) Scrollbar styling */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.2);
+  border-radius: 10px;
 }
 
 .settings-container {
   width: 100%;
   --page-gutter: clamp(12px, 3vw, 32px);
   padding-inline: var(--page-gutter);
-  padding-block: 8px;
-}
 
-.custom-scroll { scrollbar-width: none; }
-.custom-scroll::-webkit-scrollbar { display: none; }
+
+  padding-top: 8px;
+  padding-bottom: 65px; /* <--- Pridaj veľa miesta naspodok (napr. 100px) */
+}
 
 .status-row {
   display: flex;
@@ -541,4 +572,5 @@ onMounted(() => {
 @media (max-width: 600px) {
   .status-select { flex-basis: 100%; }
 }
+
 </style>
