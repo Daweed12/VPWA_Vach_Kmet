@@ -377,85 +377,58 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
   const channelId = Number(params.id)
   const { content, senderId } = request.only(['content', 'senderId'])
 
-  if (Number.isNaN(channelId)) {
-    return response.badRequest({ message: 'Neplatné ID kanála.' })
+  if (!content || !senderId) {
+    return response.badRequest({ message: 'Neplatné dáta.' })
   }
 
-  if (!content || !content.trim()) {
-    return response.badRequest({ message: 'Obsah správy je povinný.' })
+  // 1) Nájdeme všetky mentions v texte: @nickname
+  const mentionRegex = /@([a-zA-Z0-9_]+)/g
+  const mentions: string[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    mentions.push(match[1])
   }
 
-  if (!senderId) {
-    return response.badRequest({ message: 'senderId je povinný.' })
+  // 2) Typovo správne pole mentionedUsers
+  const mentionedUsers: { id: number; nickname: string }[] = []
+
+  if (mentions.length > 0) {
+    const users = await User
+      .query()
+      .whereIn('nickname', mentions)
+      .select(['id', 'nickname'])
+
+    mentionedUsers.push(...users.map(u => ({
+      id: u.id,
+      nickname: u.nickname
+    })))
   }
 
-  // kontrola, či kanál existuje
-  const channel = await Channel.find(channelId)
-  if (!channel) {
-    return response.notFound({ message: 'Kanál neexistuje.' })
-  }
-
-  // kontrola, či používateľ existuje
-  const user = await User.find(senderId)
-  if (!user) {
-    return response.notFound({ message: 'Používateľ neexistuje.' })
-  }
-
-  // vytvor správu
+  // 3) Uložíme správu
   const message = await Message.create({
     channelId,
     senderId,
-    content: content.trim(),
+    content,
   })
 
-  // načítaj správu s odosielateľom pre odpoveď
-  await message.load('sender')
+  await message.load('sender') // načítanie autora správy
 
-  // Serializuj správu s odosielateľom
-  const serialized = message.serialize()
+  // 4) Výstup pre frontend
   const responseMessage = {
-    ...serialized,
+    ...message.serialize(),
     timestamp: message.timestamp.toISO(),
-    sender: message.sender ? {
-      id: message.sender.id,
-      nickname: message.sender.nickname,
-      firstname: message.sender.firstname,
-      surname: message.sender.surname,
-      email: message.sender.email,
-      profilePicture: message.sender.profilePicture,
-    } : null
+    sender: message.sender,
+    mentions: mentionedUsers
   }
 
-  // broadcast cez socket.io
+  // 5) Broadcast cez socket.io
   const { getIO } = await import('#start/socket')
   const io = getIO()
+
   if (io) {
-    // Pridaj channelId do serializovanej správy
-    const messageToBroadcast = {
-      ...responseMessage,
-      channelId: channelId,
-      channel_id: channelId
-    }
-
-    console.log('📤 Broadcasting message via WebSocket:', {
-      channelId,
-      messageId: messageToBroadcast,
-      room: `channel:${channelId}`,
-      connectedClients: io.sockets.sockets.size
-    })
-
-    // Broadcast to the specific channel room
-    const room = `channel:${channelId}`
-    const roomSockets = await io.in(room).fetchSockets()
-    console.log(`📡 Room "${room}" has ${roomSockets.length} connected clients`)
-
-    io.to(room).emit('chat:message', messageToBroadcast)
-    // Also broadcast to all as fallback (in case some clients haven't joined the room)
-    io.emit('chat:message', messageToBroadcast)
-
-    console.log('✅ Message broadcasted to all clients')
-  } else {
-    console.warn('⚠️ Socket.IO not initialized, cannot broadcast message')
+    io.to(`channel:${channelId}`).emit('chat:message', responseMessage)
+    io.emit('chat:message', responseMessage)
   }
 
   return responseMessage

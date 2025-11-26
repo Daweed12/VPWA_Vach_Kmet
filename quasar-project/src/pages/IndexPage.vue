@@ -96,7 +96,7 @@
             <div
               v-for="msg in visibleMessages"
               :key="msg.id"
-              class="q-px-sm q-py-xs"
+              :class="['q-px-sm q-py-xs', isMentioned(msg) ? 'mention-highlight' : '']"
             >
               <q-chat-message
                 :name="msg.name"
@@ -152,12 +152,15 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { api } from 'boot/api'
 import { io, type Socket } from 'socket.io-client'
-const defaultUserAvatar = new URL('../assets/default_user_avatar.png', import.meta.url).href
+const defaultUserAvatar = new URL('../assets/0_DEFAULT_USER.png.png', import.meta.url).href
 
 
 // Window interface will be extended later
 
 /* ===== typy z API ===== */
+interface MessageWithMentions extends MessageFromApi {
+  mentions?: { id: number; nickname: string }[]
+}
 
 interface CurrentUser {
   id: number
@@ -208,6 +211,15 @@ const rawMessages = ref<MessageFromApi[]>([])
 const loading = ref(false)
 
 const scrollArea = ref<HTMLElement | null>(null)
+
+const isMentioned = (msg: UiMessage & { mentions?: { id: number }[] }) => {
+  if (!currentUser.value) return false
+  if (!('mentions' in msg)) return false
+  if (!msg.mentions || msg.mentions.length === 0) return false
+
+  return msg.mentions.some(u => u.id === currentUser.value!.id)
+}
+
 
 const getFullAvatarUrl = (path: string | null | undefined) => {
   if (!path) return defaultUserAvatar // Ak nemá fotku, vráti lokálny default
@@ -491,13 +503,12 @@ const infiniteKey = ref(0)
 
 /* ===== odvodené hodnoty ===== */
 
-const uiMessages = computed<UiMessage[]>(() => {
+const uiMessages = computed(() => {
   return rawMessages.value
     .filter((m) => m.sender)
     .map((m) => {
       const s = m.sender
 
-      // 1️⃣ zobrazovaný názov – najprv nickname
       const displayName =
         s.nickname ||
         `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
@@ -506,7 +517,6 @@ const uiMessages = computed<UiMessage[]>(() => {
       const meId = currentUser.value?.id ?? null
       const isMe = meId !== null && s.id === meId
 
-      // 2️⃣ formátovaný timestamp
       const stamp = new Date(m.timestamp).toLocaleString('sk-SK', {
         day: '2-digit',
         month: '2-digit',
@@ -514,18 +524,18 @@ const uiMessages = computed<UiMessage[]>(() => {
         minute: '2-digit',
       })
 
-      const avatar = getFullAvatarUrl(s.profilePicture)
-
       return {
         id: m.id,
         name: displayName,
-        avatar,
+        avatar: getFullAvatarUrl(s.profilePicture),
         sent: isMe,
         text: m.content,
         stamp,
+        mentions: (m as MessageWithMentions).mentions ?? []
       }
     })
 })
+
 
 
 
@@ -900,6 +910,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
+.mention-highlight {
+  background: #fff7c2;
+  border-left: 4px solid #f4c20d;
+  border-radius: 6px;
+  padding-left: 8px;
+}
+
+
 .chat-page {
   display: flex;
   flex-direction: column;
