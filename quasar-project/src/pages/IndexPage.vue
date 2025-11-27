@@ -1,12 +1,12 @@
 <template>
   <q-page class="chat-page">
     <div class="chat-wrapper">
-
       <div
         ref="scrollArea"
         id="chat-scroll"
         class="chat-scroll"
       >
+        <!-- Empty state - no channel selected -->
         <div
           v-if="!activeChannelId"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
@@ -17,6 +17,7 @@
           </div>
         </div>
 
+        <!-- Loading state -->
         <div
           v-else-if="loading && totalMessages === 0"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
@@ -27,6 +28,7 @@
           </div>
         </div>
 
+        <!-- Empty messages state -->
         <div
           v-else-if="!loading && totalMessages === 0"
           class="full-height column items-center justify-center text-grey-7 q-pa-lg"
@@ -37,754 +39,100 @@
           </div>
         </div>
 
-        <div
-          v-if="typingUsers.length > 0"
-          class="typing-indicator-fixed"
-        >
-          <q-card class="typing-card">
-            <q-card-section class="q-pa-sm">
-              <div
-                v-for="user in typingUsers"
-                :key="user.id"
-                class="typing-user-item"
-              >
-                <div class="row items-center q-mb-xs">
-                  <q-icon name="edit" size="14px" class="q-mr-xs text-grey-7" />
-                  <span class="text-caption text-weight-medium text-grey-8">
-                    {{ user.name }}
-                  </span>
-                </div>
-                <div
-                  v-if="user.draftContent"
-                  class="draft-content text-body2 text-grey-7 q-pl-md"
-                >
-                  "{{ user.draftContent }}"
-                </div>
-                <div
-                  v-else
-                  class="typing-dots q-pl-md"
-                >
-                  <span>.</span><span>.</span><span>.</span>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
+        <!-- Typing indicator -->
+        <TypingIndicator :typing-users="typingUsers" />
 
-        <div
-          class="q-pt-sm q-pb-lg"
-        >
-          <q-infinite-scroll
-            :key="infiniteKey"
-            reverse
-            :offset="10"
-            :debounce="120"
-            @load="onLoad"
-            scroll-target="#chat-scroll"
-          >
-            <div
-              v-for="msg in visibleMessages"
-              :key="msg.id"
-              class="q-px-sm q-py-xs"
-            >
-              <q-chat-message
-                :name="msg.name"
-                :stamp="msg.stamp"
-                :sent="msg.sent"
-                :bg-color="msg.sent ? 'primary' : 'grey-3'"
-                :text-color="msg.sent ? 'white' : 'black'"
-                class="shadow-sm"
-              >
-                <template #avatar>
-                  <q-avatar
-                    size="38px"
-                    :class="['msg-avatar', msg.sent ? 'msg-avatar--sent' : 'msg-avatar--received']"
-                  >
-                    <img :src="msg.avatar" style="object-fit: cover;" />
-                  </q-avatar>
-                </template>
-
-                <template #default>
-                  <span class="bubble-text">
-                    <span
-                      v-for="(chunk, idx) in chunks(msg.text)"
-                      :key="msg.id + '-' + idx"
-                    >
-                      <span
-                        v-if="chunk.type === 'mention'"
-                        :class="{
-                          'mention-me': chunk.value === currentUser?.nickname,
-                          'mention-text': chunk.value !== currentUser?.nickname
-                        }"
-                      >
-                        @{{ chunk.value }}
-                      </span>
-
-                      <span v-else>{{ chunk.value }}</span>
-                    </span>
-                  </span>
-                </template>
-              </q-chat-message>
-            </div>
-
-            <template #loading>
-              <div class="loading-banner" v-show="isLoading">
-                <q-spinner-dots size="24px" />
-                <span class="ml-2">Načítavam staršie správy…</span>
-              </div>
-            </template>
-          </q-infinite-scroll>
-        </div>
+        <!-- Message list -->
+        <MessageList
+          v-if="activeChannelId && totalMessages > 0"
+          :visible-messages="visibleMessages"
+          :current-user-nickname="currentUser?.nickname"
+          :infinite-key="infiniteKey"
+          :is-loading="isLoading"
+          :on-load="handleLoad"
+        />
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { api } from 'boot/api'
-import { io, type Socket } from 'socket.io-client'
-const defaultUserAvatar = new URL('../assets/default_user_avatar.png', import.meta.url).href
+import TypingIndicator from 'src/components/TypingIndicator.vue'
+import MessageList from 'src/components/MessageList.vue'
+import { useSocket } from 'src/composables/useSocket'
+import { useMessages, type CurrentUser } from 'src/composables/useMessages'
+import { useTyping } from 'src/composables/useTyping'
+import { useSocketEvents } from 'src/composables/useSocketEvents'
+import { useInfiniteScroll } from 'src/composables/useInfiniteScroll'
 
-
-// Window interface will be extended later
-
-/* ===== typy z API ===== */
-
-interface CurrentUser {
-  id: number
-  email: string
-  nickname: string
-  firstname: string | null
-  surname: string | null
-  status: string | null
-  profilePicture?: string | null
-}
-
-interface SenderFromApi {
-  id: number
-  nickname: string
-  firstname: string | null
-  surname: string | null
-  email: string
-  profilePicture: string | null
-}
-
-interface MessageFromApi {
-  id: number
-  content: string
-  timestamp: string
-  sender: SenderFromApi
-}
-
-type Chunk = { type: 'text' | 'mention'; value: string }
-
-interface UiMessage {
-  id: number
-  name: string        // bude nickname
-  avatar: string
-  sent: boolean
-  text: string
-  stamp: string       // formátovaný čas
-}
-
-
-/* ===== stav stránky ===== */
-
+/* ===== State ===== */
 const activeChannelId = ref<number | null>(null)
 const activeChannelTitle = ref<string | null>(null)
-
 const currentUser = ref<CurrentUser | null>(null)
 
-const rawMessages = ref<MessageFromApi[]>([])
-const loading = ref(false)
-
-const scrollArea = ref<HTMLElement | null>(null)
-
-const getFullAvatarUrl = (path: string | null | undefined) => {
-  if (!path) return defaultUserAvatar // Ak nemá fotku, vráti lokálny default
-  if (path.startsWith('http')) return path // Ak je to externá linka (napr. google), vráť ju
-
-  // Získaj base URL z API konfigurácie (napr. http://localhost:3333)
-  const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
-
-  // Odstránime koncovú lomku z baseUrl a začiatočnú z path, aby sme nemali //
-  const cleanBase = baseUrl.replace(/\/$/, '')
-  const cleanPath = path.startsWith('/') ? path : `/${path}`
-
-  return `${cleanBase}${cleanPath}`
-}
-
-// Typing indicators with draft content
-interface TypingUser {
-  id: number
-  name: string
-  avatar?: string
-  draftContent?: string
-}
-
-const typingUsers = ref<TypingUser[]>([])
-const typingTimeouts = new Map<number, ReturnType<typeof setTimeout>>()
-
-/* ===== socket.io connection ===== */
-
-let socket: Socket | null = null
-
-const initSocket = () => {
-  // Don't recreate if already exists and connected
-  if (socket) {
-    if (socket.connected) {
-      console.log('Socket already connected')
-      return
-    }
-    // If socket exists but not connected, disconnect and recreate
-    socket.disconnect()
-    socket = null
-  }
-
-  console.log('🔌 Initializing Socket.IO connection to http://localhost:3333...')
-
-  // Get API base URL from the api instance
-  const apiBaseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
-  const socketUrl = apiBaseUrl.replace(/\/$/, '') // Remove trailing slash
-
-  console.log('🔗 Connecting to:', socketUrl)
-
-  socket = io(socketUrl, {
-    transports: ['polling', 'websocket'], // Try polling first, then websocket
-    reconnection: true,
-    reconnectionDelay: 1000,
-    reconnectionAttempts: Infinity,
-    timeout: 20000,
-    forceNew: false,
-    autoConnect: true,
-    upgrade: true, // Allow upgrade from polling to websocket
-    rememberUpgrade: false
-  })
-
-  socket.on('connect', () => {
-    console.log('✅ Socket.IO connected:', socket?.id, 'Total connected clients should be visible on server')
-    // Rejoin current channel if one is selected
-    if (activeChannelId.value) {
-      console.log('🔄 Rejoining channel after connection:', activeChannelId.value)
-      joinChannel(activeChannelId.value)
-    }
-  })
-
-  socket.on('disconnect', (reason) => {
-    console.log('Socket.IO disconnected:', reason)
-  })
-
-  socket.on('connect_error', (error) => {
-    console.error('Socket.IO connection error:', error)
-  })
-
-  // Typing indicators with draft content
-  socket.on('typing:update', (data: { userId: number; userName: string; userAvatar?: string; draftContent?: string }) => {
-    if (!data.userId || !data.userName) return
-    if (data.userId === currentUser.value?.id) return // Don't show yourself typing
-
-    // Clear existing timeout for this user
-    const existingTimeout = typingTimeouts.get(data.userId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-
-    // Add or update typing user with draft content
-    const existingUser = typingUsers.value.find(u => u.id === data.userId)
-
-    if (!existingUser) {
-      typingUsers.value.push({
-        id: data.userId,
-        name: data.userName,
-        avatar: data.userAvatar || defaultUserAvatar,
-        draftContent: data.draftContent || ''
-      })
-    } else {
-      existingUser.draftContent = data.draftContent || ''
-    }
-    // Set timeout to remove typing indicator after 3 seconds
-    const timeout = setTimeout(() => {
-      typingUsers.value = typingUsers.value.filter(u => u.id !== data.userId)
-      typingTimeouts.delete(data.userId)
-    }, 3000)
-
-    typingTimeouts.set(data.userId, timeout)
-  })
-
-  socket.on('typing:stop', (data: { userId: number }) => {
-    if (!data.userId) return
-
-    // Clear timeout
-    const timeout = typingTimeouts.get(data.userId)
-    if (timeout) {
-      clearTimeout(timeout)
-      typingTimeouts.delete(data.userId)
-    }
-
-    // Remove from typing users
-    typingUsers.value = typingUsers.value.filter(u => u.id !== data.userId)
-  })
-
-  // Listen for user status changes
-  socket.on('user:status:changed', (data: { userId: number; status: string; name: string }) => {
-    console.log('📢 Received user:status:changed event:', data)
-    
-    // Dispatch window event so MemberList.vue can listen to it
-    window.dispatchEvent(new CustomEvent('userStatusChanged', {
-      detail: {
-        userId: data.userId,
-        status: data.status,
-        name: data.name
-      }
-    }))
-  })
-
-  // Listen for user avatar changes
-  socket.on('user:avatar:changed', (data: { userId: number; profilePicture: string; name: string }) => {
-    console.log('📢 Received user:avatar:changed event:', data)
-    
-    // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
-    const timestamp = Date.now()
-    rawMessages.value.forEach((msg) => {
-      if (msg.sender && msg.sender.id === data.userId) {
-        // Aktualizuj profilePicture s timestampom pre cache busting
-        msg.sender.profilePicture = `${data.profilePicture}?t=${timestamp}`
-      }
-    })
-    
-    // Aktualizuj currentUser avatar, ak je to aktuálny používateľ
-    if (currentUser.value && currentUser.value.id === data.userId) {
-      currentUser.value.profilePicture = data.profilePicture
-      localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
-    }
-    
-    // Dispatch window event pre ostatné komponenty
-    window.dispatchEvent(new CustomEvent('userAvatarChanged', {
-      detail: {
-        userId: data.userId,
-        profilePicture: data.profilePicture,
-        name: data.name
-      }
-    }))
-  })
-
-  // Listen for channel deletion
-  socket.on('channel:deleted', (data: { channelId: number; title: string }) => {
-    console.log('📢 Received channel:deleted event:', data)
-    
-    // If the deleted channel is the active one, navigate away
-    if (activeChannelId.value === data.channelId) {
-      activeChannelId.value = null
-      activeChannelTitle.value = null
-      rawMessages.value = []
-      window.dispatchEvent(new CustomEvent('channelSelected', { 
-        detail: { id: null, title: null } 
-      }))
-    }
-    
-    // Dispatch window event so MainLayout.vue can remove channel from list
-    window.dispatchEvent(new CustomEvent('channelDeleted', {
-      detail: {
-        channelId: data.channelId,
-        title: data.title
-      }
-    }))
-  })
-
-  // Listen for channel creation
-  socket.on('channel:created', (data: { id: number; title: string; availability: string; creatorId: number; createdAt: string; userId?: number }) => {
-    console.log('📢 Received channel:created event:', data)
-    
-    // Dispatch window event so MainLayout.vue can add channel to list
-    window.dispatchEvent(new CustomEvent('channelCreated', {
-      detail: {
-        id: data.id,
-        title: data.title,
-        availability: data.availability,
-        creatorId: data.creatorId,
-        createdAt: data.createdAt,
-        userId: data.userId
-      }
-    }))
-  })
-
-  // Listen for invite creation
-  socket.on('invite:created', (data: { id: number; channelId: number; title: string; availability: string; createdAt: string; userId: number }) => {
-    console.log('📢 Received invite:created event:', data)
-    
-    // Dispatch window event so MainLayout.vue can add invite to list
-    window.dispatchEvent(new CustomEvent('inviteCreated', {
-      detail: {
-        id: data.id,
-        channelId: data.channelId,
-        title: data.title,
-        availability: data.availability,
-        createdAt: data.createdAt,
-        userId: data.userId
-      }
-    }))
-  })
-
-  // Listen for channel join
-  socket.on('channel:joined', (data: { channelId: number; userId: number; channel: { id: number; title: string; availability: string; creatorId: number; createdAt: string } }) => {
-    console.log('📢 Received channel:joined event:', data)
-    
-    // Dispatch window event so MainLayout.vue can add channel to list
-    window.dispatchEvent(new CustomEvent('channelJoined', {
-      detail: {
-        channelId: data.channelId,
-        userId: data.userId,
-        channel: data.channel
-      }
-    }))
-  })
-
-  // Listen for member joined (when someone accepts an invite)
-  socket.on('member:joined', (data: { channelId: number; userId: number; userName: string; status: string }) => {
-    console.log('📢 Received member:joined event:', data)
-    
-    // Dispatch window event so MemberList.vue can update member list
-    window.dispatchEvent(new CustomEvent('memberJoined', {
-      detail: {
-        channelId: data.channelId,
-        userId: data.userId,
-        userName: data.userName,
-        status: data.status
-      }
-    }))
-  })
-
-  socket.on('chat:message', (data: unknown) => {
-    console.log('🔵🔵🔵 RECEIVED chat:message event:', data)
-    console.log('🔵 Current user ID:', currentUser.value?.id, 'Active channel ID:', activeChannelId.value)
-    console.log('🔵 Socket connected?', socket?.connected, 'Socket ID:', socket?.id)
-
-    const message = data as MessageFromApi & { channelId?: number; channel_id?: number }
-
-    // Validate message structure
-    if (!message.sender) {
-      console.warn('⚠️ Received message without sender:', message)
-      return
-    }
-
-    if (!message.content) {
-      console.warn('⚠️ Received message without content:', message)
-      return
-    }
-
-    // Get channel ID from message
-    const messageChannelId = message.channelId || message.channel_id
-
-    if (!messageChannelId) {
-      console.warn('⚠️ Received message without channelId:', message)
-      return
-    }
-
-    console.log(`📨 Message details:`, {
-      messageId: message.id,
-      channelId: messageChannelId,
-      activeChannelId: activeChannelId.value,
-      senderId: message.sender.id,
-      currentUserId: currentUser.value?.id,
-      isFromCurrentUser: currentUser.value?.id === message.sender.id,
-      content: message.content.substring(0, 50) + '...'
-    })
-
-    // If we have an active channel, only show messages for that channel
-    // BUT: if no channel is active, we should still show it (for cases where user just opened the app)
-    if (activeChannelId.value !== null && messageChannelId !== activeChannelId.value) {
-      console.log(`ℹ️ Ignoring message - active channel (${activeChannelId.value}) != message channel (${messageChannelId})`)
-      return
-    }
-
-    console.log('✅ Message passed channel filter, processing...')
-
-    // Check if this is from current user - might be replacing optimistic message
-    const isFromCurrentUser = currentUser.value && message.sender.id === currentUser.value.id
-    if (isFromCurrentUser) {
-      // Try to find and replace optimistic message (negative ID)
-      const optimisticIndex = rawMessages.value.findIndex(m => m.id < 0 && m.content === message.content)
-      if (optimisticIndex !== -1) {
-        console.log('✅ Replacing optimistic message with real one')
-        rawMessages.value[optimisticIndex] = message
-
-        // Aktualizuj visibleCount ak je potrebné
-        const total = rawMessages.value.length
-        if (visibleCount.value < total) {
-          visibleCount.value = Math.min(visibleCount.value + 1, total)
-        }
-
-        void nextTick(() => {
-          if (scrollArea.value) {
-            scrollArea.value.scrollTop = scrollArea.value.scrollHeight
-          }
-        })
-        return
-      }
-    }
-
-    // Check if message already exists (avoid duplicates)
-    const exists = rawMessages.value.some(m => m.id === message.id && m.id > 0)
-    if (exists) {
-      console.log('ℹ️ Message already exists, skipping (duplicate)')
-      return
-    }
-
-    console.log('✅ Adding new message to chat (from another user)')
-    // Add the message
-    rawMessages.value.push(message)
-
-    // Aktualizuj visibleCount ak je potrebné
-    const total = rawMessages.value.length
-    if (visibleCount.value < total) {
-      visibleCount.value = Math.min(visibleCount.value + 1, total)
-    }
-
-    // Scroll to bottom
-    void nextTick(() => {
-      if (scrollArea.value) {
-        scrollArea.value.scrollTop = scrollArea.value.scrollHeight
-      }
-    })
-  })
-}
-
-const joinChannel = (channelId: number) => {
-  if (!socket) {
-    console.warn('⚠️ Socket not initialized, initializing now...')
-    initSocket()
-    // Wait a bit for socket to initialize, then try again
-    setTimeout(() => {
-      if (socket?.connected) {
-        socket.emit('channel:join', channelId)
-        console.log('✅ Joined channel after initialization:', channelId)
-      } else {
-        socket?.once('connect', () => {
-          socket?.emit('channel:join', channelId)
-          console.log('✅ Joined channel after delayed connection:', channelId)
-        })
-      }
-    }, 100)
-    return
-  }
-
-  if (!socket.connected) {
-    console.warn('⚠️ Socket not connected, will join when connected. Channel:', channelId)
-    // Wait for connection and then join
-    const connectHandler = () => {
-      socket?.emit('channel:join', channelId)
-      console.log('✅ Joined channel after reconnection:', channelId)
-      socket?.off('connect', connectHandler) // Remove listener to avoid duplicates
-    }
-    socket.once('connect', connectHandler)
-    return
-  }
-
-  socket.emit('channel:join', channelId)
-  console.log('✅ Emitted channel:join for channel:', channelId)
-}
-
-const leaveChannel = (channelId: number) => {
-  if (!socket?.connected) {
-    return
-  }
-  socket.emit('channel:leave', channelId)
-  console.log('Left channel:', channelId)
-}
-
-const disconnectSocket = () => {
-  if (socket) {
-    socket.disconnect()
-    socket = null
-  }
-}
-
-/* ===== infinite scroll paging ===== */
-
-const step = 15                           // koľko správ naraz
-const visibleCount = ref(0)               // koľko správ je aktuálne vidno
-const isLoading = ref(false)              // loading banner hore
-const finished = ref(false)               // či už nie sú ďalšie správy
-
-// 👉 nový kľúč pre q-infinite-scroll
-const infiniteKey = ref(0)
-
-/* ===== odvodené hodnoty ===== */
-
-const uiMessages = computed<UiMessage[]>(() => {
-  return rawMessages.value
-    .filter((m) => m.sender)
-    .map((m) => {
-      const s = m.sender
-
-      // 1️⃣ zobrazovaný názov – najprv nickname
-      const displayName =
-        s.nickname ||
-        `${s.firstname ?? ''} ${s.surname ?? ''}`.trim() ||
-        s.email
-
-      const meId = currentUser.value?.id ?? null
-      const isMe = meId !== null && s.id === meId
-
-      // 2️⃣ formátovaný timestamp
-      const stamp = new Date(m.timestamp).toLocaleString('sk-SK', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-
-      const avatar = getFullAvatarUrl(s.profilePicture)
-
-      return {
-        id: m.id,
-        name: displayName,
-        avatar,
-        sent: isMe,
-        text: m.content,
-        stamp,
-      }
-    })
-})
-
-
-
-const totalMessages = computed(() => uiMessages.value.length)
-
-const visibleMessages = computed<UiMessage[]>(() => {
+/* ===== Composables ===== */
+const { socket, initSocket, joinChannel, leaveChannel, disconnectSocket } = useSocket()
+const { rawMessages, loading, scrollArea, uiMessages, totalMessages, loadMessagesForChannel, addMessageOptimistically, updateMessageAvatar } = useMessages(currentUser)
+const { typingUsers, handleTypingUpdate, handleTypingStop, clearTyping } = useTyping()
+const { visibleCount, isLoading, finished, infiniteKey, resetPaging, onLoad: onInfiniteLoad, initializeVisibleCount } = useInfiniteScroll(totalMessages)
+
+/* ===== Computed ===== */
+const visibleMessages = computed(() => {
   const total = totalMessages.value
   if (total === 0) return []
 
-  const cnt = Math.min(visibleCount.value || step, total)
+  const cnt = Math.min(visibleCount.value || 15, total)
   const start = Math.max(total - cnt, 0)
   return uiMessages.value.slice(start)
 })
 
-/* ===== helpery ===== */
+/* ===== Socket Events Setup ===== */
+const setupSocketEvents = () => {
+  const socketInstance = socket()
+  if (!socketInstance) return
 
-const resetPaging = () => {
-  visibleCount.value = 0
-  isLoading.value = false
-  finished.value = false
-}
-
-/* ===== načítanie správ pre kanál ===== */
-
-const loadMessagesForChannel = async () => {
-  if (!activeChannelId.value) {
-    rawMessages.value = []
-    return
-  }
-
-  loading.value = true
-  resetPaging()
-
-  infiniteKey.value++
-
-  try {
-    const { data } = await api.get<MessageFromApi[]>(
-      `/channels/${activeChannelId.value}/messages`,
-    )
-    console.log('Loaded messages from API:', data)
-    rawMessages.value = data || []
-
-    const total = totalMessages.value
-    visibleCount.value = Math.min(step, total)
-    finished.value = visibleCount.value >= total
-
-    await nextTick()
-    if (scrollArea.value) {
-      scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+  useSocketEvents(socketInstance, currentUser, activeChannelId, rawMessages, {
+    onUserStatusChanged: () => {
+      // Handled by window event
+    },
+    onUserAvatarChanged: (data) => {
+      updateMessageAvatar(data.userId, data.profilePicture)
+    },
+    onMessage: () => {
+      // Scroll to bottom when new message arrives
+      setTimeout(() => {
+        if (scrollArea.value) {
+          scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+        }
+      }, 100)
     }
-  } catch (error) {
-    console.error('Chyba pri načítaní správ z API', error)
-    rawMessages.value = []
-  } finally {
-    loading.value = false
-  }
+  })
+
+  // Typing indicators
+  socketInstance.on('typing:update', (data: { userId: number; userName: string; userAvatar?: string; draftContent?: string }) => {
+    handleTypingUpdate(data, currentUser.value?.id)
+  })
+
+  socketInstance.on('typing:stop', (data: { userId: number }) => {
+    handleTypingStop(data)
+  })
 }
 
-/* ===== infinite scroll callback ===== */
-
-const onLoad = (index: number, done: (finished?: boolean) => void) => {
-  if (loading.value) {
-    done()
-    return
-  }
-  if (finished.value) {
-    done(true)
-    return
-  }
-
-  isLoading.value = true
-
-  const el = scrollArea.value
-  const prevScrollHeight = el?.scrollHeight ?? 0
-
-  setTimeout(() => {
-    const total = totalMessages.value
-    const next = Math.min(visibleCount.value + step, total)
-    visibleCount.value = next
-
-    void nextTick(() => {
-      const newScrollHeight = el?.scrollHeight ?? 0
-      if (el) {
-        el.scrollTop += newScrollHeight - prevScrollHeight
-      }
-
-      isLoading.value = false
-
-      if (visibleCount.value >= total) {
-        finished.value = true
-        done(true)
-      } else {
-        done()
-      }
-    })
-  }, 300)
+/* ===== Infinite Scroll Handler ===== */
+const handleLoad = (index: number, done: (finished?: boolean) => void) => {
+  onInfiniteLoad(index, done, scrollArea.value)
 }
 
-/* ===== parsovanie @mention ===== */
-
-const chunks = (text: string): Chunk[] => {
-  const re = /\B@([\p{L}\p{N}_-]+)/gu
-  const out: Chunk[] = []
-  let last = 0
-  let m: RegExpExecArray | null
-
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) {
-      out.push({ type: 'text', value: text.slice(last, m.index) })
-    }
-    const captured = m[1]
-    if (typeof captured === 'string') {
-      out.push({ type: 'mention', value: captured })
-    } else {
-      out.push({ type: 'text', value: text.slice(m.index, re.lastIndex) })
-    }
-    last = re.lastIndex
-  }
-
-  if (last < text.length) {
-    out.push({ type: 'text', value: text.slice(last) })
-  }
-
-  return out
-}
-
-/* ===== eventy z MainLayoutu ===== */
-
+/* ===== Channel Selection Handler ===== */
 const handleChannelSelected = (event: Event) => {
   const detail = (event as CustomEvent<{ id: number; title: string }>).detail
   const previousChannelId = activeChannelId.value
 
   console.log('📺 Channel selected:', detail.id, 'Previous:', previousChannelId)
 
-  // Clear typing indicators when switching channels
-  typingUsers.value = []
-  typingTimeouts.forEach(timeout => clearTimeout(timeout))
-  typingTimeouts.clear()
+  clearTyping()
 
   // Leave previous channel if any
   if (previousChannelId && previousChannelId !== detail.id) {
@@ -795,37 +143,33 @@ const handleChannelSelected = (event: Event) => {
   activeChannelTitle.value = detail.title
 
   // Ensure socket is initialized and connected
-  if (!socket) {
+  if (!socket()) {
     console.warn('⚠️ Socket not initialized, initializing now...')
     initSocket()
+    setupSocketEvents()
   }
 
   // Join new channel (will wait for connection if needed)
   joinChannel(detail.id)
 
-  void loadMessagesForChannel()
+  void loadMessagesForChannel(detail.id)
+  resetPaging()
+  initializeVisibleCount(15)
 }
 
+/* ===== Current User Update Handler ===== */
 const handleCurrentUserUpdated = (event: Event) => {
   const detail = (event as CustomEvent<CurrentUser>).detail
   currentUser.value = detail
 }
 
+/* ===== User Avatar Changed Handler ===== */
 const handleUserAvatarChanged = (event: Event) => {
   const customEvent = event as CustomEvent<{ userId: number; profilePicture: string; name: string }>
   const { userId, profilePicture } = customEvent.detail
   
-  // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
-  const timestamp = Date.now()
-  rawMessages.value.forEach((msg) => {
-    if (msg.sender && msg.sender.id === userId) {
-      // Odstráň starý timestamp ak existuje a pridaj nový
-      const cleanPath = profilePicture.split('?')[0]
-      msg.sender.profilePicture = `${cleanPath}?t=${timestamp}`
-    }
-  })
+  updateMessageAvatar(userId, profilePicture)
   
-  // Aktualizuj currentUser avatar, ak je to aktuálny používateľ
   if (currentUser.value && currentUser.value.id === userId) {
     const cleanPath = profilePicture.split('?')[0]
     currentUser.value.profilePicture = cleanPath || null
@@ -833,43 +177,7 @@ const handleUserAvatarChanged = (event: Event) => {
   }
 }
 
-// Function to add a message optimistically (before server confirms)
-const addMessageOptimistically = (content: string): number => {
-  if (!currentUser.value || !activeChannelId.value) {
-    return -1
-  }
-
-  const optimisticMessage: MessageFromApi = {
-    id: -Date.now(), // Temporary negative ID
-    content: content,
-    timestamp: new Date().toISOString(),
-    sender: {
-      id: currentUser.value.id,
-      nickname: currentUser.value.nickname,
-      firstname: currentUser.value.firstname,
-      surname: currentUser.value.surname,
-      email: currentUser.value.email,
-      profilePicture: currentUser.value.profilePicture || null,
-    }
-  }
-
-  rawMessages.value.push(optimisticMessage)
-
-  const total = rawMessages.value.length
-  if (visibleCount.value < total) {
-    visibleCount.value = Math.min(visibleCount.value + 1, total)
-  }
-
-  void nextTick(() => {
-    if (scrollArea.value) {
-      scrollArea.value.scrollTop = scrollArea.value.scrollHeight
-    }
-  })
-
-  return optimisticMessage.id
-}
-
-// Expose functions to window for MainLayout to call
+/* ===== Expose functions to window ===== */
 declare global {
   interface Window {
     addMessageToChat: (content: string) => number | null;
@@ -884,14 +192,15 @@ if (typeof window !== 'undefined') {
   }
 
   window.emitTyping = (isTyping: boolean, draftContent?: string) => {
-    if (!socket?.connected || !activeChannelId.value || !currentUser.value) return
+    const socketInstance = socket()
+    if (!socketInstance?.connected || !activeChannelId.value || !currentUser.value) return
 
     const userName = currentUser.value.firstname && currentUser.value.surname
       ? `${currentUser.value.firstname} ${currentUser.value.surname}`
       : currentUser.value.nickname || currentUser.value.email
 
     if (isTyping) {
-      socket.emit('typing:update', {
+      socketInstance.emit('typing:update', {
         channelId: activeChannelId.value,
         userId: currentUser.value.id,
         userName: userName,
@@ -899,7 +208,7 @@ if (typeof window !== 'undefined') {
         draftContent: draftContent || ''
       })
     } else {
-      socket.emit('typing:stop', {
+      socketInstance.emit('typing:stop', {
         channelId: activeChannelId.value,
         userId: currentUser.value.id
       })
@@ -907,11 +216,8 @@ if (typeof window !== 'undefined') {
   }
 }
 
-/* ===== notifikácie (ako v pôvodnej verzii) ===== */
-
-const notificationsSupported =
-  typeof window !== 'undefined' && typeof Notification !== 'undefined'
-
+/* ===== Notifications ===== */
+const notificationsSupported = typeof window !== 'undefined' && typeof Notification !== 'undefined'
 const notificationPermission = ref<NotificationPermission>(
   notificationsSupported ? Notification.permission : 'default',
 )
@@ -920,9 +226,7 @@ let notificationTimer: ReturnType<typeof setTimeout> | null = null
 
 const showNotification = () => {
   if (!notificationsSupported) return
-  if (notificationPermission.value !== 'granted') {
-    return
-  }
+  if (notificationPermission.value !== 'granted') return
 
   const last = uiMessages.value[uiMessages.value.length - 1]
   if (!last) return
@@ -950,36 +254,35 @@ const handleVisibilityChange = () => {
   }
 }
 
-/* ===== lifecycle ===== */
-
+/* ===== Lifecycle ===== */
 onMounted(() => {
   const stored = localStorage.getItem('currentUser')
   if (stored) currentUser.value = JSON.parse(stored)
 
   // Initialize socket.io connection immediately
   initSocket()
+  setupSocketEvents()
 
   // Ensure socket connects and joins channel when ready
-  if (socket) {
-    if (socket.connected) {
-      // Already connected, join channel if needed
+  const socketInstance = socket()
+  if (socketInstance) {
+    if (socketInstance.connected) {
       console.log('✅ Socket already connected on mount')
       if (activeChannelId.value) {
         joinChannel(activeChannelId.value)
       }
     } else {
-      // Wait for connection
       console.log('⏳ Waiting for socket connection...')
-      socket.once('connect', () => {
+      socketInstance.once('connect', () => {
         console.log('✅ Socket connected after mount, joining channel if needed')
+        setupSocketEvents()
         if (activeChannelId.value) {
           joinChannel(activeChannelId.value)
         }
       })
     }
 
-    // Also listen for any future reconnections
-    socket.on('reconnect', () => {
+    socketInstance.on('reconnect', () => {
       console.log('🔄 Socket reconnected, rejoining channel if needed')
       if (activeChannelId.value) {
         joinChannel(activeChannelId.value)
@@ -989,20 +292,9 @@ onMounted(() => {
     console.error('❌ Failed to initialize socket')
   }
 
-  window.addEventListener(
-    'channelSelected',
-    handleChannelSelected as EventListener,
-  )
-
-  window.addEventListener(
-    'currentUserUpdated',
-    handleCurrentUserUpdated as EventListener,
-  )
-
-  window.addEventListener(
-    'userAvatarChanged',
-    handleUserAvatarChanged as EventListener,
-  )
+  window.addEventListener('channelSelected', handleChannelSelected as EventListener)
+  window.addEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener)
+  window.addEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener)
 
   if (notificationsSupported) {
     notificationPermission.value = Notification.permission
@@ -1024,23 +316,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // Disconnect socket.io
   disconnectSocket()
 
-  window.removeEventListener(
-    'channelSelected',
-    handleChannelSelected as EventListener,
-  )
-
-  window.removeEventListener(
-    'currentUserUpdated',
-    handleCurrentUserUpdated as EventListener,
-  )
-
-  window.removeEventListener(
-    'userAvatarChanged',
-    handleUserAvatarChanged as EventListener,
-  )
+  window.removeEventListener('channelSelected', handleChannelSelected as EventListener)
+  window.removeEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener)
+  window.removeEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener)
 
   if (notificationsSupported) {
     document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -1067,11 +347,6 @@ onUnmounted(() => {
   height: 1px;
 }
 
-.chat-header {
-  background: #ffe0b2;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
@@ -1087,123 +362,4 @@ onUnmounted(() => {
 .chat-scroll {
   scrollbar-width: none;
 }
-
-.loading-banner {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(2px);
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-/* text bubliny + @mention */
-
-.bubble-text {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-/* Toto sa použije, ak ťa niekto označil (zelené pozadie) */
-.mention-me {
-  display: inline-block;
-  padding: 0 4px;
-  margin: 0 1px;
-  border-radius: 4px;
-  background-color: #43a047; /* Zelená */
-  color: white;
-  font-weight: 600;
-}
-
-/* Toto sa použije pre ostatné mentions (napr. len tučné písmo, žiadne pozadie) */
-.mention-text {
-  font-weight: 700;
-  color: #2c3e50; /* Alebo iná farba pre zvýraznenie textu */
-}
-
-/* Typing indicator - fixed bottom left */
-.typing-indicator-fixed {
-  position: fixed;
-  bottom: 80px;
-  left: 20px;
-  z-index: 2000;
-  max-width: 300px;
-  min-width: 200px;
-}
-
-.typing-card {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(8px);
-}
-
-.typing-user-item {
-  margin-bottom: 8px;
-}
-
-.typing-user-item:last-child {
-  margin-bottom: 0;
-}
-
-.draft-content {
-  font-style: italic;
-  word-break: break-word;
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.4;
-  color: #666;
-}
-
-.typing-dots {
-  display: inline-flex;
-  margin-left: 0;
-}
-
-.typing-dots span {
-  animation: typing-dot 1.4s infinite;
-  margin: 0 2px;
-  font-size: 20px;
-  line-height: 1;
-}
-
-.typing-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-dots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typing-dot {
-  0%, 60%, 100% {
-    opacity: 0.3;
-  }
-  30% {
-    opacity: 1;
-  }
-}
-.msg-avatar {
-  flex-shrink: 0;
-}
-
-/* prijaté správy – avatar vľavo, trochu ďalej od bubliny */
-.msg-avatar--received {
-  margin-right: 8px;
-}
-
-/* odoslané správy – avatar vpravo, trochu ďalej od bubliny */
-.msg-avatar--sent {
-  margin-left: 8px;
-}
-
 </style>

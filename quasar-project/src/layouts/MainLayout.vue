@@ -284,7 +284,7 @@
   </q-layout>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import textBar from 'src/components/TextBar.vue'
@@ -294,15 +294,17 @@ import MemberList from 'components/MemberList.vue'
 import CommandPanel from 'components/CommandPanel.vue'
 import AddChannelToUser from 'components/AddChannelToUser.vue'
 import { api } from 'boot/api'
-
-// Interfaces
-interface ChannelFromApi { id: number; title: string; availability: string; creatorId?: number; createdAt?: string; lastMessageAt?: string | null; logo?: string | null; }
-interface InviteFromApi { id: number; channelId: number; title: string; availability: string; inviterId: number; createdAt: string; }
-interface CurrentUser { id: number; email: string; nickname: string; firstname: string | null; surname: string | null; status: string | null; profilePicture: string | null; }
-interface CmdLog { type: 'input' | 'output' | 'error'; text: string; }
+import { useChannels, type ChannelFromApi } from 'src/composables/useChannels'
+import { useInvites, type InviteFromApi } from 'src/composables/useInvites'
+import { useUser, type CurrentUser } from 'src/composables/useUser'
 
 interface MemberListInstance {
   openAddDialog: () => void;
+}
+
+interface CmdLog {
+  type: 'input' | 'output' | 'error';
+  text: string;
 }
 
 interface ApiError {
@@ -314,381 +316,318 @@ interface ApiError {
   message: string;
 }
 
-export default {
-  components: {
-    ChannelSearchHeader,
-    textBar,
-    channel: ChannelBar,
-    MemberList,
-    CommandPanel,
-    AddChannelToUser
-  },
+const leftDrawerOpen = ref(true)
+const rightDrawerOpen = ref(false)
+const showCmd = ref(false)
+const memberListRef = ref<MemberListInstance | null>(null)
 
-  setup () {
-    const leftDrawerOpen = ref(true)
-    const rightDrawerOpen = ref(false)
-    const showCmd = ref(false)
+const route = useRoute()
+const router = useRouter()
 
-    const memberListRef = ref<MemberListInstance | null>(null)
+/* ===== Composables ===== */
+const { currentUser, currentUserName, currentUserAvatar, currentUserStatus, statusDotClass, loadUser } = useUser()
+const { channels, channelSearch, currentChannel, currentChannelTitle, filteredChannels, canDeleteCurrentChannel, loadChannels, handleChannelClick } = useChannels(currentUser)
+const { invites, loadInvites, handleAccept: acceptInvite, handleReject: rejectInvite } = useInvites(currentUser)
 
-    const route = useRoute()
-    const router = useRouter()
+/* ===== Computed ===== */
+const showHeader = computed(() => route.meta.showHeader !== false)
+const isSettingsPage = computed(() => route.path.startsWith('/app/settings'))
+const showComposer = computed(() => !isSettingsPage.value)
 
-    const invites = ref<InviteFromApi[]>([])
-    const channels = ref<ChannelFromApi[]>([])
-    const channelSearch = ref('')
+/* ===== Channel Management ===== */
+const createDialogOpen = ref(false)
+const newChannelTitle = ref('')
+const newChannelAvailability = ref<'public' | 'private'>('public')
+const creatingChannel = ref(false)
+const createChannelError = ref('')
+const deletingChannel = ref(false)
+const addChannelDialogOpen = ref(false)
 
-    const currentChannelTitle = ref<string | null>(null)
-    const currentChannel = ref<ChannelFromApi | null>(null)
-    const currentUser = ref<CurrentUser | null>(null)
+const commandHistory = ref<CmdLog[]>([
+  { type: 'output', text: 'Vitaj v inTouch CMD.' },
+  { type: 'output', text: 'Napíš /help pre pomoc.' }
+])
 
-    const commandHistory = ref<CmdLog[]>([
-      { type: 'output', text: 'Vitaj v inTouch CMD.' },
-      { type: 'output', text: 'Napíš /help pre pomoc.' }
-    ])
+/* ===== Functions ===== */
+function toggleLeftDrawer() { leftDrawerOpen.value = !leftDrawerOpen.value }
+function toggleRightDrawer() { rightDrawerOpen.value = !rightDrawerOpen.value }
 
-    const showHeader = computed(() => route.meta.showHeader !== false)
-    const isSettingsPage = computed(() => route.path.startsWith('/app/settings'))
-    const showComposer = computed(() => !isSettingsPage.value)
-
-    const createDialogOpen = ref(false)
-    const newChannelTitle = ref('')
-    const newChannelAvailability = ref<'public' | 'private'>('public')
-    const creatingChannel = ref(false)
-    const createChannelError = ref('')
-    const deletingChannel = ref(false)
-
-    const addChannelDialogOpen = ref(false)
-
-    const canDeleteCurrentChannel = computed(() => {
-      if (!currentUser.value || !currentChannel.value) return false
-      return currentChannel.value.creatorId === currentUser.value.id
-    })
-
-    const onAddPersonClick = () => {
-      if (!currentChannel.value) {
-        window.alert('Najprv musíš vybrať kanál.')
-        return
-      }
-      if (memberListRef.value) {
-        memberListRef.value.openAddDialog()
-      }
-    }
-
-    // Handlery pre CMD udalosti (emitované z CommandPanel)
-    const handleCmdLog = (entry: CmdLog) => {
-      commandHistory.value.push(entry)
-    }
-
-    const handleCmdClear = () => {
-      commandHistory.value = []
-    }
-
-    function toggleLeftDrawer () { leftDrawerOpen.value = !leftDrawerOpen.value }
-    function toggleRightDrawer () { rightDrawerOpen.value = !rightDrawerOpen.value }
-
-    const handleAccept = async (inv: InviteFromApi) => {
-      await api.post(`/invites/${inv.id}/accept`)
-      invites.value = invites.value.filter((i) => i.id !== inv.id)
-      if (!channels.value.find((c) => c.id === inv.channelId)) {
-        channels.value.unshift({ id: inv.channelId, title: inv.title, availability: inv.availability })
-      }
-    }
-    const handleReject = async (inv: InviteFromApi) => {
-      await api.post(`/invites/${inv.id}/reject`)
-      invites.value = invites.value.filter((i) => i.id !== inv.id)
-    }
-    const handleChannelClick = (ch: ChannelFromApi) => {
-      currentChannelTitle.value = ch.title
-      currentChannel.value = ch
-      window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: ch.id, title: ch.title } }))
-    }
-    const filteredChannels = computed(() => {
-      const term = channelSearch.value.trim().toLowerCase()
-      if (!term) return channels.value
-      return channels.value.filter((c) => c.title.toLowerCase().includes(term))
-    })
-    const currentUserName = computed(() => {
-      if (!currentUser.value) return 'User'
-      if (currentUser.value.nickname && currentUser.value.nickname.trim() !== '') return currentUser.value.nickname
-      const fullName = `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim()
-      if (fullName) return fullName
-      return currentUser.value.email
-    })
-    const currentUserAvatar = computed(() => {
-      const pic = currentUser.value?.profilePicture
-      if (!pic) return 'https://cdn.quasar.dev/img/avatar4.jpg'
-      if (pic.startsWith('http')) return pic
-
-      const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333'
-      const cleanBase = baseUrl.replace(/\/$/, '')
-      const cleanPath = pic.startsWith('/') ? pic : `/${pic}`
-
-      return `${cleanBase}${cleanPath}`
-    })
-    const currentUserStatus = computed(() => currentUser.value?.status ?? 'online')
-    const statusDotClass = computed(() => {
-      const status = (currentUser.value?.status ?? 'online').toLowerCase()
-      return { 'bg-green': status === 'online', 'bg-amber': status === 'away', 'bg-red': status === 'dnd', 'bg-grey': status === 'offline' }
-    })
-    const toggleSettings = async () => {
-      if (isSettingsPage.value) {
-        await router.push('/app')
-        if (currentChannel.value) {
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: currentChannel.value?.id, title: currentChannel.value?.title } }))
-          }, 50)
-        }
-      } else {
-        await router.push('/app/settings')
-      }
-    }
-
-    onMounted(async () => {
-      const stored = localStorage.getItem('currentUser')
-      if (stored) currentUser.value = JSON.parse(stored)
-
-      if (currentUser.value?.id) {
-        try {
-          const userRes = await api.get(`/users/${currentUser.value.id}`)
-          currentUser.value = userRes.data
-          localStorage.setItem('currentUser', JSON.stringify(userRes.data))
-        } catch (error) {
-          console.error('Nepodarilo sa obnoviť údaje používateľa:', error)
-        }
-      }
-
-      const userId = currentUser.value?.id
-      if (userId) {
-        const chRes = await api.get('/channels', { params: { userId } })
-        channels.value = chRes.data
-        const invRes = await api.get('/invites', { params: { userId } })
-        invites.value = invRes.data
-      }
-
-      const handleUserUpdate = (event: Event) => {
-        const customEvent = event as CustomEvent<CurrentUser>
-        if (customEvent.detail) {
-          currentUser.value = customEvent.detail
-          localStorage.setItem('currentUser', JSON.stringify(customEvent.detail))
-        }
-      }
-      window.addEventListener('currentUserUpdated', handleUserUpdate)
-
-      const handleUserAvatarChanged = (event: Event) => {
-        const customEvent = event as CustomEvent<{ userId: number; profilePicture: string; name: string }>
-        const { userId, profilePicture } = customEvent.detail
-        
-        // Aktualizuj currentUser avatar, ak je to aktuálny používateľ
-        if (currentUser.value && currentUser.value.id === userId) {
-          currentUser.value.profilePicture = profilePicture
-          localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
-        }
-      }
-      window.addEventListener('userAvatarChanged', handleUserAvatarChanged)
-
-      const handleChannelDeleted = (event: Event) => {
-        const customEvent = event as CustomEvent<{ channelId: number; title: string }>
-        const { channelId } = customEvent.detail
-        
-        // Remove channel from list
-        channels.value = channels.value.filter(c => c.id !== channelId)
-        
-        // If deleted channel is current, clear it
-        if (currentChannel.value?.id === channelId) {
-          currentChannel.value = null
-          currentChannelTitle.value = null
-          window.dispatchEvent(new CustomEvent('channelSelected', { 
-            detail: { id: null, title: null } 
-          }))
-        }
-        
-        console.log(`✅ Removed channel ${channelId} from list in real-time`)
-      }
-      window.addEventListener('channelDeleted', handleChannelDeleted)
-
-      const handleChannelCreated = (event: Event) => {
-        const customEvent = event as CustomEvent<{ id: number; title: string; availability: string; creatorId: number; createdAt: string; userId?: number }>
-        const data = customEvent.detail
-        
-        // Pridaj kanál LEN ak je používateľ tvorcom (userId matches currentUser.id)
-        // Pre public aj private kanály - kanál sa zobrazí len tvorcovi
-        // Ostatní používatelia ho uvidia až keď sa pripoja cez tlačidlo "+" alebo dostanú pozvánku
-        if (!data.userId || currentUser.value?.id !== data.userId) {
-          // Event nie je pre aktuálneho používateľa, ignoruj
-          return
-        }
-        
-        // Check if channel already exists in list
-        if (!channels.value.find(c => c.id === data.id)) {
-          channels.value.unshift({
-            id: data.id,
-            title: data.title,
-            availability: data.availability,
-            creatorId: data.creatorId,
-            createdAt: data.createdAt
-          })
-          console.log(`✅ Added channel ${data.id} (${data.title}) to list in real-time (creator only)`)
-        }
-      }
-      window.addEventListener('channelCreated', handleChannelCreated)
-
-      const handleInviteCreated = (event: Event) => {
-        const customEvent = event as CustomEvent<{ id: number; channelId: number; title: string; availability: string; createdAt: string; userId: number }>
-        const data = customEvent.detail
-        
-        // Only add invite if it's for the current user
-        if (currentUser.value?.id === data.userId) {
-          // Check if invite already exists in list
-          if (!invites.value.find(i => i.id === data.id)) {
-            invites.value.unshift({
-              id: data.id,
-              channelId: data.channelId,
-              title: data.title,
-              availability: data.availability,
-              inviterId: 0, // Will be loaded from server if needed
-              createdAt: data.createdAt
-            })
-            console.log(`✅ Added invite ${data.id} for channel ${data.channelId} to list in real-time`)
-          }
-        }
-      }
-      window.addEventListener('inviteCreated', handleInviteCreated)
-
-      const handleChannelJoined = (event: Event) => {
-        const customEvent = event as CustomEvent<{ channelId: number; userId: number; channel: ChannelFromApi }>
-        const data = customEvent.detail
-        
-        // Only add channel if it's for the current user
-        if (currentUser.value?.id === data.userId) {
-          // Check if channel already exists in list
-          if (!channels.value.find(c => c.id === data.channelId)) {
-            channels.value.unshift(data.channel)
-            console.log(`✅ Added channel ${data.channelId} (${data.channel.title}) to list in real-time`)
-          }
-        }
-      }
-      window.addEventListener('channelJoined', handleChannelJoined)
-
-      const handleOpenMemberList = () => {
-        rightDrawerOpen.value = true
-      }
-      window.addEventListener('openMemberList', handleOpenMemberList)
-
-      return () => { 
-        window.removeEventListener('currentUserUpdated', handleUserUpdate)
-        window.removeEventListener('userAvatarChanged', handleUserAvatarChanged)
-        window.removeEventListener('channelDeleted', handleChannelDeleted)
-        window.removeEventListener('channelCreated', handleChannelCreated)
-        window.removeEventListener('inviteCreated', handleInviteCreated)
-        window.removeEventListener('openMemberList', handleOpenMemberList)
-        window.removeEventListener('channelJoined', handleChannelJoined)
-      }
-    })
-
-    const onTextBarTyping = (isTyping: boolean, draftContent?: string) => { if (typeof window.emitTyping === 'function') window.emitTyping(isTyping, draftContent) }
-
-    const onTextBarSend = async (text: string) => {
-      const cmd = text.trim().toLowerCase()
-      if (cmd === '/list') { rightDrawerOpen.value = true; return }
-      if (!currentChannel.value || !currentUser.value) return
-      if (text.trim().startsWith('/')) { console.log('Príkaz:', text); return }
-      onTextBarTyping(false)
-      const messageText = text.trim()
-      if (typeof window.addMessageToChat === 'function') window.addMessageToChat(messageText)
-      try {
-        const response = await api.post(`/channels/${currentChannel.value.id}/messages`, { content: messageText, senderId: currentUser.value.id })
-        console.log('✅ Message sent:', response.data)
-      } catch (error) { console.error('❌ Chyba pri odosielaní správy:', error); window.alert('Nepodarilo sa odoslať správu.') }
-    }
-
-    function openCreateChannelDialog () {
-      if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
-      createChannelError.value = ''; newChannelTitle.value = ''; newChannelAvailability.value = 'public'; createDialogOpen.value = true
-    }
-    function closeCreateDialog () { if (creatingChannel.value) return; createDialogOpen.value = false }
-
-    function openAddChannelDialog () {
-      if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
-      addChannelDialogOpen.value = true
-    }
-    function closeAddChannelDialog () { addChannelDialogOpen.value = false }
-    const handleChannelJoinedFromDialog = (channel: ChannelFromApi) => {
-      // Channel will be added via WebSocket event, but we can also add it here for immediate feedback
-      if (!channels.value.find(c => c.id === channel.id)) {
-        channels.value.unshift(channel)
-      }
-      closeAddChannelDialog()
-    }
-    const onCreateChannelConfirm = async () => {
-      if (!currentUser.value) { createChannelError.value = 'Nie si prihlásený.'; return }
-      const title = newChannelTitle.value.trim()
-      if (title.length < 3) { createChannelError.value = 'Min. 3 znaky.'; return }
-      const lower = title.toLowerCase()
-      if (channels.value.some(c => c.title.trim().toLowerCase() === lower)) { createChannelError.value = 'Kanál už existuje.'; return }
-      creatingChannel.value = true; createChannelError.value = ''
-      try {
-        const payload = { title, availability: newChannelAvailability.value, creatorId: currentUser.value.id }
-        const res = await api.post('/channels', payload)
-        const created = res.data as ChannelFromApi
-        
-        // Počkaj krátko na WebSocket event (kanál sa pridá cez handleChannelCreated)
-        // Ak sa kanál nepridal cez WebSocket do 300ms, pridáme ho manuálne
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        // Skontroluj, či sa kanál už nepridal cez WebSocket
-        if (!channels.value.find(c => c.id === created.id)) {
-          channels.value.unshift(created)
-          handleChannelClick(created)
-        } else {
-          // Kanál už existuje cez WebSocket, len ho vyber
-          const existingChannel = channels.value.find(c => c.id === created.id)
-          if (existingChannel) {
-            handleChannelClick(existingChannel)
-          }
-        }
-        
-        createDialogOpen.value = false
-        creatingChannel.value = false
-      } catch (err: unknown) {
-        console.error('Chyba:', err);
-        const error = err as ApiError;
-        createChannelError.value = error.response?.data?.message ?? 'Chyba.'
-        creatingChannel.value = false
-      }
-    }
-    const onDeleteCurrentChannel = async () => {
-      if (!currentChannel.value || !currentUser.value || !canDeleteCurrentChannel.value) return
-      const ok = window.confirm(`Vymazať kanál "${currentChannel.value.title}"?`)
-      if (!ok) return
-      try {
-        deletingChannel.value = true; await api.delete(`/channels/${currentChannel.value.id}`)
-        channels.value = channels.value.filter(c => c.id !== currentChannel.value!.id)
-        currentChannel.value = null; currentChannelTitle.value = null
-        window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }))
-      } catch (error) { console.error('Chyba:', error); window.alert('Chyba pri mazaní.') } finally { deletingChannel.value = false }
-    }
-    const navigateHome = () => { void router.push('/app'); currentChannel.value = null; currentChannelTitle.value = null; window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } })) }
-
-    return {
-      leftDrawerOpen, rightDrawerOpen, toggleLeftDrawer, toggleRightDrawer, showCmd,
-      invites, channels, filteredChannels, channelSearch, currentChannelTitle, currentChannel,
-      showHeader, isSettingsPage, showComposer,
-      handleAccept, handleReject, handleChannelClick,
-      currentUser, currentUserName, currentUserAvatar, currentUserStatus, statusDotClass,
-      onTextBarSend, onTextBarTyping,
-      createDialogOpen, newChannelTitle, newChannelAvailability, creatingChannel, createChannelError, openCreateChannelDialog, closeCreateDialog, onCreateChannelConfirm,
-      addChannelDialogOpen, openAddChannelDialog, closeAddChannelDialog, handleChannelJoinedFromDialog,
-      canDeleteCurrentChannel, deletingChannel, onDeleteCurrentChannel, navigateHome,
-      commandHistory, toggleSettings,
-
-      memberListRef,
-      onAddPersonClick,
-      handleCmdLog,
-      handleCmdClear
-    }
+const handleAccept = async (inv: InviteFromApi) => {
+  const success = await acceptInvite(inv)
+  if (success && !channels.value.find((c) => c.id === inv.channelId)) {
+    channels.value.unshift({ id: inv.channelId, title: inv.title, availability: inv.availability })
   }
 }
+
+const handleReject = async (inv: InviteFromApi) => {
+  await rejectInvite(inv)
+}
+
+const onAddPersonClick = () => {
+  if (!currentChannel.value) {
+    window.alert('Najprv musíš vybrať kanál.')
+    return
+  }
+  if (memberListRef.value) {
+    memberListRef.value.openAddDialog()
+  }
+}
+
+const handleCmdLog = (entry: CmdLog) => {
+  commandHistory.value.push(entry)
+}
+
+const handleCmdClear = () => {
+  commandHistory.value = []
+}
+
+const toggleSettings = async () => {
+  if (isSettingsPage.value) {
+    await router.push('/app')
+    if (currentChannel.value) {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('channelSelected', { 
+          detail: { id: currentChannel.value?.id, title: currentChannel.value?.title } 
+        }))
+      }, 50)
+    }
+  } else {
+    await router.push('/app/settings')
+  }
+}
+
+function openCreateChannelDialog() {
+  if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
+  createChannelError.value = ''
+  newChannelTitle.value = ''
+  newChannelAvailability.value = 'public'
+  createDialogOpen.value = true
+}
+
+function closeCreateDialog() {
+  if (creatingChannel.value) return
+  createDialogOpen.value = false
+}
+
+function openAddChannelDialog() {
+  if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
+  addChannelDialogOpen.value = true
+}
+
+function closeAddChannelDialog() {
+  addChannelDialogOpen.value = false
+}
+
+const handleChannelJoinedFromDialog = (channel: ChannelFromApi) => {
+  if (!channels.value.find(c => c.id === channel.id)) {
+    channels.value.unshift(channel)
+  }
+  closeAddChannelDialog()
+}
+
+const onCreateChannelConfirm = async () => {
+  if (!currentUser.value) { createChannelError.value = 'Nie si prihlásený.'; return }
+  const title = newChannelTitle.value.trim()
+  if (title.length < 3) { createChannelError.value = 'Min. 3 znaky.'; return }
+  const lower = title.toLowerCase()
+  if (channels.value.some(c => c.title.trim().toLowerCase() === lower)) { createChannelError.value = 'Kanál už existuje.'; return }
+  creatingChannel.value = true
+  createChannelError.value = ''
+  try {
+    const payload = { title, availability: newChannelAvailability.value, creatorId: currentUser.value.id }
+    const res = await api.post('/channels', payload)
+    const created = res.data as ChannelFromApi
+    
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    if (!channels.value.find(c => c.id === created.id)) {
+      channels.value.unshift(created)
+      handleChannelClick(created)
+    } else {
+      const existingChannel = channels.value.find(c => c.id === created.id)
+      if (existingChannel) {
+        handleChannelClick(existingChannel)
+      }
+    }
+    
+    createDialogOpen.value = false
+    creatingChannel.value = false
+  } catch (err: unknown) {
+    console.error('Chyba:', err)
+    const error = err as ApiError
+    createChannelError.value = error.response?.data?.message ?? 'Chyba.'
+    creatingChannel.value = false
+  }
+}
+
+const onDeleteCurrentChannel = async () => {
+  if (!currentChannel.value || !currentUser.value || !canDeleteCurrentChannel.value) return
+  const ok = window.confirm(`Vymazať kanál "${currentChannel.value.title}"?`)
+  if (!ok) return
+  try {
+    deletingChannel.value = true
+    await api.delete(`/channels/${currentChannel.value.id}`)
+    channels.value = channels.value.filter(c => c.id !== currentChannel.value!.id)
+    currentChannel.value = null
+    currentChannelTitle.value = null
+    window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }))
+  } catch (error) {
+    console.error('Chyba:', error)
+    window.alert('Chyba pri mazaní.')
+  } finally {
+    deletingChannel.value = false
+  }
+}
+
+const navigateHome = () => {
+  void router.push('/app')
+  currentChannel.value = null
+  currentChannelTitle.value = null
+  window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }))
+}
+
+const onTextBarTyping = (isTyping: boolean, draftContent?: string) => {
+  if (typeof window.emitTyping === 'function') window.emitTyping(isTyping, draftContent)
+}
+
+const onTextBarSend = async (text: string) => {
+  const cmd = text.trim().toLowerCase()
+  if (cmd === '/list') { rightDrawerOpen.value = true; return }
+  if (!currentChannel.value || !currentUser.value) return
+  if (text.trim().startsWith('/')) { console.log('Príkaz:', text); return }
+  onTextBarTyping(false)
+  const messageText = text.trim()
+  if (typeof window.addMessageToChat === 'function') window.addMessageToChat(messageText)
+  try {
+    const response = await api.post(`/channels/${currentChannel.value.id}/messages`, { content: messageText, senderId: currentUser.value.id })
+    console.log('✅ Message sent:', response.data)
+  } catch (error) {
+    console.error('❌ Chyba pri odosielaní správy:', error)
+    window.alert('Nepodarilo sa odoslať správu.')
+  }
+}
+
+/* ===== Event Handlers ===== */
+const setupEventListeners = () => {
+  const handleUserUpdate = (event: Event) => {
+    const customEvent = event as CustomEvent<CurrentUser>
+    if (customEvent.detail) {
+      currentUser.value = customEvent.detail
+      localStorage.setItem('currentUser', JSON.stringify(customEvent.detail))
+    }
+  }
+  window.addEventListener('currentUserUpdated', handleUserUpdate)
+
+  const handleUserAvatarChanged = (event: Event) => {
+    const customEvent = event as CustomEvent<{ userId: number; profilePicture: string; name: string }>
+    const { userId, profilePicture } = customEvent.detail
+    
+    if (currentUser.value && currentUser.value.id === userId) {
+      currentUser.value.profilePicture = profilePicture
+      localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
+    }
+  }
+  window.addEventListener('userAvatarChanged', handleUserAvatarChanged)
+
+  const handleChannelDeleted = (event: Event) => {
+    const customEvent = event as CustomEvent<{ channelId: number; title: string }>
+    const { channelId } = customEvent.detail
+    
+    channels.value = channels.value.filter(c => c.id !== channelId)
+    
+    if (currentChannel.value?.id === channelId) {
+      currentChannel.value = null
+      currentChannelTitle.value = null
+      window.dispatchEvent(new CustomEvent('channelSelected', { 
+        detail: { id: null, title: null } 
+      }))
+    }
+    
+    console.log(`✅ Removed channel ${channelId} from list in real-time`)
+  }
+  window.addEventListener('channelDeleted', handleChannelDeleted)
+
+  const handleChannelCreated = (event: Event) => {
+    const customEvent = event as CustomEvent<{ id: number; title: string; availability: string; creatorId: number; createdAt: string; userId?: number }>
+    const data = customEvent.detail
+    
+    if (!data.userId || currentUser.value?.id !== data.userId) {
+      return
+    }
+    
+    if (!channels.value.find(c => c.id === data.id)) {
+      channels.value.unshift({
+        id: data.id,
+        title: data.title,
+        availability: data.availability,
+        creatorId: data.creatorId,
+        createdAt: data.createdAt
+      })
+      console.log(`✅ Added channel ${data.id} (${data.title}) to list in real-time (creator only)`)
+    }
+  }
+  window.addEventListener('channelCreated', handleChannelCreated)
+
+  const handleInviteCreated = (event: Event) => {
+    const customEvent = event as CustomEvent<{ id: number; channelId: number; title: string; availability: string; createdAt: string; userId: number }>
+    const data = customEvent.detail
+    
+    if (currentUser.value?.id === data.userId) {
+      if (!invites.value.find(i => i.id === data.id)) {
+        invites.value.unshift({
+          id: data.id,
+          channelId: data.channelId,
+          title: data.title,
+          availability: data.availability,
+          inviterId: 0,
+          createdAt: data.createdAt
+        })
+        console.log(`✅ Added invite ${data.id} for channel ${data.channelId} to list in real-time`)
+      }
+    }
+  }
+  window.addEventListener('inviteCreated', handleInviteCreated)
+
+  const handleChannelJoined = (event: Event) => {
+    const customEvent = event as CustomEvent<{ channelId: number; userId: number; channel: ChannelFromApi }>
+    const data = customEvent.detail
+    
+    if (currentUser.value?.id === data.userId) {
+      if (!channels.value.find(c => c.id === data.channelId)) {
+        channels.value.unshift(data.channel)
+        console.log(`✅ Added channel ${data.channelId} (${data.channel.title}) to list in real-time`)
+      }
+    }
+  }
+  window.addEventListener('channelJoined', handleChannelJoined)
+
+  const handleOpenMemberList = () => {
+    rightDrawerOpen.value = true
+  }
+  window.addEventListener('openMemberList', handleOpenMemberList)
+
+  return () => {
+    window.removeEventListener('currentUserUpdated', handleUserUpdate)
+    window.removeEventListener('userAvatarChanged', handleUserAvatarChanged)
+    window.removeEventListener('channelDeleted', handleChannelDeleted)
+    window.removeEventListener('channelCreated', handleChannelCreated)
+    window.removeEventListener('inviteCreated', handleInviteCreated)
+    window.removeEventListener('openMemberList', handleOpenMemberList)
+    window.removeEventListener('channelJoined', handleChannelJoined)
+  }
+}
+
+/* ===== Lifecycle ===== */
+onMounted(async () => {
+  await loadUser()
+  await loadChannels()
+  await loadInvites()
+
+  const cleanup = setupEventListeners()
+  
+  // Note: In a real app, you'd want to call cleanup on unmount
+  // For now, we'll rely on the component being persistent
+})
 </script>
 
 <style>
