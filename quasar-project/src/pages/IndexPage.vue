@@ -326,6 +326,106 @@ const initSocket = () => {
     typingUsers.value = typingUsers.value.filter(u => u.id !== data.userId)
   })
 
+  // Listen for user status changes
+  socket.on('user:status:changed', (data: { userId: number; status: string; name: string }) => {
+    console.log('📢 Received user:status:changed event:', data)
+    
+    // Dispatch window event so MemberList.vue can listen to it
+    window.dispatchEvent(new CustomEvent('userStatusChanged', {
+      detail: {
+        userId: data.userId,
+        status: data.status,
+        name: data.name
+      }
+    }))
+  })
+
+  // Listen for channel deletion
+  socket.on('channel:deleted', (data: { channelId: number; title: string }) => {
+    console.log('📢 Received channel:deleted event:', data)
+    
+    // If the deleted channel is the active one, navigate away
+    if (activeChannelId.value === data.channelId) {
+      activeChannelId.value = null
+      activeChannelTitle.value = null
+      rawMessages.value = []
+      window.dispatchEvent(new CustomEvent('channelSelected', { 
+        detail: { id: null, title: null } 
+      }))
+    }
+    
+    // Dispatch window event so MainLayout.vue can remove channel from list
+    window.dispatchEvent(new CustomEvent('channelDeleted', {
+      detail: {
+        channelId: data.channelId,
+        title: data.title
+      }
+    }))
+  })
+
+  // Listen for channel creation
+  socket.on('channel:created', (data: { id: number; title: string; availability: string; creatorId: number; createdAt: string; userId?: number }) => {
+    console.log('📢 Received channel:created event:', data)
+    
+    // Dispatch window event so MainLayout.vue can add channel to list
+    window.dispatchEvent(new CustomEvent('channelCreated', {
+      detail: {
+        id: data.id,
+        title: data.title,
+        availability: data.availability,
+        creatorId: data.creatorId,
+        createdAt: data.createdAt,
+        userId: data.userId
+      }
+    }))
+  })
+
+  // Listen for invite creation
+  socket.on('invite:created', (data: { id: number; channelId: number; title: string; availability: string; createdAt: string; userId: number }) => {
+    console.log('📢 Received invite:created event:', data)
+    
+    // Dispatch window event so MainLayout.vue can add invite to list
+    window.dispatchEvent(new CustomEvent('inviteCreated', {
+      detail: {
+        id: data.id,
+        channelId: data.channelId,
+        title: data.title,
+        availability: data.availability,
+        createdAt: data.createdAt,
+        userId: data.userId
+      }
+    }))
+  })
+
+  // Listen for channel join
+  socket.on('channel:joined', (data: { channelId: number; userId: number; channel: { id: number; title: string; availability: string; creatorId: number; createdAt: string } }) => {
+    console.log('📢 Received channel:joined event:', data)
+    
+    // Dispatch window event so MainLayout.vue can add channel to list
+    window.dispatchEvent(new CustomEvent('channelJoined', {
+      detail: {
+        channelId: data.channelId,
+        userId: data.userId,
+        channel: data.channel
+      }
+    }))
+  })
+
+  // Listen for member joined (when someone accepts an invite)
+  socket.on('member:joined', (data: { channelId: number; userId: number; userName: string; status: string }) => {
+    console.log('📢 Received member:joined event:', data)
+    
+    // Dispatch window event so MemberList.vue can update member list
+    window.dispatchEvent(new CustomEvent('memberJoined', {
+      detail: {
+        channelId: data.channelId,
+        userId: data.userId,
+        userName: data.userName,
+        status: data.status
+      }
+    }))
+  })
+
   socket.on('chat:message', (data: unknown) => {
     console.log('🔵🔵🔵 RECEIVED chat:message event:', data)
     console.log('🔵 Current user ID:', currentUser.value?.id, 'Active channel ID:', activeChannelId.value)

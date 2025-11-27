@@ -392,7 +392,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
@@ -1040,8 +1040,24 @@ async function onDeleteProfile () {
   }
 }
 
+// Listen for channel deletion events
+const handleChannelDeleted = (event: Event) => {
+  const customEvent = event as CustomEvent<{ channelId: number; title: string }>
+  const { channelId } = customEvent.detail
+  
+  // Remove channel from myChannels list
+  myChannels.value = myChannels.value.filter(c => c.id !== channelId)
+  
+  console.log(`✅ Removed channel ${channelId} from myChannels in real-time`)
+}
+
 onMounted(() => {
   void loadUser()
+  window.addEventListener('channelDeleted', handleChannelDeleted)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('channelDeleted', handleChannelDeleted)
 })
 </script>
 

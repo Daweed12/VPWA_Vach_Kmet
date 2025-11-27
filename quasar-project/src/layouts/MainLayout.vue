@@ -11,7 +11,7 @@
             Nastavenia používateľského účtu
           </span>
           <span v-else-if="currentChannelTitle">
-            # {{ currentChannelTitle }}
+            {{ currentChannelTitle }}
           </span>
           <span v-else>
             VPWA - projekt
@@ -99,11 +99,28 @@
 
               <q-separator spaced />
 
-              <q-item-label header class="section-label">
-                Channels
-                <span v-if="filteredChannels.length" class="count-badge">
-                  {{ filteredChannels.length }}
-                </span>
+              <q-item-label header class="section-label row items-center justify-between">
+                <div class="row items-center">
+                  Channels
+                  <span v-if="filteredChannels.length" class="count-badge q-ml-sm">
+                    {{ filteredChannels.length }}
+                  </span>
+                </div>
+                <q-btn
+                  round
+                  unelevated
+                  color="orange-7"
+                  text-color="white"
+                  icon="add"
+                  size="sm"
+                  dense
+                  class="add-channel-btn"
+                  @click="openAddChannelDialog"
+                >
+                  <q-tooltip anchor="top middle" self="bottom middle">
+                    Pripojiť sa ku kanálu
+                  </q-tooltip>
+                </q-btn>
               </q-item-label>
 
               <channel
@@ -256,6 +273,14 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="addChannelDialogOpen" persistent transition-show="scale" transition-hide="scale">
+      <AddChannelToUser
+        :user-id="currentUser?.id ?? null"
+        @close="closeAddChannelDialog"
+        @channel-joined="handleChannelJoinedFromDialog"
+      />
+    </q-dialog>
   </q-layout>
 </template>
 
@@ -267,6 +292,7 @@ import ChannelBar from 'components/ChannelBar.vue'
 import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
 import MemberList from 'components/MemberList.vue'
 import CommandPanel from 'components/CommandPanel.vue'
+import AddChannelToUser from 'components/AddChannelToUser.vue'
 import { api } from 'boot/api'
 
 // Interfaces
@@ -294,7 +320,8 @@ export default {
     textBar,
     channel: ChannelBar,
     MemberList,
-    CommandPanel
+    CommandPanel,
+    AddChannelToUser
   },
 
   setup () {
@@ -330,6 +357,8 @@ export default {
     const creatingChannel = ref(false)
     const createChannelError = ref('')
     const deletingChannel = ref(false)
+
+    const addChannelDialogOpen = ref(false)
 
     const canDeleteCurrentChannel = computed(() => {
       if (!currentUser.value || !currentChannel.value) return false
@@ -445,7 +474,103 @@ export default {
         }
       }
       window.addEventListener('currentUserUpdated', handleUserUpdate)
-      return () => { window.removeEventListener('currentUserUpdated', handleUserUpdate) }
+
+      const handleChannelDeleted = (event: Event) => {
+        const customEvent = event as CustomEvent<{ channelId: number; title: string }>
+        const { channelId } = customEvent.detail
+        
+        // Remove channel from list
+        channels.value = channels.value.filter(c => c.id !== channelId)
+        
+        // If deleted channel is current, clear it
+        if (currentChannel.value?.id === channelId) {
+          currentChannel.value = null
+          currentChannelTitle.value = null
+          window.dispatchEvent(new CustomEvent('channelSelected', { 
+            detail: { id: null, title: null } 
+          }))
+        }
+        
+        console.log(`✅ Removed channel ${channelId} from list in real-time`)
+      }
+      window.addEventListener('channelDeleted', handleChannelDeleted)
+
+      const handleChannelCreated = (event: Event) => {
+        const customEvent = event as CustomEvent<{ id: number; title: string; availability: string; creatorId: number; createdAt: string; userId?: number }>
+        const data = customEvent.detail
+        
+        // Pridaj kanál LEN ak je používateľ tvorcom (userId matches currentUser.id)
+        // Pre public aj private kanály - kanál sa zobrazí len tvorcovi
+        // Ostatní používatelia ho uvidia až keď sa pripoja cez tlačidlo "+" alebo dostanú pozvánku
+        if (!data.userId || currentUser.value?.id !== data.userId) {
+          // Event nie je pre aktuálneho používateľa, ignoruj
+          return
+        }
+        
+        // Check if channel already exists in list
+        if (!channels.value.find(c => c.id === data.id)) {
+          channels.value.unshift({
+            id: data.id,
+            title: data.title,
+            availability: data.availability,
+            creatorId: data.creatorId,
+            createdAt: data.createdAt
+          })
+          console.log(`✅ Added channel ${data.id} (${data.title}) to list in real-time (creator only)`)
+        }
+      }
+      window.addEventListener('channelCreated', handleChannelCreated)
+
+      const handleInviteCreated = (event: Event) => {
+        const customEvent = event as CustomEvent<{ id: number; channelId: number; title: string; availability: string; createdAt: string; userId: number }>
+        const data = customEvent.detail
+        
+        // Only add invite if it's for the current user
+        if (currentUser.value?.id === data.userId) {
+          // Check if invite already exists in list
+          if (!invites.value.find(i => i.id === data.id)) {
+            invites.value.unshift({
+              id: data.id,
+              channelId: data.channelId,
+              title: data.title,
+              availability: data.availability,
+              inviterId: 0, // Will be loaded from server if needed
+              createdAt: data.createdAt
+            })
+            console.log(`✅ Added invite ${data.id} for channel ${data.channelId} to list in real-time`)
+          }
+        }
+      }
+      window.addEventListener('inviteCreated', handleInviteCreated)
+
+      const handleChannelJoined = (event: Event) => {
+        const customEvent = event as CustomEvent<{ channelId: number; userId: number; channel: ChannelFromApi }>
+        const data = customEvent.detail
+        
+        // Only add channel if it's for the current user
+        if (currentUser.value?.id === data.userId) {
+          // Check if channel already exists in list
+          if (!channels.value.find(c => c.id === data.channelId)) {
+            channels.value.unshift(data.channel)
+            console.log(`✅ Added channel ${data.channelId} (${data.channel.title}) to list in real-time`)
+          }
+        }
+      }
+      window.addEventListener('channelJoined', handleChannelJoined)
+
+      const handleOpenMemberList = () => {
+        rightDrawerOpen.value = true
+      }
+      window.addEventListener('openMemberList', handleOpenMemberList)
+
+      return () => { 
+        window.removeEventListener('currentUserUpdated', handleUserUpdate)
+        window.removeEventListener('channelDeleted', handleChannelDeleted)
+        window.removeEventListener('channelCreated', handleChannelCreated)
+        window.removeEventListener('inviteCreated', handleInviteCreated)
+        window.removeEventListener('openMemberList', handleOpenMemberList)
+        window.removeEventListener('channelJoined', handleChannelJoined)
+      }
     })
 
     const onTextBarTyping = (isTyping: boolean, draftContent?: string) => { if (typeof window.emitTyping === 'function') window.emitTyping(isTyping, draftContent) }
@@ -469,6 +594,19 @@ export default {
       createChannelError.value = ''; newChannelTitle.value = ''; newChannelAvailability.value = 'public'; createDialogOpen.value = true
     }
     function closeCreateDialog () { if (creatingChannel.value) return; createDialogOpen.value = false }
+
+    function openAddChannelDialog () {
+      if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
+      addChannelDialogOpen.value = true
+    }
+    function closeAddChannelDialog () { addChannelDialogOpen.value = false }
+    const handleChannelJoinedFromDialog = (channel: ChannelFromApi) => {
+      // Channel will be added via WebSocket event, but we can also add it here for immediate feedback
+      if (!channels.value.find(c => c.id === channel.id)) {
+        channels.value.unshift(channel)
+      }
+      closeAddChannelDialog()
+    }
     const onCreateChannelConfirm = async () => {
       if (!currentUser.value) { createChannelError.value = 'Nie si prihlásený.'; return }
       const title = newChannelTitle.value.trim()
@@ -480,12 +618,29 @@ export default {
         const payload = { title, availability: newChannelAvailability.value, creatorId: currentUser.value.id }
         const res = await api.post('/channels', payload)
         const created = res.data as ChannelFromApi
-        channels.value.unshift(created); handleChannelClick(created); createDialogOpen.value = false
+        
+        // Počkaj krátko na WebSocket event (kanál sa pridá cez handleChannelCreated)
+        // Ak sa kanál nepridal cez WebSocket do 300ms, pridáme ho manuálne
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        // Skontroluj, či sa kanál už nepridal cez WebSocket
+        if (!channels.value.find(c => c.id === created.id)) {
+          channels.value.unshift(created)
+          handleChannelClick(created)
+        } else {
+          // Kanál už existuje cez WebSocket, len ho vyber
+          const existingChannel = channels.value.find(c => c.id === created.id)
+          if (existingChannel) {
+            handleChannelClick(existingChannel)
+          }
+        }
+        
+        createDialogOpen.value = false
+        creatingChannel.value = false
       } catch (err: unknown) {
         console.error('Chyba:', err);
         const error = err as ApiError;
         createChannelError.value = error.response?.data?.message ?? 'Chyba.'
-      } finally {
         creatingChannel.value = false
       }
     }
@@ -510,6 +665,7 @@ export default {
       currentUser, currentUserName, currentUserAvatar, currentUserStatus, statusDotClass,
       onTextBarSend, onTextBarTyping,
       createDialogOpen, newChannelTitle, newChannelAvailability, creatingChannel, createChannelError, openCreateChannelDialog, closeCreateDialog, onCreateChannelConfirm,
+      addChannelDialogOpen, openAddChannelDialog, closeAddChannelDialog, handleChannelJoinedFromDialog,
       canDeleteCurrentChannel, deletingChannel, onDeleteCurrentChannel, navigateHome,
       commandHistory, toggleSettings,
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
+import { defineComponent, ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import AddUserToChannel from './AddUserToChannel.vue';
 import { api } from 'boot/api';
 
@@ -73,6 +73,53 @@ export default defineComponent({
           currentUserMember.status = props.currentUserStatus as Status;
         }
       }
+    });
+
+    // Listen for real-time status changes from WebSocket
+    const handleUserStatusChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ userId: number; status: string; name: string }>;
+      const { userId, status } = customEvent.detail;
+      
+      // Update member status if they're in the current channel's member list
+      const member = members.value.find(m => m.id === userId);
+      if (member) {
+        member.status = status as Status;
+        console.log(`✅ Updated status for user ${userId} to ${status} in MemberList`);
+      }
+    };
+
+    // Listen for new member joined (when someone accepts an invite)
+    const handleMemberJoined = (event: Event) => {
+      const customEvent = event as CustomEvent<{ channelId: number; userId: number; userName: string; status: string }>;
+      const { channelId, userId, userName, status } = customEvent.detail;
+      
+      // Only update if this is for the current channel
+      if (channelId === props.channelId) {
+        // Check if member already exists (shouldn't happen, but just in case)
+        const existingMember = members.value.find(m => m.id === userId);
+        if (!existingMember) {
+          members.value.push({
+            id: userId,
+            name: userName,
+            status: (status || 'offline') as Status
+          });
+          console.log(`✅ Added new member ${userName} (${userId}) to channel ${channelId} in real-time`);
+        } else {
+          // If member already exists, just update their status
+          existingMember.status = (status || 'offline') as Status;
+          console.log(`✅ Updated existing member ${userName} (${userId}) status in channel ${channelId}`);
+        }
+      }
+    };
+
+    onMounted(() => {
+      window.addEventListener('userStatusChanged', handleUserStatusChanged);
+      window.addEventListener('memberJoined', handleMemberJoined);
+    });
+
+    onUnmounted(() => {
+      window.removeEventListener('userStatusChanged', handleUserStatusChanged);
+      window.removeEventListener('memberJoined', handleMemberJoined);
     });
 
     const getInitials = (fullName: string) =>

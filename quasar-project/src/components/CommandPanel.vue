@@ -110,6 +110,7 @@ const processCommand = async (cmdString: string) => {
         log('/kick [nick] - Vyhodí používateľa (Admin) alebo hlasuje (Public)')
         log('/cancel - Opustí kanál (Owner -> zruší kanál)')
         log('/quit - Zruší aktuálny kanál (Admin only)')
+        log('/list - Otvorí zoznam členov kanála')
         log('/clear - Vymaže konzolu')
         break
 
@@ -134,9 +135,15 @@ const processCommand = async (cmdString: string) => {
           type: type
         })
         log(res.data.message)
-        if (res.data.channel) {
-          window.location.reload()
-        }
+        // Channel will be added via WebSocket event, no reload needed
+        break
+      }
+
+      case '/list': {
+        if (!props.currentChannel) { log('Musíš byť v kanáli.', 'error'); return }
+        // Emit event to open member list
+        window.dispatchEvent(new CustomEvent('openMemberList'))
+        log('Zoznam členov otvorený.')
         break
       }
 

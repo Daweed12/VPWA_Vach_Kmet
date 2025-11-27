@@ -24,7 +24,7 @@ export default class ChannelInvite extends BaseModel {
   @column()
   declare status: 'pending' | 'accepted' | 'rejected'
 
-  @column.dateTime({ columnName: 'created_at' })
+  @column.dateTime({ autoCreate: true, columnName: 'created_at' })
   declare createdAt: DateTime
 
   @column.dateTime({ columnName: 'responded_at' })

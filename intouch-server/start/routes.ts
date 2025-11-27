@@ -12,6 +12,7 @@ import Access from '#models/access'
 import ChannelInvite from '#models/channel_invite'
 import Message from '#models/message'
 import KickVote from '#models/kick_vote'
+import { getIO } from './socket.js'
 
 /**
  * Root – test
@@ -49,13 +50,22 @@ router.get('/channels', async ({ request }) => {
   const userId = request.input('userId') as number | null
 
   if (!userId) {
-    return await Channel.query()
-      .where('availability', 'public')
-      .orderBy('title')
+    return []
   }
 
+  // Vráť len public kanály, kde je používateľ členom + private kanály, kde má access
   const channels = await Channel.query()
-    .where('availability', 'public')
+    .where((query) => {
+      query
+        .where('availability', 'public')
+        .whereIn('id', (sub) => {
+          sub
+            .from('channel_members')
+            .select('channel_id')
+            .where('user_id', userId)
+            .where('status', '!=', 'banned')
+        })
+    })
     .orWhereIn('id', (sub) => {
       sub
         .from('access')
@@ -66,6 +76,123 @@ router.get('/channels', async ({ request }) => {
     .orderBy('title')
 
   return channels
+})
+
+/**
+ * GET /channels/search
+ * Vyhľadá public kanály, do ktorých používateľ nie je členom
+ */
+router.get('/channels/search', async ({ request, response }) => {
+  const userId = Number(request.input('userId'))
+  const query = request.input('q') as string | null
+
+  if (!userId) {
+    return response.badRequest({ message: 'userId je povinný.' })
+  }
+
+  // Získaj ID kanálov, kde je používateľ už členom
+  const userChannelIds = await ChannelMember.query()
+    .where('user_id', userId)
+    .select('channel_id')
+
+  const channelIds = userChannelIds.map(cm => cm.channelId)
+
+  // Vyhľadaj public kanály, do ktorých používateľ nie je členom
+  let channelsQuery = Channel.query()
+    .where('availability', 'public')
+    .whereNotIn('id', channelIds.length > 0 ? channelIds : [-1]) // -1 zabezpečí, že ak je zoznam prázdny, vráti všetky public kanály
+
+  if (query && query.trim().length > 0) {
+    channelsQuery = channelsQuery.where('title', 'ilike', `%${query.trim()}%`)
+  }
+
+  const channels = await channelsQuery.orderBy('title').limit(20)
+
+  return channels.map(ch => ({
+    id: ch.id,
+    title: ch.title,
+    availability: ch.availability,
+    creatorId: ch.creatorId,
+    createdAt: ch.createdAt.toISO()
+  }))
+})
+
+/**
+ * POST /channels/:id/join
+ * Pripojí používateľa k public kanálu
+ */
+router.post('/channels/:id/join', async ({ params, request, response }) => {
+  const channelId = Number(params.id)
+  const userIdInput = request.input('userId')
+  const userId = typeof userIdInput === 'number' ? userIdInput : Number(userIdInput)
+
+  if (Number.isNaN(channelId) || Number.isNaN(userId) || !userId) {
+    return response.badRequest({ message: 'Neplatné ID kanála alebo userId.' })
+  }
+
+  // Skontroluj, či používateľ existuje
+  const user = await User.find(userId)
+  if (!user) {
+    console.error(`❌ User ${userId} not found when trying to join channel ${channelId}`)
+    return response.notFound({ message: `Používateľ s ID ${userId} neexistuje.` })
+  }
+
+  const channel = await Channel.find(channelId)
+  if (!channel) {
+    return response.notFound({ message: 'Kanál neexistuje.' })
+  }
+
+  if (channel.availability !== 'public') {
+    return response.forbidden({ message: 'Tento kanál nie je verejný.' })
+  }
+
+  // Skontroluj, či už nie je členom
+  const existingMember = await ChannelMember.query()
+    .where('user_id', userId)
+    .where('channel_id', channelId)
+    .first()
+
+  if (existingMember) {
+    if (existingMember.status === 'banned') {
+      return response.forbidden({ message: 'Máš ban v tomto kanáli.' })
+    }
+    return response.conflict({ message: 'Už si členom tohto kanála.' })
+  }
+
+  // Pridaj používateľa ako člena
+  await ChannelMember.create({
+    userId: userId,
+    channelId: channelId,
+    status: 'member'
+  })
+
+  // Pošli WebSocket event o pripojení (kanál sa pridá do zoznamu)
+  const io = getIO()
+  if (io) {
+    io.emit('channel:joined', {
+      channelId: channel.id,
+      userId: userId,
+      channel: {
+        id: channel.id,
+        title: channel.title,
+        availability: channel.availability,
+        creatorId: channel.creatorId,
+        createdAt: channel.createdAt.toISO()
+      }
+    })
+    console.log(`📢 Sent channel:joined event for user ${userId}, channel ${channel.id}`)
+  }
+
+  return {
+    message: `Pripojený do kanála #${channel.title}`,
+    channel: {
+      id: channel.id,
+      title: channel.title,
+      availability: channel.availability,
+      creatorId: channel.creatorId,
+      createdAt: channel.createdAt.toISO()
+    }
+  }
 })
 
 /**
@@ -114,6 +241,29 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
     { userId: invite.userId, channelId: invite.channelId },
     { status: 'member' },
   )
+
+  // Načítaj informácie o používateľovi a kanáli pre WebSocket event
+  const user = await User.find(invite.userId)
+  const channel = await Channel.find(invite.channelId)
+
+  if (user && channel) {
+    const userName = user.nickname || 
+      `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || 
+      user.email
+
+    // Pošli WebSocket event do room pre daný kanál
+    const io = getIO()
+    if (io) {
+      const room = `channel:${channel.id}`
+      io.to(room).emit('member:joined', {
+        channelId: channel.id,
+        userId: user.id,
+        userName: userName,
+        status: user.status || 'offline'
+      })
+      console.log(`📢 Sent member:joined event for user ${user.id} (${userName}) to channel ${channel.id} room`)
+    }
+  }
 
   return { ok: true }
 })
@@ -327,8 +477,31 @@ router.put('/users/:id', async ({ params, request, response }) => {
     'notifyOnMentionOnly',
   ])
 
+  const oldStatus = user.status
   user.merge(payload)
   await user.save()
+
+  // Ak sa zmenil status, pošli WebSocket event do všetkých kanálov, kde je používateľ členom
+  if (payload.status && payload.status !== oldStatus) {
+    const io = getIO()
+    if (io) {
+      // Získaj všetky kanály, kde je používateľ členom
+      const channelMembers = await ChannelMember.query()
+        .where('user_id', user.id)
+        .where('status', '!=', 'banned')
+
+      // Pošli event do každého kanálu
+      for (const member of channelMembers) {
+        const room = `channel:${member.channelId}`
+        io.to(room).emit('user:status:changed', {
+          userId: user.id,
+          status: user.status,
+          name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+        })
+        console.log(`📢 Sent status change event for user ${user.id} to room ${room}`)
+      }
+    }
+  }
 
   return user
 })
@@ -472,11 +645,20 @@ router.post('/channels', async ({ request, response }) => {
     return response.badRequest({ message: 'Používateľ (creatorId) neexistuje.' })
   }
 
+  // Skontroluj, či kanál s týmto názvom už existuje (case-insensitive)
+  const existingChannel = await Channel.query()
+    .whereRaw('LOWER(title) = LOWER(?)', [title.trim()])
+    .first()
+
+  if (existingChannel) {
+    return response.conflict({ message: 'Kanál s týmto názvom už existuje.' })
+  }
+
   const safeAvailability =
     availability === 'private' ? 'private' : 'public'
 
   const channel = await Channel.create({
-    title,
+    title: title.trim(),
     availability: safeAvailability,
     creatorId: user.id,
   })
@@ -493,6 +675,20 @@ router.post('/channels', async ({ request, response }) => {
     channelId: channel.id,
     status: 'owner',
   })
+
+  // Pošli WebSocket event o vytvorení kanála - len tvorcovi (pre public aj private)
+  const io = getIO()
+  if (io) {
+    io.emit('channel:created', {
+      id: channel.id,
+      title: channel.title,
+      availability: channel.availability,
+      creatorId: channel.creatorId,
+      createdAt: channel.createdAt.toISO(),
+      userId: user.id // Len pre tvorcu - kanál sa zobrazí len tvorcovi, ostatní ho uvidia až keď sa pripoja
+    })
+    console.log(`📢 Sent channel:created event for channel ${channel.id} to creator ${user.id}`)
+  }
 
   return channel
 })
@@ -525,6 +721,23 @@ router.delete('/channels/:id', async ({ params, response }) => {
 
   // 6. Nakoniec vymažeme samotný kanál
   await channel.delete()
+
+  // 7. Pošli WebSocket event o vymazaní kanála
+  const io = getIO()
+  if (io) {
+    const room = `channel:${channelId}`
+    // Pošli event do roomu kanála (pre používateľov, ktorí sú v tom kanáli)
+    io.to(room).emit('channel:deleted', {
+      channelId: channelId,
+      title: channel.title
+    })
+    // Pošli event globálne, aby všetci používatelia vedeli, že kanál bol vymazaný
+    io.emit('channel:deleted', {
+      channelId: channelId,
+      title: channel.title
+    })
+    console.log(`📢 Sent channel:deleted event for channel ${channelId} (${channel.title})`)
+  }
 
   return { message: 'Kanál bol úspešne vymazaný.' }
 })
@@ -641,6 +854,27 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
       inviterId,
       status: 'pending',
     })
+
+    // Načítaj channel pre WebSocket event
+    await invite.load('channel')
+
+    // Pošli WebSocket event konkrétnemu používateľovi
+    const io = getIO()
+    if (io) {
+      // Bezpečne získaj createdAt - ak nie je nastavený, použij aktuálny čas
+      const createdAt = invite.createdAt?.toISO() || new Date().toISOString()
+      
+      io.emit('invite:created', {
+        id: invite.id,
+        channelId: invite.channelId,
+        title: invite.channel.title,
+        availability: invite.channel.availability,
+        createdAt: createdAt,
+        userId: invite.userId
+      })
+      console.log(`📢 Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`)
+    }
+
     return invite
   } catch (error) {
     const dbError = error as { code?: string; message?: string }
@@ -727,10 +961,31 @@ router.group(() => {
       await ChannelMember.firstOrCreate({ userId: user.id, channelId: existingChannel.id }, { status: 'member' })
       return { message: `Pripojený do kanála #${safeTitle}`, channel: existingChannel }
     } else {
+      // Ak kanál neexistuje, vytvor ho ako public (ak nie je explicitne zadané 'private')
       const availability = (type === 'private') ? 'private' : 'public'
       const channel = await Channel.create({ title: safeTitle, availability: availability, creatorId: user.id })
-      if (availability === 'private') await Access.create({ userId: user.id, channelId: channel.id })
+      
+      // Pre private kanály vytvor access záznam
+      if (availability === 'private') {
+        await Access.create({ userId: user.id, channelId: channel.id })
+      }
+      
       await ChannelMember.create({ userId: user.id, channelId: channel.id, status: 'owner' })
+
+      // Pošli WebSocket event o vytvorení kanála - len tvorcovi (pre public aj private)
+      const io = getIO()
+      if (io) {
+        io.emit('channel:created', {
+          id: channel.id,
+          title: channel.title,
+          availability: channel.availability,
+          creatorId: channel.creatorId,
+          createdAt: channel.createdAt.toISO(),
+          userId: user.id // Len pre tvorcu - kanál sa zobrazí len tvorcovi, ostatní ho uvidia až keď sa pripoja
+        })
+        console.log(`📢 Sent channel:created event (via /join) for channel ${channel.id} to creator ${user.id}`)
+      }
+
       return { message: `Kanál #${safeTitle} (${availability}) bol vytvorený.`, channel }
     }
   })
