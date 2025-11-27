@@ -475,6 +475,18 @@ export default {
       }
       window.addEventListener('currentUserUpdated', handleUserUpdate)
 
+      const handleUserAvatarChanged = (event: Event) => {
+        const customEvent = event as CustomEvent<{ userId: number; profilePicture: string; name: string }>
+        const { userId, profilePicture } = customEvent.detail
+        
+        // Aktualizuj currentUser avatar, ak je to aktuálny používateľ
+        if (currentUser.value && currentUser.value.id === userId) {
+          currentUser.value.profilePicture = profilePicture
+          localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
+        }
+      }
+      window.addEventListener('userAvatarChanged', handleUserAvatarChanged)
+
       const handleChannelDeleted = (event: Event) => {
         const customEvent = event as CustomEvent<{ channelId: number; title: string }>
         const { channelId } = customEvent.detail
@@ -565,6 +577,7 @@ export default {
 
       return () => { 
         window.removeEventListener('currentUserUpdated', handleUserUpdate)
+        window.removeEventListener('userAvatarChanged', handleUserAvatarChanged)
         window.removeEventListener('channelDeleted', handleChannelDeleted)
         window.removeEventListener('channelCreated', handleChannelCreated)
         window.removeEventListener('inviteCreated', handleInviteCreated)

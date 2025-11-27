@@ -340,6 +340,35 @@ const initSocket = () => {
     }))
   })
 
+  // Listen for user avatar changes
+  socket.on('user:avatar:changed', (data: { userId: number; profilePicture: string; name: string }) => {
+    console.log('📢 Received user:avatar:changed event:', data)
+    
+    // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
+    const timestamp = Date.now()
+    rawMessages.value.forEach((msg) => {
+      if (msg.sender && msg.sender.id === data.userId) {
+        // Aktualizuj profilePicture s timestampom pre cache busting
+        msg.sender.profilePicture = `${data.profilePicture}?t=${timestamp}`
+      }
+    })
+    
+    // Aktualizuj currentUser avatar, ak je to aktuálny používateľ
+    if (currentUser.value && currentUser.value.id === data.userId) {
+      currentUser.value.profilePicture = data.profilePicture
+      localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
+    }
+    
+    // Dispatch window event pre ostatné komponenty
+    window.dispatchEvent(new CustomEvent('userAvatarChanged', {
+      detail: {
+        userId: data.userId,
+        profilePicture: data.profilePicture,
+        name: data.name
+      }
+    }))
+  })
+
   // Listen for channel deletion
   socket.on('channel:deleted', (data: { channelId: number; title: string }) => {
     console.log('📢 Received channel:deleted event:', data)
@@ -782,6 +811,28 @@ const handleCurrentUserUpdated = (event: Event) => {
   currentUser.value = detail
 }
 
+const handleUserAvatarChanged = (event: Event) => {
+  const customEvent = event as CustomEvent<{ userId: number; profilePicture: string; name: string }>
+  const { userId, profilePicture } = customEvent.detail
+  
+  // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
+  const timestamp = Date.now()
+  rawMessages.value.forEach((msg) => {
+    if (msg.sender && msg.sender.id === userId) {
+      // Odstráň starý timestamp ak existuje a pridaj nový
+      const cleanPath = profilePicture.split('?')[0]
+      msg.sender.profilePicture = `${cleanPath}?t=${timestamp}`
+    }
+  })
+  
+  // Aktualizuj currentUser avatar, ak je to aktuálny používateľ
+  if (currentUser.value && currentUser.value.id === userId) {
+    const cleanPath = profilePicture.split('?')[0]
+    currentUser.value.profilePicture = cleanPath || null
+    localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
+  }
+}
+
 // Function to add a message optimistically (before server confirms)
 const addMessageOptimistically = (content: string): number => {
   if (!currentUser.value || !activeChannelId.value) {
@@ -948,6 +999,11 @@ onMounted(() => {
     handleCurrentUserUpdated as EventListener,
   )
 
+  window.addEventListener(
+    'userAvatarChanged',
+    handleUserAvatarChanged as EventListener,
+  )
+
   if (notificationsSupported) {
     notificationPermission.value = Notification.permission
     if (
@@ -979,6 +1035,11 @@ onUnmounted(() => {
   window.removeEventListener(
     'currentUserUpdated',
     handleCurrentUserUpdated as EventListener,
+  )
+
+  window.removeEventListener(
+    'userAvatarChanged',
+    handleUserAvatarChanged as EventListener,
   )
 
   if (notificationsSupported) {

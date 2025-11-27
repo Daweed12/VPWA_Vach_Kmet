@@ -698,10 +698,24 @@ async function savePhoto () {
     currentUser.value = updatedCurrent
     localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
 
+    // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
+    const timestamp = Date.now()
+    const profilePictureWithCache = `${data.profilePicture}?t=${timestamp}`
+    
+    // Dispatch window event pre aktualizáciu currentUser
     const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
       detail: updatedCurrent
     })
     window.dispatchEvent(event)
+    
+    // Dispatch aj userAvatarChanged event pre aktualizáciu avatárov v správach
+    window.dispatchEvent(new CustomEvent('userAvatarChanged', {
+      detail: {
+        userId: currentUser.value.id,
+        profilePicture: profilePictureWithCache,
+        name: currentUser.value.nickname || `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim() || currentUser.value.email
+      }
+    }))
 
     $q.notify({
       type: 'positive',

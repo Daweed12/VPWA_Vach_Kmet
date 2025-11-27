@@ -921,6 +921,33 @@ router.put('/users/:id/photo', async ({ params, request, response }) => {
   user.profilePicture = publicPath
   await user.save()
 
+  // Pošli WebSocket event do všetkých kanálov, kde je používateľ členom
+  const io = getIO()
+  if (io) {
+    // Získaj všetky kanály, kde je používateľ členom
+    const channelMembers = await ChannelMember.query()
+      .where('user_id', user.id)
+      .where('status', '!=', 'banned')
+
+    // Pošli event do každého kanálu
+    for (const member of channelMembers) {
+      const room = `channel:${member.channelId}`
+      io.to(room).emit('user:avatar:changed', {
+        userId: user.id,
+        profilePicture: publicPath,
+        name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+      })
+      console.log(`📢 Sent avatar change event for user ${user.id} to room ${room}`)
+    }
+    
+    // Pošli aj globálny event (pre prípad, že používateľ nie je v žiadnom kanáli, ale chce vidieť zmenu)
+    io.emit('user:avatar:changed', {
+      userId: user.id,
+      profilePicture: publicPath,
+      name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+    })
+  }
+
   return { message: 'Foto uložené.', profilePicture: publicPath }
 })
 
