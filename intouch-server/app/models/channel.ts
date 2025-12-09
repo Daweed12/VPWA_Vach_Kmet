@@ -1,17 +1,7 @@
 // app/models/channel.ts
 import { DateTime } from 'luxon'
-import {
-  BaseModel,
-  column,
-  belongsTo,
-  hasMany,
-  manyToMany,
-} from '@adonisjs/lucid/orm'
-import type {
-  BelongsTo,
-  HasMany,
-  ManyToMany,
-} from '@adonisjs/lucid/types/relations'
+import { BaseModel, column, belongsTo, hasMany, manyToMany } from '@adonisjs/lucid/orm'
+import type { BelongsTo, HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 
 import User from '#models/user'
 import Message from '#models/message'

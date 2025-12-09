@@ -4,7 +4,7 @@ export default class extends BaseSchema {
   // ak chceš presne názov z ERD, necháme "access"
   protected tableName = 'access'
 
-  public async up () {
+  public async up() {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
 
@@ -32,7 +32,7 @@ export default class extends BaseSchema {
     })
   }
 
-  public async down () {
+  public async down() {
     this.schema.dropTable(this.tableName)
   }
 }

@@ -1,11 +1,5 @@
 import { DateTime } from 'luxon'
-import {
-  BaseModel,
-  column,
-  hasMany,
-  manyToMany,
-  afterFind,
-} from '@adonisjs/lucid/orm'
+import { BaseModel, column, hasMany, manyToMany, afterFind } from '@adonisjs/lucid/orm'
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 
 import Message from '#models/message'

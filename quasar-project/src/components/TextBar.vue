@@ -10,35 +10,13 @@
       @keydown="handleTyping"
       class="col"
     />
-    <q-btn
-      round
-      color="primary"
-      icon="emoji_emotions"
-      class="q-ml-sm"
-      aria-label="Otvoriť emoji"
-    >
-      <q-menu
-        ref="emojiMenuRef"
-        anchor="top right"
-        self="bottom right"
-        :offset="[0,8]"
-        fit
-      >
-        <div class="q-pa-sm" style="max-width: 260px;">
+    <q-btn round color="primary" icon="emoji_emotions" class="q-ml-sm" aria-label="Otvoriť emoji">
+      <q-menu ref="emojiMenuRef" anchor="top right" self="bottom right" :offset="[0, 8]" fit>
+        <div class="q-pa-sm" style="max-width: 260px">
           <div class="text-caption text-grey-7 q-mb-xs">Emoji</div>
           <div class="row q-col-gutter-xs">
-            <div
-              v-for="e in emojis"
-              :key="e"
-              class="col-2 flex flex-center"
-            >
-              <q-btn
-                flat
-                round
-                dense
-                class="emoji-btn"
-                @click="addEmoji(e)"
-              >
+            <div v-for="e in emojis" :key="e" class="col-2 flex flex-center">
+              <q-btn flat round dense class="emoji-btn" @click="addEmoji(e)">
                 <span class="text-h6">{{ e }}</span>
               </q-btn>
             </div>
@@ -47,84 +25,105 @@
       </q-menu>
     </q-btn>
 
-    <q-btn
-      round
-      color="primary"
-      icon="send"
-      class="q-ml-sm"
-      @click="sendMessage"
-    />
+    <q-btn round color="primary" icon="send" class="q-ml-sm" @click="sendMessage" />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
-import type { QInput } from 'quasar'
+import { defineComponent, ref } from 'vue';
+import type { QInput } from 'quasar';
 
 export default defineComponent({
   name: 'TextBar',
   emits: ['send', 'typing'],
   setup(_, { emit }) {
-    const message = ref('')
-    const inputRef = ref<QInput | null>(null)
-    const emojiMenuRef = ref()
-    
-    let typingTimeout: ReturnType<typeof setTimeout> | null = null
-    let lastTypingEmit = 0
+    const message = ref('');
+    const inputRef = ref<QInput | null>(null);
+    const emojiMenuRef = ref();
+
+    let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+    let lastTypingEmit = 0;
 
     const emojis = [
-      '😀','😁','😂','🤣','😊','😍','😎','🤔','😅','🙃',
-      '😉','😇','😭','😴','🤯','🥳','👍','👏','🙌','🔥',
-      '🎉','💡','🚀','❤️','💪','🙏','👀','🤝','⚡','📷'
-    ]
+      '😀',
+      '😁',
+      '😂',
+      '🤣',
+      '😊',
+      '😍',
+      '😎',
+      '🤔',
+      '😅',
+      '🙃',
+      '😉',
+      '😇',
+      '😭',
+      '😴',
+      '🤯',
+      '🥳',
+      '👍',
+      '👏',
+      '🙌',
+      '🔥',
+      '🎉',
+      '💡',
+      '🚀',
+      '❤️',
+      '💪',
+      '🙏',
+      '👀',
+      '🤝',
+      '⚡',
+      '📷',
+    ];
 
     const focusInput = () => {
-      inputRef.value?.focus()
-    }
+      inputRef.value?.focus();
+    };
 
     const addEmoji = (e: string) => {
-      if (message.value && !/\s$/.test(message.value)) message.value += ' '
-      message.value += e
-      emojiMenuRef.value?.hide()
-      setTimeout(focusInput, 0)
-      handleTyping()
-    }
+      if (message.value && !/\s$/.test(message.value)) message.value += ' ';
+      message.value += e;
+      emojiMenuRef.value?.hide();
+      setTimeout(focusInput, 0);
+      handleTyping();
+    };
 
     const handleTyping = () => {
-      const now = Date.now()
+      const now = Date.now();
       // Throttle typing events to max once per 200ms for real-time feel
-      if (now - lastTypingEmit < 200) return
-      lastTypingEmit = now
-      
+      if (now - lastTypingEmit < 200) return;
+      lastTypingEmit = now;
+
       // Emit typing with current message content
-      emit('typing', true, message.value)
-      
+      emit('typing', true, message.value);
+
       // Clear existing timeout
       if (typingTimeout) {
-        clearTimeout(typingTimeout)
+        clearTimeout(typingTimeout);
       }
-      
+
       // Stop typing after 2 seconds of inactivity
       typingTimeout = setTimeout(() => {
-        emit('typing', false)
-        typingTimeout = null
-      }, 2000)
-    }
+        emit('typing', false);
+        typingTimeout = null;
+      }, 2000);
+    };
 
     const sendMessage = () => {
-      if (message.value.trim() === '') return
-      
+      if (message.value.trim() === '') return;
+
       // Stop typing indicator
       if (typingTimeout) {
-        clearTimeout(typingTimeout)
-        typingTimeout = null
+        clearTimeout(typingTimeout);
+        typingTimeout = null;
       }
-      emit('typing', false)
-      
-      emit('send', message.value)
-      message.value = ''
-      focusInput()
-    }
+      emit('typing', false);
+
+      emit('send', message.value);
+      message.value = '';
+      focusInput();
+    };
 
     return {
       message,
@@ -133,10 +132,10 @@ export default defineComponent({
       sendMessage,
       handleTyping,
       inputRef,
-      emojiMenuRef
-    }
-  }
-})
+      emojiMenuRef,
+    };
+  },
+});
 </script>
 
 <style scoped>

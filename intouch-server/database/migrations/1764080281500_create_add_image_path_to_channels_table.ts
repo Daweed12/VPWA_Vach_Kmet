@@ -3,13 +3,13 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 export default class extends BaseSchema {
   protected tableName = 'channels'
 
-  public async up () {
+  public async up() {
     this.schema.alterTable(this.tableName, (table) => {
       table.string('image_path').nullable()
     })
   }
 
-  public async down () {
+  public async down() {
     this.schema.alterTable(this.tableName, (table) => {
       table.dropColumn('image_path')
     })

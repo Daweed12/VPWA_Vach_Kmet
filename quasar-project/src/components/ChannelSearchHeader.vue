@@ -25,36 +25,33 @@
       class="add-channel-btn"
       @click="emit('create-channel')"
     >
-      <q-tooltip anchor="top middle" self="bottom middle">
-        Vytvoriť nový kanál
-      </q-tooltip>
+      <q-tooltip anchor="top middle" self="bottom middle"> Vytvoriť nový kanál </q-tooltip>
     </q-btn>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed } from 'vue';
 
 const props = defineProps<{
-  modelValue: string
-}>()
+  modelValue: string;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
-  (e: 'create-channel'): void
-}>()
+  (e: 'update:modelValue', value: string): void;
+  (e: 'create-channel'): void;
+}>();
 
 const internalSearch = computed({
   get: () => props.modelValue,
   set: (val: string) => emit('update:modelValue', val),
-})
+});
 </script>
 
 <style scoped>
 .search-wrapper {
   align-items: stretch;
 }
-
 
 .add-channel-btn {
   width: 24px;

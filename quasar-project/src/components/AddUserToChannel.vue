@@ -16,7 +16,7 @@ export default defineComponent({
   name: 'AddUserToChannel',
   props: {
     channelId: { type: Number as () => number | null, default: null },
-    inviterId: { type: Number as () => number | null, default: null }
+    inviterId: { type: Number as () => number | null, default: null },
   },
   emits: ['close', 'invite-sent'],
   setup(props, { emit }) {
@@ -40,20 +40,20 @@ export default defineComponent({
 
       try {
         const response = await api.get('/users/search', {
-          params: { q: searchTerm.trim() }
+          params: { q: searchTerm.trim() },
         });
         searchResults.value = response.data || [];
       } catch (err) {
         console.error('Error searching users:', err);
-        const axiosError = err as { 
-          response?: { 
+        const axiosError = err as {
+          response?: {
             data?: { message?: string; error?: string };
             status?: number;
             statusText?: string;
           };
           message?: string;
         };
-        
+
         if (axiosError.response?.data?.message) {
           error.value = axiosError.response.data.message;
         } else if (axiosError.response?.data?.error) {
@@ -98,7 +98,7 @@ export default defineComponent({
       console.log('Sending invite:', {
         channelId: props.channelId,
         userId: selectedUser.value.id,
-        inviterId: props.inviterId
+        inviterId: props.inviterId,
       });
 
       sendingInvite.value = true;
@@ -107,7 +107,7 @@ export default defineComponent({
       try {
         const response = await api.post(`/channels/${props.channelId}/invites`, {
           userId: Number(selectedUser.value.id),
-          inviterId: Number(props.inviterId)
+          inviterId: Number(props.inviterId),
         });
 
         console.log('Invite sent successfully:', response.data);
@@ -116,15 +116,15 @@ export default defineComponent({
         close();
       } catch (err) {
         console.error('Error sending invite:', err);
-        const axiosError = err as { 
-          response?: { 
+        const axiosError = err as {
+          response?: {
             data?: { message?: string };
             status?: number;
             statusText?: string;
           };
           message?: string;
         };
-        
+
         if (axiosError.response?.data?.message) {
           error.value = axiosError.response.data.message;
         } else if (axiosError.response?.statusText) {
@@ -140,7 +140,12 @@ export default defineComponent({
     };
 
     const getInitials = (name: string) => {
-      return name.trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
+      return name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase() ?? '')
+        .join('');
     };
 
     const close = () => {
@@ -161,14 +166,14 @@ export default defineComponent({
       selectUser,
       sendInvite,
       getInitials,
-      close
+      close,
     };
-  }
+  },
 });
 </script>
 
 <template>
-  <q-card style="min-width: 520px; max-width: 90vw;">
+  <q-card style="min-width: 520px; max-width: 90vw">
     <q-card-section class="row items-center justify-between">
       <div class="text-h6">Pridať používateľa do kanálu</div>
       <q-btn flat round dense icon="close" @click="close" />
@@ -242,12 +247,18 @@ export default defineComponent({
             dense
             icon="close"
             color="white"
-            @click="selectedUser = null; query = ''"
+            @click="
+              selectedUser = null;
+              query = '';
+            "
           />
         </div>
       </div>
 
-      <div v-else-if="query.length >= 2 && !loading && searchResults.length === 0" class="text-grey-6 text-center q-pa-md">
+      <div
+        v-else-if="query.length >= 2 && !loading && searchResults.length === 0"
+        class="text-grey-6 text-center q-pa-md"
+      >
         Žiadni používatelia nenájdení
       </div>
     </q-card-section>
@@ -268,5 +279,7 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.rounded-borders { border-radius: 12px; }
+.rounded-borders {
+  border-radius: 12px;
+}
 </style>

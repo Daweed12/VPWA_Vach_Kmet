@@ -17,12 +17,7 @@
                     {{ displayName }}
                   </div>
 
-                  <q-chip
-                    :color="statusChipColor"
-                    text-color="white"
-                    dense
-                    square
-                  >
+                  <q-chip :color="statusChipColor" text-color="white" dense square>
                     {{ form.status.toUpperCase() }}
                   </q-chip>
 
@@ -57,20 +52,10 @@
                 <q-card-section class="compact-section">
                   <div class="row q-col-gutter-sm">
                     <div class="col-12 col-md-6">
-                      <q-input
-                        dense
-                        outlined
-                        label="First Name"
-                        v-model.lazy="form.firstname"
-                      />
+                      <q-input dense outlined label="First Name" v-model.lazy="form.firstname" />
                     </div>
                     <div class="col-12 col-md-6">
-                      <q-input
-                        dense
-                        outlined
-                        label="Last Name"
-                        v-model.lazy="form.surname"
-                      />
+                      <q-input dense outlined label="Last Name" v-model.lazy="form.surname" />
                     </div>
                     <div class="col-12 col-md-6">
                       <q-input
@@ -93,12 +78,7 @@
                   </div>
 
                   <div class="row justify-end q-gutter-sm q-mt-sm">
-                    <q-btn
-                      flat
-                      label="Cancel"
-                      color="grey-8"
-                      @click="resetForm"
-                    />
+                    <q-btn flat label="Cancel" color="grey-8" @click="resetForm" />
                     <q-btn
                       unelevated
                       label="Save"
@@ -119,9 +99,7 @@
               <q-card class="round-card">
                 <q-card-section class="compact-section">
                   <div class="status-row">
-                    <div class="text-subtitle1 col-title">
-                      Presence &amp; Notifications
-                    </div>
+                    <div class="text-subtitle1 col-title">Presence &amp; Notifications</div>
                     <q-select
                       dense
                       outlined
@@ -136,10 +114,7 @@
                 <q-card-section class="q-gutter-md compact-section">
                   <div class="row items-center q-gutter-md">
                     <q-toggle v-model="notifAll" label="Povoliť notifikácie" />
-                    <q-toggle
-                      v-model="form.notifyOnMentionOnly"
-                      label="Len @mentions"
-                    />
+                    <q-toggle v-model="form.notifyOnMentionOnly" label="Len @mentions" />
                     <q-toggle v-model="notifMuteInDnd" label="Stlmiť v DND" />
                   </div>
                 </q-card-section>
@@ -153,32 +128,19 @@
                 <q-separator />
                 <div class="my-channels-scroll">
                   <q-list v-if="myChannels.length" separator>
-                    <q-item
-                      v-for="ch in myChannels"
-                      :key="ch.id"
-                    >
+                    <q-item v-for="ch in myChannels" :key="ch.id">
                       <q-item-section>
                         <q-item-label>#{{ ch.title }}</q-item-label>
                         <q-item-label caption class="text-caption">
                           {{ availabilityLabel(ch.availability) }} • Active
-                          <q-badge
-                            v-if="isChannelAdmin(ch)"
-                            color="purple"
-                            class="q-ml-sm"
-                          >
+                          <q-badge v-if="isChannelAdmin(ch)" color="purple" class="q-ml-sm">
                             Admin
                           </q-badge>
                         </q-item-label>
                       </q-item-section>
 
                       <q-item-section side class="row q-gutter-sm">
-                        <q-btn
-                          dense
-                          flat
-                          icon="logout"
-                          label="Leave"
-                          @click="onLeaveChannel(ch)"
-                        />
+                        <q-btn dense flat icon="logout" label="Leave" @click="onLeaveChannel(ch)" />
                         <q-btn
                           v-if="isChannelAdmin(ch)"
                           dense
@@ -192,10 +154,7 @@
                     </q-item>
                   </q-list>
 
-                  <q-card-section
-                    v-else
-                    class="compact-section text-grey-7 text-caption"
-                  >
+                  <q-card-section v-else class="compact-section text-grey-7 text-caption">
                     Nie si členom žiadneho kanála.
                   </q-card-section>
                 </div>
@@ -234,7 +193,6 @@
                   @click="logout"
                 />
               </div>
-
             </div>
           </div>
         </div>
@@ -252,11 +210,7 @@
         </q-card-section>
 
         <q-card-section class="q-pt-none">
-          <div
-            class="avatar-dropzone"
-            @dragover.prevent
-            @drop.prevent="onPhotoDrop"
-          >
+          <div class="avatar-dropzone" @dragover.prevent @drop.prevent="onPhotoDrop">
             <div class="avatar-preview-wrapper">
               <div class="avatar-preview-circle">
                 <img
@@ -265,13 +219,11 @@
                   alt="preview"
                   class="avatar-preview-img"
                   :style="previewImgStyle"
-                >
+                />
               </div>
             </div>
 
-            <div class="text-caption text-grey-7 q-mt-sm">
-              Pretiahni obrázok sem alebo
-            </div>
+            <div class="text-caption text-grey-7 q-mt-sm">Pretiahni obrázok sem alebo</div>
             <q-btn
               class="q-mt-xs"
               flat
@@ -291,18 +243,10 @@
 
           <div class="q-mt-md">
             <div class="text-caption text-grey-7 q-mb-xs">Zoom</div>
-            <q-slider
-              v-model="zoom"
-              :min="1"
-              :max="3"
-              :step="0.05"
-            />
+            <q-slider v-model="zoom" :min="1" :max="3" :step="0.05" />
           </div>
 
-          <div
-            v-if="photoError"
-            class="text-negative text-caption q-mt-sm"
-          >
+          <div v-if="photoError" class="text-negative text-caption q-mt-sm">
             {{ photoError }}
           </div>
         </q-card-section>
@@ -331,9 +275,7 @@
       <q-card style="min-width: 360px">
         <q-card-section>
           <div class="text-h6">Reset password</div>
-          <div class="text-caption text-grey-7 q-mt-xs">
-            Zmeň svoje heslo k účtu.
-          </div>
+          <div class="text-caption text-grey-7 q-mt-xs">Zmeň svoje heslo k účtu.</div>
         </q-card-section>
 
         <q-card-section class="q-pt-none q-gutter-md">
@@ -362,10 +304,7 @@
             outlined
           />
 
-          <div
-            v-if="resetError"
-            class="text-negative text-caption q-mt-xs"
-          >
+          <div v-if="resetError" class="text-negative text-caption q-mt-xs">
             {{ resetError }}
           </div>
         </q-card-section>
@@ -392,50 +331,50 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { useQuasar } from 'quasar'
-import { useRouter } from 'vue-router'
-import axios from 'axios'
-import { api } from 'boot/api'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
+import { api } from 'boot/api';
 
 interface CurrentUser {
-  id: number
-  email: string
-  nickname: string
-  firstname: string | null
-  surname: string | null
-  status: string | null
-  profilePicture: string | null
+  id: number;
+  email: string;
+  nickname: string;
+  firstname: string | null;
+  surname: string | null;
+  status: string | null;
+  profilePicture: string | null;
 }
 
 interface UserFromApi {
-  id: number
-  email: string
-  nickname: string
-  firstname: string | null
-  surname: string | null
-  status: string | null
-  notifyOnMentionOnly: boolean | null
-  profilePicture: string | null
+  id: number;
+  email: string;
+  nickname: string;
+  firstname: string | null;
+  surname: string | null;
+  status: string | null;
+  notifyOnMentionOnly: boolean | null;
+  profilePicture: string | null;
 }
 
 interface ChannelFromApi {
-  id: number
-  title: string
-  availability: 'public' | 'private'
-  creatorId?: number
-  createdAt?: string
-  lastMessageAt?: string | null
+  id: number;
+  title: string;
+  availability: 'public' | 'private';
+  creatorId?: number;
+  createdAt?: string;
+  lastMessageAt?: string | null;
 }
 
-const $q = useQuasar()
-const router = useRouter()
+const $q = useQuasar();
+const router = useRouter();
 
-const saving = ref(false)
-const deletingProfile = ref(false)
+const saving = ref(false);
+const deletingProfile = ref(false);
 
-const currentUser = ref<CurrentUser | null>(null)
-const myChannels = ref<ChannelFromApi[]>([])
+const currentUser = ref<CurrentUser | null>(null);
+const myChannels = ref<ChannelFromApi[]>([]);
 
 const form = reactive({
   firstname: '',
@@ -443,8 +382,8 @@ const form = reactive({
   nickname: '',
   email: '',
   status: 'online',
-  notifyOnMentionOnly: false
-})
+  notifyOnMentionOnly: false,
+});
 
 const original = reactive({
   firstname: '',
@@ -452,406 +391,409 @@ const original = reactive({
   nickname: '',
   email: '',
   status: 'online',
-  notifyOnMentionOnly: false
-})
+  notifyOnMentionOnly: false,
+});
 
-const notifAll = ref(true)
-const notifMuteInDnd = ref(true)
+const notifAll = ref(true);
+const notifMuteInDnd = ref(true);
 
-const statusOptions = ['ONLINE', 'AWAY', 'DND', 'OFFLINE']
+const statusOptions = ['ONLINE', 'AWAY', 'DND', 'OFFLINE'];
 
 // RESET PASSWORD STATE
-const resetDialogOpen = ref(false)
-const resetLoading = ref(false)
-const resetError = ref('')
+const resetDialogOpen = ref(false);
+const resetLoading = ref(false);
+const resetError = ref('');
 
 const resetPasswordForm = reactive({
   currentPassword: '',
   newPassword: '',
-  confirmPassword: ''
-})
+  confirmPassword: '',
+});
 
 // CHANGE PHOTO STATE
-const photoDialogOpen = ref(false)
-const savingPhoto = ref(false)
-const photoError = ref('')
-const rawPhotoData = ref<string | null>(null)
-const zoom = ref(1.2)
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const photoDialogOpen = ref(false);
+const savingPhoto = ref(false);
+const photoError = ref('');
+const rawPhotoData = ref<string | null>(null);
+const zoom = ref(1.2);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 // default avatar
-const defaultAvatarUrl = 'https://cdn.quasar.dev/img/avatar4.jpg'
+const defaultAvatarUrl = 'https://cdn.quasar.dev/img/avatar4.jpg';
 
 const avatarSrc = computed(() => {
-  const pic = currentUser.value?.profilePicture
-  if (!pic) return defaultAvatarUrl
+  const pic = currentUser.value?.profilePicture;
+  if (!pic) return defaultAvatarUrl;
 
   // ak je v DB už plná URL (napr. https://...)
   if (pic.startsWith('http://') || pic.startsWith('https://')) {
-    return pic
+    return pic;
   }
 
   // inak je to relatívna cesta z backendu (napr. /uploads/avatars/xyz.png)
-  const base = api.defaults.baseURL || ''
-  const needsSlash = pic.startsWith('/') ? '' : '/'
-  return `${base}${needsSlash}${pic}`
-})
+  const base = api.defaults.baseURL || '';
+  const needsSlash = pic.startsWith('/') ? '' : '/';
+  return `${base}${needsSlash}${pic}`;
+});
 
-const previewImage = computed(() =>
-  rawPhotoData.value || avatarSrc.value
-)
+const previewImage = computed(() => rawPhotoData.value || avatarSrc.value);
 
 const previewImgStyle = computed(() => ({
-  transform: `scale(${zoom.value})`
-}))
+  transform: `scale(${zoom.value})`,
+}));
 
 const displayName = computed(() => {
-  const full = `${form.firstname} ${form.surname}`.trim()
-  if (full) return full
-  if (form.nickname) return form.nickname
-  if (form.email) return form.email
-  return 'Používateľ'
-})
+  const full = `${form.firstname} ${form.surname}`.trim();
+  if (full) return full;
+  if (form.nickname) return form.nickname;
+  if (form.email) return form.email;
+  return 'Používateľ';
+});
 
 const statusChipColor = computed(() => {
   switch (form.status) {
     case 'online':
-      return 'positive'
+      return 'positive';
     case 'away':
-      return 'warning'
+      return 'warning';
     case 'dnd':
-      return 'negative'
+      return 'negative';
     default:
-      return 'grey'
+      return 'grey';
   }
-})
+});
 
 const statusSelect = computed({
   get: () => form.status.toUpperCase(),
   set: (val: string | null) => {
-    const v = (val ?? 'ONLINE').toLowerCase()
-    form.status = v
+    const v = (val ?? 'ONLINE').toLowerCase();
+    form.status = v;
 
     if (currentUser.value) {
       const updatedCurrent: CurrentUser = {
         ...currentUser.value,
-        status: v
-      }
-      currentUser.value = updatedCurrent
-      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+        status: v,
+      };
+      currentUser.value = updatedCurrent;
+      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
 
       const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
-        detail: updatedCurrent
-      })
-      window.dispatchEvent(event)
+        detail: updatedCurrent,
+      });
+      window.dispatchEvent(event);
 
       void (async () => {
         try {
           await api.put(`/users/${currentUser.value!.id}`, {
-            status: v
-          })
+            status: v,
+          });
         } catch (error) {
-          console.error('Error updating status:', error)
+          console.error('Error updating status:', error);
         }
-      })()
+      })();
     }
-  }
-})
+  },
+});
 
-function copyForm (src: typeof form, dst: typeof form) {
-  dst.firstname = src.firstname
-  dst.surname = src.surname
-  dst.nickname = src.nickname
-  dst.email = src.email
-  dst.status = src.status
-  dst.notifyOnMentionOnly = src.notifyOnMentionOnly
+function copyForm(src: typeof form, dst: typeof form) {
+  dst.firstname = src.firstname;
+  dst.surname = src.surname;
+  dst.nickname = src.nickname;
+  dst.email = src.email;
+  dst.status = src.status;
+  dst.notifyOnMentionOnly = src.notifyOnMentionOnly;
 }
 
-function resetForm () {
-  copyForm(original, form)
+function resetForm() {
+  copyForm(original, form);
 }
 
 /* ==== CHANGE PHOTO – logika ==== */
-function openPhotoDialog () {
-  photoDialogOpen.value = true
-  photoError.value = ''
-  rawPhotoData.value = null
-  zoom.value = 1.2
-  if (fileInputRef.value) fileInputRef.value.value = ''
+function openPhotoDialog() {
+  photoDialogOpen.value = true;
+  photoError.value = '';
+  rawPhotoData.value = null;
+  zoom.value = 1.2;
+  if (fileInputRef.value) fileInputRef.value.value = '';
 }
 
-function closePhotoDialog () {
-  if (savingPhoto.value) return
-  photoDialogOpen.value = false
-  photoError.value = ''
-  rawPhotoData.value = null
-  zoom.value = 1.2
-  if (fileInputRef.value) fileInputRef.value.value = ''
+function closePhotoDialog() {
+  if (savingPhoto.value) return;
+  photoDialogOpen.value = false;
+  photoError.value = '';
+  rawPhotoData.value = null;
+  zoom.value = 1.2;
+  if (fileInputRef.value) fileInputRef.value.value = '';
 }
 
-function triggerFileInput () {
-  fileInputRef.value?.click()
+function triggerFileInput() {
+  fileInputRef.value?.click();
 }
 
-function loadImageFile (file: File) {
-  photoError.value = ''
+function loadImageFile(file: File) {
+  photoError.value = '';
 
   if (!file.type.startsWith('image/')) {
-    photoError.value = 'Prosím vyber obrázok.'
-    return
+    photoError.value = 'Prosím vyber obrázok.';
+    return;
   }
 
-  const reader = new FileReader()
+  const reader = new FileReader();
   reader.onload = () => {
-    rawPhotoData.value = reader.result as string
-    zoom.value = 1.2
-  }
+    rawPhotoData.value = reader.result as string;
+    zoom.value = 1.2;
+  };
   reader.onerror = () => {
-    photoError.value = 'Nepodarilo sa načítať obrázok.'
-  }
-  reader.readAsDataURL(file)
+    photoError.value = 'Nepodarilo sa načítať obrázok.';
+  };
+  reader.readAsDataURL(file);
 }
 
-function onPhotoFileChange (evt: Event) {
-  const input = evt.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  loadImageFile(file)
+function onPhotoFileChange(evt: Event) {
+  const input = evt.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  loadImageFile(file);
 }
 
-function onPhotoDrop (evt: DragEvent) {
-  const file = evt.dataTransfer?.files?.[0]
-  if (!file) return
-  loadImageFile(file)
+function onPhotoDrop(evt: DragEvent) {
+  const file = evt.dataTransfer?.files?.[0];
+  if (!file) return;
+  loadImageFile(file);
 }
 
-function generateCroppedImage (): Promise<string> {
+function generateCroppedImage(): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!rawPhotoData.value) {
-      reject(new Error('Žiadny obrázok'))
-      return
+      reject(new Error('Žiadny obrázok'));
+      return;
     }
 
-    const img = new Image()
+    const img = new Image();
     img.onload = () => {
-      const size = 400
-      const canvas = document.createElement('canvas')
-      canvas.width = size
-      canvas.height = size
-      const ctx = canvas.getContext('2d')
+      const size = 400;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
       if (!ctx) {
-        reject(new Error('Canvas context chýba'))
-        return
+        reject(new Error('Canvas context chýba'));
+        return;
       }
 
-      ctx.clearRect(0, 0, size, size)
-      ctx.save()
-      ctx.beginPath()
-      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
-      ctx.closePath()
-      ctx.clip()
+      ctx.clearRect(0, 0, size, size);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
 
-      const zoomFactor = zoom.value || 1
-      const minDim = Math.min(img.width, img.height)
-      const baseSize = minDim / zoomFactor
+      const zoomFactor = zoom.value || 1;
+      const minDim = Math.min(img.width, img.height);
+      const baseSize = minDim / zoomFactor;
 
-      const sx = (img.width - baseSize) / 2
-      const sy = (img.height - baseSize) / 2
+      const sx = (img.width - baseSize) / 2;
+      const sy = (img.height - baseSize) / 2;
 
-      ctx.drawImage(img, sx, sy, baseSize, baseSize, 0, 0, size, size)
-      ctx.restore()
+      ctx.drawImage(img, sx, sy, baseSize, baseSize, 0, 0, size, size);
+      ctx.restore();
 
-      const dataUrl = canvas.toDataURL('image/png')
-      resolve(dataUrl)
-    }
-    img.onerror = () => reject(new Error('Nepodarilo sa načítať obrázok'))
-    img.src = rawPhotoData.value
-  })
+      const dataUrl = canvas.toDataURL('image/png');
+      resolve(dataUrl);
+    };
+    img.onerror = () => reject(new Error('Nepodarilo sa načítať obrázok'));
+    img.src = rawPhotoData.value;
+  });
 }
 
-async function savePhoto () {
+async function savePhoto() {
   if (!currentUser.value) {
-    photoError.value = 'Nie si prihlásený.'
-    return
+    photoError.value = 'Nie si prihlásený.';
+    return;
   }
 
   if (!rawPhotoData.value) {
-    photoError.value = 'Najprv vyber obrázok.'
-    return
+    photoError.value = 'Najprv vyber obrázok.';
+    return;
   }
 
   try {
-    savingPhoto.value = true
-    photoError.value = ''
+    savingPhoto.value = true;
+    photoError.value = '';
 
-    const cropped = await generateCroppedImage()
+    const cropped = await generateCroppedImage();
 
     const { data } = await api.put<{ profilePicture: string }>(
       `/users/${currentUser.value.id}/photo`,
-      { image: cropped }
-    )
+      { image: cropped },
+    );
 
     const updatedCurrent: CurrentUser = {
       ...currentUser.value,
-      profilePicture: data.profilePicture
-    }
-    currentUser.value = updatedCurrent
-    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+      profilePicture: data.profilePicture,
+    };
+    currentUser.value = updatedCurrent;
+    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
 
     // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
-    const timestamp = Date.now()
-    const profilePictureWithCache = `${data.profilePicture}?t=${timestamp}`
-    
+    const timestamp = Date.now();
+    const profilePictureWithCache = `${data.profilePicture}?t=${timestamp}`;
+
     // Dispatch window event pre aktualizáciu currentUser
     const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
-      detail: updatedCurrent
-    })
-    window.dispatchEvent(event)
-    
+      detail: updatedCurrent,
+    });
+    window.dispatchEvent(event);
+
     // Dispatch aj userAvatarChanged event pre aktualizáciu avatárov v správach
-    window.dispatchEvent(new CustomEvent('userAvatarChanged', {
-      detail: {
-        userId: currentUser.value.id,
-        profilePicture: profilePictureWithCache,
-        name: currentUser.value.nickname || `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim() || currentUser.value.email
-      }
-    }))
+    window.dispatchEvent(
+      new CustomEvent('userAvatarChanged', {
+        detail: {
+          userId: currentUser.value.id,
+          profilePicture: profilePictureWithCache,
+          name:
+            currentUser.value.nickname ||
+            `${currentUser.value.firstname ?? ''} ${currentUser.value.surname ?? ''}`.trim() ||
+            currentUser.value.email,
+        },
+      }),
+    );
 
     $q.notify({
       type: 'positive',
       message: 'Fotka bola uložená.',
       position: 'bottom',
-      timeout: 2000
-    })
+      timeout: 2000,
+    });
 
-    closePhotoDialog()
+    closePhotoDialog();
   } catch (error: unknown) {
-    console.error('Chyba pri ukladaní fotky:', error)
+    console.error('Chyba pri ukladaní fotky:', error);
 
-    let message = 'Nepodarilo sa uložiť fotku.'
+    let message = 'Nepodarilo sa uložiť fotku.';
     if (axios.isAxiosError(error)) {
-      const serverData = error.response?.data
+      const serverData = error.response?.data;
       if (serverData && typeof serverData === 'object' && 'message' in serverData) {
-        message = (serverData as { message: string }).message
+        message = (serverData as { message: string }).message;
       }
     }
 
-    photoError.value = message
+    photoError.value = message;
 
     $q.notify({
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500
-    })
+      timeout: 2500,
+    });
   } finally {
-    savingPhoto.value = false
+    savingPhoto.value = false;
   }
 }
 
 /* RESET PASSWORD LOGIC */
-function closeResetDialog () {
-  if (resetLoading.value) return
-  resetDialogOpen.value = false
-  resetError.value = ''
-  resetPasswordForm.currentPassword = ''
-  resetPasswordForm.newPassword = ''
-  resetPasswordForm.confirmPassword = ''
+function closeResetDialog() {
+  if (resetLoading.value) return;
+  resetDialogOpen.value = false;
+  resetError.value = '';
+  resetPasswordForm.currentPassword = '';
+  resetPasswordForm.newPassword = '';
+  resetPasswordForm.confirmPassword = '';
 }
 
-async function submitResetPassword () {
-  resetError.value = ''
+async function submitResetPassword() {
+  resetError.value = '';
 
   if (!currentUser.value) {
-    resetError.value = 'Nie si prihlásený.'
-    return
+    resetError.value = 'Nie si prihlásený.';
+    return;
   }
 
   if (!resetPasswordForm.currentPassword || !resetPasswordForm.newPassword) {
-    resetError.value = 'Vyplň všetky polia.'
-    return
+    resetError.value = 'Vyplň všetky polia.';
+    return;
   }
 
   if (resetPasswordForm.newPassword.length < 6) {
-    resetError.value = 'Nové heslo musí mať aspoň 6 znakov.'
-    return
+    resetError.value = 'Nové heslo musí mať aspoň 6 znakov.';
+    return;
   }
 
   if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
-    resetError.value = 'Nové heslá sa nezhodujú.'
-    return
+    resetError.value = 'Nové heslá sa nezhodujú.';
+    return;
   }
 
   try {
-    resetLoading.value = true
+    resetLoading.value = true;
 
     await api.post('/auth/change-password', {
       userId: currentUser.value.id,
       currentPassword: resetPasswordForm.currentPassword,
-      newPassword: resetPasswordForm.newPassword
-    })
+      newPassword: resetPasswordForm.newPassword,
+    });
 
     $q.notify({
       type: 'positive',
       message: 'Heslo bolo zmenené.',
       position: 'bottom',
-      timeout: 2000
-    })
+      timeout: 2000,
+    });
 
-    closeResetDialog()
+    closeResetDialog();
   } catch (error: unknown) {
-    console.error('Chyba pri zmene hesla:', error)
+    console.error('Chyba pri zmene hesla:', error);
 
-    let message = 'Nepodarilo sa zmeniť heslo.'
+    let message = 'Nepodarilo sa zmeniť heslo.';
     if (axios.isAxiosError(error)) {
-      const serverData = error.response?.data
+      const serverData = error.response?.data;
       if (serverData && typeof serverData === 'object' && 'message' in serverData) {
-        message = (serverData as { message: string }).message
+        message = (serverData as { message: string }).message;
       }
     }
 
-    resetError.value = message
+    resetError.value = message;
 
     $q.notify({
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500
-    })
+      timeout: 2500,
+    });
   } finally {
-    resetLoading.value = false
+    resetLoading.value = false;
   }
 }
 
 /* LOAD USER + CHANNELS */
-async function loadChannels (userId: number) {
+async function loadChannels(userId: number) {
   try {
     const { data } = await api.get<ChannelFromApi[]>('/channels', {
-      params: { userId }
-    })
-    myChannels.value = data
+      params: { userId },
+    });
+    myChannels.value = data;
   } catch (error) {
-    console.error('Nepodarilo sa načítať kanály:', error)
+    console.error('Nepodarilo sa načítať kanály:', error);
   }
 }
 
-async function loadUser () {
+async function loadUser() {
   try {
-    const raw = localStorage.getItem('currentUser')
-    if (!raw) return
+    const raw = localStorage.getItem('currentUser');
+    if (!raw) return;
 
-    const basic = JSON.parse(raw) as Partial<CurrentUser>
+    const basic = JSON.parse(raw) as Partial<CurrentUser>;
 
-    const { data } = await api.get<UserFromApi>(`/users/${basic.id}`)
+    const { data } = await api.get<UserFromApi>(`/users/${basic.id}`);
 
-    form.firstname = data.firstname ?? ''
-    form.surname = data.surname ?? ''
-    form.nickname = data.nickname
-    form.email = data.email
-    form.status = data.status ?? 'online'
-    form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly)
+    form.firstname = data.firstname ?? '';
+    form.surname = data.surname ?? '';
+    form.nickname = data.nickname;
+    form.email = data.email;
+    form.status = data.status ?? 'online';
+    form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly);
 
-    copyForm(form, original)
+    copyForm(form, original);
 
     const updatedCurrent: CurrentUser = {
       id: data.id,
@@ -860,19 +802,19 @@ async function loadUser () {
       firstname: data.firstname ?? null,
       surname: data.surname ?? null,
       status: data.status ?? null,
-      profilePicture: data.profilePicture ?? null
-    }
-    currentUser.value = updatedCurrent
-    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+      profilePicture: data.profilePicture ?? null,
+    };
+    currentUser.value = updatedCurrent;
+    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
 
-    await loadChannels(data.id)
+    await loadChannels(data.id);
   } catch (error: unknown) {
-    let message = 'Nepodarilo sa načítať profil.'
+    let message = 'Nepodarilo sa načítať profil.';
 
     if (axios.isAxiosError(error)) {
-      const serverData = error.response?.data
+      const serverData = error.response?.data;
       if (serverData && typeof serverData === 'object' && 'message' in serverData) {
-        message = (serverData as { message: string }).message
+        message = (serverData as { message: string }).message;
       }
     }
 
@@ -880,16 +822,16 @@ async function loadUser () {
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500
-    })
+      timeout: 2500,
+    });
   }
 }
 
-async function saveChanges () {
-  if (!currentUser.value) return
+async function saveChanges() {
+  if (!currentUser.value) return;
 
   try {
-    saving.value = true
+    saving.value = true;
 
     const { data } = await api.put<UserFromApi>(`/users/${currentUser.value.id}`, {
       firstname: form.firstname,
@@ -897,16 +839,16 @@ async function saveChanges () {
       nickname: form.nickname,
       email: form.email,
       status: form.status,
-      notifyOnMentionOnly: form.notifyOnMentionOnly
-    })
+      notifyOnMentionOnly: form.notifyOnMentionOnly,
+    });
 
-    form.firstname = data.firstname ?? ''
-    form.surname = data.surname ?? ''
-    form.nickname = data.nickname
-    form.email = data.email
-    form.status = data.status ?? 'online'
-    form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly)
-    copyForm(form, original)
+    form.firstname = data.firstname ?? '';
+    form.surname = data.surname ?? '';
+    form.nickname = data.nickname;
+    form.email = data.email;
+    form.status = data.status ?? 'online';
+    form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly);
+    copyForm(form, original);
 
     const updatedCurrent: CurrentUser = {
       id: currentUser.value.id,
@@ -915,29 +857,29 @@ async function saveChanges () {
       firstname: data.firstname ?? null,
       surname: data.surname ?? null,
       status: data.status ?? null,
-      profilePicture: data.profilePicture ?? currentUser.value.profilePicture
-    }
-    currentUser.value = updatedCurrent
-    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent))
+      profilePicture: data.profilePicture ?? currentUser.value.profilePicture,
+    };
+    currentUser.value = updatedCurrent;
+    localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
 
     const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
-      detail: updatedCurrent
-    })
-    window.dispatchEvent(event)
+      detail: updatedCurrent,
+    });
+    window.dispatchEvent(event);
 
     $q.notify({
       type: 'positive',
       message: 'Profil bol uložený.',
       position: 'bottom',
-      timeout: 2000
-    })
+      timeout: 2000,
+    });
   } catch (error: unknown) {
-    let message = 'Ukladanie zlyhalo.'
+    let message = 'Ukladanie zlyhalo.';
 
     if (axios.isAxiosError(error)) {
-      const serverData = error.response?.data
+      const serverData = error.response?.data;
       if (serverData && typeof serverData === 'object' && 'message' in serverData) {
-        message = (serverData as { message: string }).message
+        message = (serverData as { message: string }).message;
       }
     }
 
@@ -945,101 +887,101 @@ async function saveChanges () {
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500
-    })
+      timeout: 2500,
+    });
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-function logout () {
-  localStorage.removeItem('currentUser')
-  void router.push('/auth/login')
+function logout() {
+  localStorage.removeItem('currentUser');
+  void router.push('/auth/login');
 }
 
 /* MY CHANNELS HELPERS */
 const availabilityLabel = (availability: string) => {
-  return availability === 'public' ? 'Public' : 'Private'
-}
+  return availability === 'public' ? 'Public' : 'Private';
+};
 
 const isChannelAdmin = (ch: ChannelFromApi) => {
-  return currentUser.value != null && ch.creatorId === currentUser.value.id
-}
+  return currentUser.value != null && ch.creatorId === currentUser.value.id;
+};
 
-async function onLeaveChannel (ch: ChannelFromApi) {
-  if (!currentUser.value) return
+async function onLeaveChannel(ch: ChannelFromApi) {
+  if (!currentUser.value) return;
 
-  const ok = window.confirm(`Naozaj chceš odísť z kanála #${ch.title}?`)
-  if (!ok) return
+  const ok = window.confirm(`Naozaj chceš odísť z kanála #${ch.title}?`);
+  if (!ok) return;
 
   try {
     await api.post(`/channels/${ch.id}/leave`, {
-      userId: currentUser.value.id
-    })
-    myChannels.value = myChannels.value.filter(c => c.id !== ch.id)
+      userId: currentUser.value.id,
+    });
+    myChannels.value = myChannels.value.filter((c) => c.id !== ch.id);
   } catch (error) {
-    console.error('Chyba pri odchode z kanála', error)
+    console.error('Chyba pri odchode z kanála', error);
     $q.notify({
       type: 'negative',
       message: 'Nepodarilo sa opustiť kanál.',
-      position: 'bottom'
-    })
+      position: 'bottom',
+    });
   }
 }
 
-async function onDeleteChannel (ch: ChannelFromApi) {
-  if (!currentUser.value || ch.creatorId !== currentUser.value.id) return
+async function onDeleteChannel(ch: ChannelFromApi) {
+  if (!currentUser.value || ch.creatorId !== currentUser.value.id) return;
 
   const ok = window.confirm(
-    `Naozaj chceš vymazať kanál "#${ch.title}"?\nTúto akciu nie je možné vrátiť.`
-  )
-  if (!ok) return
+    `Naozaj chceš vymazať kanál "#${ch.title}"?\nTúto akciu nie je možné vrátiť.`,
+  );
+  if (!ok) return;
 
   try {
-    await api.delete(`/channels/${ch.id}`)
-    myChannels.value = myChannels.value.filter(c => c.id !== ch.id)
+    await api.delete(`/channels/${ch.id}`);
+    myChannels.value = myChannels.value.filter((c) => c.id !== ch.id);
   } catch (error) {
-    console.error('Chyba pri mazaní kanála', error)
+    console.error('Chyba pri mazaní kanála', error);
     $q.notify({
       type: 'negative',
       message: 'Kanál sa nepodarilo vymazať.',
-      position: 'bottom'
-    })
+      position: 'bottom',
+    });
   }
 }
 
 /* DELETE PROFILE */
-async function onDeleteProfile () {
-  if (!currentUser.value) return
+async function onDeleteProfile() {
+  if (!currentUser.value) return;
 
   const ok = window.confirm(
-    'Naozaj chceš natrvalo vymazať svoj profil?\nTúto akciu nie je možné vrátiť.'
-  )
-  if (!ok) return
+    'Naozaj chceš natrvalo vymazať svoj profil?\nTúto akciu nie je možné vrátiť.',
+  );
+  if (!ok) return;
 
   try {
-    deletingProfile.value = true
+    deletingProfile.value = true;
 
-    await api.delete(`/users/${currentUser.value.id}`)
+    await api.delete(`/users/${currentUser.value.id}`);
 
     $q.notify({
       type: 'positive',
       message: 'Profil bol vymazaný.',
       position: 'bottom',
-      timeout: 2000
-    })
+      timeout: 2000,
+    });
 
-    localStorage.removeItem('currentUser')
-    currentUser.value = null
-    void router.push('/auth/login')
+    localStorage.removeItem('currentUser');
+    currentUser.value = null;
+    void router.push('/auth/login');
   } catch (error) {
-    console.error('Chyba pri mazaní profilu:', error)
+    console.error('Chyba pri mazaní profilu:', error);
 
-    let message = 'Profil sa nepodarilo vymazať.'
+    let message = 'Profil sa nepodarilo vymazať.';
     if (axios.isAxiosError(error)) {
-      const serverData = error.response?.data
+      const serverData = error.response?.data;
       if (serverData && typeof serverData === 'object' && 'message' in serverData) {
-        message = (serverData as { message: string }).message
+        message = (serverData as { message: string }).message;
       }
     }
 
@@ -1047,37 +989,41 @@ async function onDeleteProfile () {
       type: 'negative',
       message,
       position: 'bottom',
-      timeout: 2500
-    })
+      timeout: 2500,
+    });
   } finally {
-    deletingProfile.value = false
+    deletingProfile.value = false;
   }
 }
 
 // Listen for channel deletion events
 const handleChannelDeleted = (event: Event) => {
-  const customEvent = event as CustomEvent<{ channelId: number; title: string }>
-  const { channelId } = customEvent.detail
-  
+  const customEvent = event as CustomEvent<{ channelId: number; title: string }>;
+  const { channelId } = customEvent.detail;
+
   // Remove channel from myChannels list
-  myChannels.value = myChannels.value.filter(c => c.id !== channelId)
-  
-  console.log(`✅ Removed channel ${channelId} from myChannels in real-time`)
-}
+  myChannels.value = myChannels.value.filter((c) => c.id !== channelId);
+
+  console.log(`✅ Removed channel ${channelId} from myChannels in real-time`);
+};
 
 onMounted(() => {
-  void loadUser()
-  window.addEventListener('channelDeleted', handleChannelDeleted)
-})
+  void loadUser();
+  window.addEventListener('channelDeleted', handleChannelDeleted);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('channelDeleted', handleChannelDeleted)
-})
+  window.removeEventListener('channelDeleted', handleChannelDeleted);
+});
 </script>
 
 <style scoped>
-.round-card { border-radius: 16px; }
-.compact-section { padding: 16px; }
+.round-card {
+  border-radius: 16px;
+}
+.compact-section {
+  padding: 16px;
+}
 
 .channels-actions {
   margin-top: 8px;
@@ -1161,7 +1107,7 @@ onUnmounted(() => {
 
 .custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.2) transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 
 .custom-scroll::-webkit-scrollbar {
@@ -1171,7 +1117,7 @@ onUnmounted(() => {
   background: transparent;
 }
 .custom-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(0,0,0,0.2);
+  background-color: rgba(0, 0, 0, 0.2);
   border-radius: 10px;
 }
 
@@ -1190,11 +1136,18 @@ onUnmounted(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.col-title { flex: 1 1 auto; min-width: 200px; }
-.status-select { flex: 0 0 180px; }
+.col-title {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+.status-select {
+  flex: 0 0 180px;
+}
 
 @media (max-width: 600px) {
-  .status-select { flex-basis: 100%; }
+  .status-select {
+    flex-basis: 100%;
+  }
 }
 
 .my-channels-card {
@@ -1213,6 +1166,6 @@ onUnmounted(() => {
 }
 .my-channels-scroll::-webkit-scrollbar-thumb {
   border-radius: 10px;
-  background-color: rgba(0,0,0,0.2);
+  background-color: rgba(0, 0, 0, 0.2);
 }
 </style>

@@ -4,7 +4,7 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 export default class ChannelMembers extends BaseSchema {
   protected tableName = 'channel_members'
 
-  public async up () {
+  public async up() {
     this.schema.createTable(this.tableName, (table) => {
       table
         .integer('user_id')
@@ -29,7 +29,7 @@ export default class ChannelMembers extends BaseSchema {
     })
   }
 
-  public async down () {
+  public async down() {
     this.schema.dropTable(this.tableName)
   }
 }

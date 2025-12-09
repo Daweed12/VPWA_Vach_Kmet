@@ -1,33 +1,18 @@
 <template>
-  <div
-    v-if="typingUsers.length > 0"
-    class="typing-indicator-fixed"
-  >
+  <div v-if="typingUsers.length > 0" class="typing-indicator-fixed">
     <q-card class="typing-card">
       <q-card-section class="q-pa-sm">
-        <div
-          v-for="user in typingUsers"
-          :key="user.id"
-          class="typing-user-item"
-        >
+        <div v-for="user in typingUsers" :key="user.id" class="typing-user-item">
           <div class="row items-center q-mb-xs">
             <q-icon name="edit" size="14px" class="q-mr-xs text-grey-7" />
             <span class="text-caption text-weight-medium text-grey-8">
               {{ user.name }}
             </span>
           </div>
-          <div
-            v-if="user.draftContent"
-            class="draft-content text-body2 text-grey-7 q-pl-md"
-          >
+          <div v-if="user.draftContent" class="draft-content text-body2 text-grey-7 q-pl-md">
             "{{ user.draftContent }}"
           </div>
-          <div
-            v-else
-            class="typing-dots q-pl-md"
-          >
-            <span>.</span><span>.</span><span>.</span>
-          </div>
+          <div v-else class="typing-dots q-pl-md"><span>.</span><span>.</span><span>.</span></div>
         </div>
       </q-card-section>
     </q-card>
@@ -35,11 +20,11 @@
 </template>
 
 <script setup lang="ts">
-import type { TypingUser } from 'src/composables/useTyping'
+import type { TypingUser } from 'src/composables/useTyping';
 
 defineProps<{
-  typingUsers: TypingUser[]
-}>()
+  typingUsers: TypingUser[];
+}>();
 </script>
 
 <style scoped>
@@ -98,7 +83,9 @@ defineProps<{
 }
 
 @keyframes typing-dot {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0.3;
   }
   30% {
@@ -106,4 +93,3 @@ defineProps<{
   }
 }
 </style>
-

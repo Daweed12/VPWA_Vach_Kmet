@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import UserSettings from 'src/components/UserSettings.vue'
+import UserSettings from 'src/components/UserSettings.vue';
 </script>
 
 <style scoped>

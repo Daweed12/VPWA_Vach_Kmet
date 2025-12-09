@@ -4,7 +4,6 @@ import app from '@adonisjs/core/services/app'
 import User from '#models/user'
 
 export default class UsersController {
-
   public async uploadAvatar({ request, auth, response }: HttpContext) {
     const avatarImage = request.file('avatar', {
       size: '2mb',
@@ -33,7 +32,7 @@ export default class UsersController {
 
     await avatarImage.move(app.publicPath('avatars'), {
       name: fileName,
-      overwrite: true
+      overwrite: true,
     })
 
     const filePath = `/avatars/${fileName}`

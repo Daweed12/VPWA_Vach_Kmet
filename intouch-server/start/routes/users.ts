@@ -45,7 +45,7 @@ router.get('/users/search', async ({ request, response }) => {
     console.error('Error in /users/search:', error)
     return response.internalServerError({
       message: 'Chyba pri vyhľadávaní používateľov.',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 })
@@ -99,7 +99,8 @@ router.put('/users/:id', async ({ params, request, response }) => {
         io.to(room).emit('user:status:changed', {
           userId: user.id,
           status: user.status,
-          name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+          name:
+            user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
         })
         console.log(`📢 Sent status change event for user ${user.id} to room ${room}`)
       }
@@ -157,15 +158,15 @@ router.put('/users/:id/photo', async ({ params, request, response }) => {
       io.to(room).emit('user:avatar:changed', {
         userId: user.id,
         profilePicture: publicPath,
-        name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+        name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
       })
       console.log(`📢 Sent avatar change event for user ${user.id} to room ${room}`)
     }
-    
+
     io.emit('user:avatar:changed', {
       userId: user.id,
       profilePicture: publicPath,
-      name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+      name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
     })
   }
 
@@ -179,4 +180,3 @@ router.get('/avatars/:filename', async ({ params, response }) => {
   const filePath = app.publicPath(`avatars/${params.filename}`)
   return response.download(filePath)
 })
-

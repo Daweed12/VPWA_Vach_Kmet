@@ -4,7 +4,7 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 export default class KickVotes extends BaseSchema {
   protected tableName = 'kick_votes'
 
-  public async up () {
+  public async up() {
     this.schema.createTable(this.tableName, (table) => {
       table
         .integer('channel_id')
@@ -38,7 +38,7 @@ export default class KickVotes extends BaseSchema {
     })
   }
 
-  public async down () {
+  public async down() {
     this.schema.dropTable(this.tableName)
   }
 }

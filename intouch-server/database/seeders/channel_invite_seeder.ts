@@ -5,7 +5,7 @@ import Channel from '#models/channel'
 import ChannelInvite from '#models/channel_invite'
 
 export default class ChannelInviteSeeder extends BaseSeeder {
-  public async run () {
+  public async run() {
     const david = await User.findByOrFail('email', 'david@example.com')
     const kristof = await User.findByOrFail('email', 'kristof@example.com')
     const zuzana = await User.findByOrFail('nickname', 'zuzana')

@@ -25,14 +25,16 @@ router.get('/channels/:id/messages', async ({ params, response }) => {
     return {
       ...serialized,
       timestamp: m.timestamp.toISO(),
-      sender: m.sender ? {
-        id: m.sender.id,
-        nickname: m.sender.nickname,
-        firstname: m.sender.firstname,
-        surname: m.sender.surname,
-        email: m.sender.email,
-        profilePicture: m.sender.profilePicture,
-      } : null
+      sender: m.sender
+        ? {
+            id: m.sender.id,
+            nickname: m.sender.nickname,
+            firstname: m.sender.firstname,
+            surname: m.sender.surname,
+            email: m.sender.email,
+            profilePicture: m.sender.profilePicture,
+          }
+        : null,
     }
   })
 })
@@ -96,14 +98,16 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
   const responseMessage = {
     ...serialized,
     timestamp: message.timestamp.toISO(),
-    sender: message.sender ? {
-      id: message.sender.id,
-      nickname: message.sender.nickname,
-      firstname: message.sender.firstname,
-      surname: message.sender.surname,
-      email: message.sender.email,
-      profilePicture: message.sender.profilePicture,
-    } : null
+    sender: message.sender
+      ? {
+          id: message.sender.id,
+          nickname: message.sender.nickname,
+          firstname: message.sender.firstname,
+          surname: message.sender.surname,
+          email: message.sender.email,
+          profilePicture: message.sender.profilePicture,
+        }
+      : null,
   }
 
   // Broadcast via socket.io
@@ -112,7 +116,7 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
     const messageToBroadcast = {
       ...responseMessage,
       channelId: channelId,
-      channel_id: channelId
+      channel_id: channelId,
     }
     const room = `channel:${channelId}`
     io.to(room).emit('chat:message', messageToBroadcast)
@@ -121,4 +125,3 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
 
   return responseMessage
 })
-

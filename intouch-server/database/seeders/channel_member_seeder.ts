@@ -5,7 +5,7 @@ import Channel from '#models/channel'
 import ChannelMember from '#models/channel_member'
 
 export default class ChannelMemberSeeder extends BaseSeeder {
-  public async run () {
+  public async run() {
     // pôvodní používatelia
     const david = await User.findByOrFail('email', 'david@example.com')
     const kristof = await User.findByOrFail('email', 'kristof@example.com')

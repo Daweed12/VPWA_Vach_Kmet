@@ -8,13 +8,13 @@ let io: IOServer | null = null
 export async function boot() {
   try {
     console.log('🔧 Starting Socket.IO initialization...')
-    
+
     // Wait until Adonis boots the HTTP server
     await server.booted
     console.log('✅ Server booted, getting HTTP server...')
 
     const httpServer = server.getNodeServer()
-    
+
     if (!httpServer) {
       console.error('❌ HTTP server is not available!')
       return
@@ -31,7 +31,7 @@ export async function boot() {
       transports: ['polling', 'websocket'], // Polling first for better compatibility
       allowEIO3: true, // Allow Engine.IO v3 clients
       pingTimeout: 60000,
-      pingInterval: 25000
+      pingInterval: 25000,
     })
 
     console.log('✅ Socket.IO server created, setting up event handlers...')
@@ -56,22 +56,31 @@ export async function boot() {
         io?.emit('chat:message', msg)
       })
 
-      socket.on('typing:update', (data: { channelId: number; userId: number; userName: string; userAvatar?: string; draftContent?: string }) => {
-        const room = `channel:${data.channelId}`
-        // Broadcast to others in the channel (not to sender) with draft content
-        socket.to(room).emit('typing:update', {
-          userId: data.userId,
-          userName: data.userName,
-          userAvatar: data.userAvatar,
-          draftContent: data.draftContent || ''
-        })
-      })
+      socket.on(
+        'typing:update',
+        (data: {
+          channelId: number
+          userId: number
+          userName: string
+          userAvatar?: string
+          draftContent?: string
+        }) => {
+          const room = `channel:${data.channelId}`
+          // Broadcast to others in the channel (not to sender) with draft content
+          socket.to(room).emit('typing:update', {
+            userId: data.userId,
+            userName: data.userName,
+            userAvatar: data.userAvatar,
+            draftContent: data.draftContent || '',
+          })
+        }
+      )
 
       socket.on('typing:stop', (data: { channelId: number; userId: number }) => {
         const room = `channel:${data.channelId}`
         // Broadcast to others in the channel (not to sender)
         socket.to(room).emit('typing:stop', {
-          userId: data.userId
+          userId: data.userId,
         })
       })
 

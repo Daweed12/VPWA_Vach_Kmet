@@ -1,21 +1,17 @@
 <template>
   <q-layout view="lhh lpR lFr" class="no-page-scroll">
     <q-header v-if="showHeader" class="bg-orange-1 text-grey-9 left-top-corner">
-      <div style="height: 20px;" class="bg-primary" />
+      <div style="height: 20px" class="bg-primary" />
 
       <q-toolbar>
         <q-toolbar-title>
           <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
 
-          <span v-if="isSettingsPage">
-            Nastavenia používateľského účtu
-          </span>
+          <span v-if="isSettingsPage"> Nastavenia používateľského účtu </span>
           <span v-else-if="currentChannelTitle">
             {{ currentChannelTitle }}
           </span>
-          <span v-else>
-            VPWA - projekt
-          </span>
+          <span v-else> VPWA - projekt </span>
         </q-toolbar-title>
 
         <template v-if="!isSettingsPage">
@@ -33,28 +29,14 @@
             <q-tooltip>Pridať člena do kanála</q-tooltip>
           </q-btn>
 
-          <q-btn
-            dense
-            flat
-            round
-            icon="group"
-            @click="toggleRightDrawer"
-          />
+          <q-btn dense flat round icon="group" @click="toggleRightDrawer" />
         </template>
       </q-toolbar>
     </q-header>
 
     <div class="column no-wrap test">
-      <q-drawer
-        show-if-above
-        v-model="leftDrawerOpen"
-        side="left"
-        class="bg-orange-5 column"
-      >
-        <div
-          style="margin: 10px 15px 10px 15px; cursor: pointer;"
-          @click="navigateHome"
-        >
+      <q-drawer show-if-above v-model="leftDrawerOpen" side="left" class="bg-orange-5 column">
+        <div style="margin: 10px 15px 10px 15px; cursor: pointer" @click="navigateHome">
           <img
             src="../assets/intouch-logo-name.svg"
             alt="logo"
@@ -63,10 +45,7 @@
         </div>
 
         <div class="col q-pa-md bg-orange-2 drawer-div-wrapper column relative-position">
-          <div
-            v-if="!showCmd"
-            class="col full-height hide-scrollbar"
-          >
+          <div v-if="!showCmd" class="col full-height hide-scrollbar">
             <q-list>
               <div class="q-mb-sm">
                 <ChannelSearchHeader
@@ -83,7 +62,7 @@
               </q-item-label>
 
               <div v-if="invites.length">
-                <channel
+                <ChannelBar
                   v-for="inv in invites"
                   :key="'invite-' + inv.id"
                   :name="inv.title"
@@ -93,9 +72,7 @@
                   @reject="() => handleReject(inv)"
                 />
               </div>
-              <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
-                Žiadne pozvánky
-              </div>
+              <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">Žiadne pozvánky</div>
 
               <q-separator spaced />
 
@@ -123,14 +100,19 @@
                 </q-btn>
               </q-item-label>
 
-              <channel
-                v-for="ch in filteredChannels"
-                :key="'ch-' + ch.id"
-                :name="ch.title"
-                :availability="ch.availability"
-                :image-url="ch.logo ?? ''"
-                @click="() => handleChannelClick(ch)"
-              />
+              <div v-if="filteredChannels.length">
+                <ChannelBar
+                  v-for="ch in filteredChannels"
+                  :key="'ch-' + ch.id"
+                  :name="ch.title"
+                  :availability="ch.availability"
+                  :image-url="ch.logo ?? ''"
+                  @click="() => handleChannelClick(ch)"
+                />
+              </div>
+              <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
+                Žiadne kanály
+              </div>
             </q-list>
           </div>
 
@@ -156,8 +138,12 @@
                 <img
                   :src="currentUserAvatar"
                   alt="avatar"
-                  style="object-fit: cover; width: 100%; height: 100%;"
-                  @error="(e) => { (e.target as HTMLImageElement).src = 'https://cdn.quasar.dev/img/avatar4.jpg' }"
+                  style="object-fit: cover; width: 100%; height: 100%"
+                  @error="
+                    (e) => {
+                      (e.target as HTMLImageElement).src = 'https://cdn.quasar.dev/img/avatar4.jpg';
+                    }
+                  "
                 />
                 <div class="status-dot" :class="statusDotClass" />
               </q-avatar>
@@ -192,14 +178,16 @@
                   size="lg"
                   @click="toggleSettings"
                 >
-                  <q-tooltip>{{ isSettingsPage ? 'Späť na chat' : 'Otvor nastavenia účtu' }}</q-tooltip>
+                  <q-tooltip>{{
+                    isSettingsPage ? 'Späť na chat' : 'Otvor nastavenia účtu'
+                  }}</q-tooltip>
                 </q-btn>
               </div>
             </q-item-section>
           </q-item>
         </div>
 
-        <div style="height: 10px;" class="bg-primary" />
+        <div style="height: 10px" class="bg-primary" />
       </q-drawer>
 
       <MemberList
@@ -219,24 +207,15 @@
       </q-page-container>
     </div>
 
-    <q-footer
-      v-if="showComposer"
-      class="bg-orange-1 footer-wrapper q-pa-sm"
-    >
-      <text-bar
-        class="full-width full-height"
-        @send="onTextBarSend"
-        @typing="onTextBarTyping"
-      />
+    <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
+      <text-bar class="full-width full-height" @send="onTextBarSend" @typing="onTextBarTyping" />
     </q-footer>
 
     <q-dialog v-model="createDialogOpen" persistent>
       <q-card style="min-width: 400px">
         <q-card-section>
           <div class="text-h6">Vytvoriť nový kanál</div>
-          <div class="text-caption text-grey-7 q-mt-xs">
-            Budeš nastavený ako vlastník kanála.
-          </div>
+          <div class="text-caption text-grey-7 q-mt-xs">Budeš nastavený ako vlastník kanála.</div>
         </q-card-section>
 
         <q-card-section class="q-pt-none q-gutter-md">
@@ -251,7 +230,7 @@
             type="radio"
             :options="[
               { label: 'Verejný (public)', value: 'public' },
-              { label: 'Súkromný (private)', value: 'private' }
+              { label: 'Súkromný (private)', value: 'private' },
             ]"
             inline
           />
@@ -274,7 +253,12 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="addChannelDialogOpen" persistent transition-show="scale" transition-hide="scale">
+    <q-dialog
+      v-model="addChannelDialogOpen"
+      persistent
+      transition-show="scale"
+      transition-hide="scale"
+    >
       <AddChannelToUser
         :user-id="currentUser?.id ?? null"
         @close="closeAddChannelDialog"
@@ -285,18 +269,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import textBar from 'src/components/TextBar.vue'
-import ChannelBar from 'components/ChannelBar.vue'
-import ChannelSearchHeader from 'components/ChannelSearchHeader.vue'
-import MemberList from 'components/MemberList.vue'
-import CommandPanel from 'components/CommandPanel.vue'
-import AddChannelToUser from 'components/AddChannelToUser.vue'
-import { api } from 'boot/api'
-import { useChannels, type ChannelFromApi } from 'src/composables/useChannels'
-import { useInvites, type InviteFromApi } from 'src/composables/useInvites'
-import { useUser, type CurrentUser } from 'src/composables/useUser'
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import textBar from 'src/components/TextBar.vue';
+import ChannelBar from 'components/ChannelBar.vue';
+import ChannelSearchHeader from 'components/ChannelSearchHeader.vue';
+import MemberList from 'components/MemberList.vue';
+import CommandPanel from 'components/CommandPanel.vue';
+import AddChannelToUser from 'components/AddChannelToUser.vue';
+import { api } from 'boot/api';
+import { useChannels, type ChannelFromApi } from 'src/composables/useChannels';
+import { useInvites, type InviteFromApi } from 'src/composables/useInvites';
+import { useUser, type CurrentUser } from 'src/composables/useUser';
 
 interface MemberListInstance {
   openAddDialog: () => void;
@@ -316,336 +300,490 @@ interface ApiError {
   message: string;
 }
 
-const leftDrawerOpen = ref(true)
-const rightDrawerOpen = ref(false)
-const showCmd = ref(false)
-const memberListRef = ref<MemberListInstance | null>(null)
+const leftDrawerOpen = ref(true);
+const rightDrawerOpen = ref(false);
+const showCmd = ref(false);
+const memberListRef = ref<MemberListInstance | null>(null);
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 
 /* ===== Composables ===== */
-const { currentUser, currentUserName, currentUserAvatar, currentUserStatus, statusDotClass, loadUser } = useUser()
-const { channels, channelSearch, currentChannel, currentChannelTitle, filteredChannels, canDeleteCurrentChannel, loadChannels, handleChannelClick } = useChannels(currentUser)
-const { invites, loadInvites, handleAccept: acceptInvite, handleReject: rejectInvite } = useInvites(currentUser)
+const {
+  currentUser,
+  currentUserName,
+  currentUserAvatar,
+  currentUserStatus,
+  statusDotClass,
+  loadUser,
+} = useUser();
+const {
+  channels,
+  channelSearch,
+  currentChannel,
+  currentChannelTitle,
+  filteredChannels,
+  canDeleteCurrentChannel,
+  loadChannels,
+  handleChannelClick,
+} = useChannels(currentUser);
+const {
+  invites,
+  loadInvites,
+  handleAccept: acceptInvite,
+  handleReject: rejectInvite,
+} = useInvites(currentUser);
 
 /* ===== Computed ===== */
-const showHeader = computed(() => route.meta.showHeader !== false)
-const isSettingsPage = computed(() => route.path.startsWith('/app/settings'))
-const showComposer = computed(() => !isSettingsPage.value)
+const showHeader = computed(() => route.meta.showHeader !== false);
+const isSettingsPage = computed(() => route.path.startsWith('/app/settings'));
+const showComposer = computed(() => !isSettingsPage.value);
 
 /* ===== Channel Management ===== */
-const createDialogOpen = ref(false)
-const newChannelTitle = ref('')
-const newChannelAvailability = ref<'public' | 'private'>('public')
-const creatingChannel = ref(false)
-const createChannelError = ref('')
-const deletingChannel = ref(false)
-const addChannelDialogOpen = ref(false)
+const createDialogOpen = ref(false);
+const newChannelTitle = ref('');
+const newChannelAvailability = ref<'public' | 'private'>('public');
+const creatingChannel = ref(false);
+const createChannelError = ref('');
+const deletingChannel = ref(false);
+const addChannelDialogOpen = ref(false);
 
 const commandHistory = ref<CmdLog[]>([
   { type: 'output', text: 'Vitaj v inTouch CMD.' },
-  { type: 'output', text: 'Napíš /help pre pomoc.' }
-])
+  { type: 'output', text: 'Napíš /help pre pomoc.' },
+]);
 
 /* ===== Functions ===== */
-function toggleLeftDrawer() { leftDrawerOpen.value = !leftDrawerOpen.value }
-function toggleRightDrawer() { rightDrawerOpen.value = !rightDrawerOpen.value }
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value;
+}
+function toggleRightDrawer() {
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+}
 
 const handleAccept = async (inv: InviteFromApi) => {
-  const success = await acceptInvite(inv)
+  const success = await acceptInvite(inv);
   if (success && !channels.value.find((c) => c.id === inv.channelId)) {
-    channels.value.unshift({ id: inv.channelId, title: inv.title, availability: inv.availability })
+    channels.value.unshift({ id: inv.channelId, title: inv.title, availability: inv.availability });
   }
-}
+};
 
 const handleReject = async (inv: InviteFromApi) => {
-  await rejectInvite(inv)
-}
+  await rejectInvite(inv);
+};
 
 const onAddPersonClick = () => {
   if (!currentChannel.value) {
-    window.alert('Najprv musíš vybrať kanál.')
-    return
+    window.alert('Najprv musíš vybrať kanál.');
+    return;
   }
   if (memberListRef.value) {
-    memberListRef.value.openAddDialog()
+    memberListRef.value.openAddDialog();
   }
-}
+};
 
 const handleCmdLog = (entry: CmdLog) => {
-  commandHistory.value.push(entry)
-}
+  commandHistory.value.push(entry);
+};
 
 const handleCmdClear = () => {
-  commandHistory.value = []
-}
+  commandHistory.value = [];
+};
 
 const toggleSettings = async () => {
   if (isSettingsPage.value) {
-    await router.push('/app')
+    await router.push('/app');
     if (currentChannel.value) {
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('channelSelected', { 
-          detail: { id: currentChannel.value?.id, title: currentChannel.value?.title } 
-        }))
-      }, 50)
+        window.dispatchEvent(
+          new CustomEvent('channelSelected', {
+            detail: { id: currentChannel.value?.id, title: currentChannel.value?.title },
+          }),
+        );
+      }, 50);
     }
   } else {
-    await router.push('/app/settings')
+    await router.push('/app/settings');
   }
-}
+};
 
 function openCreateChannelDialog() {
-  if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
-  createChannelError.value = ''
-  newChannelTitle.value = ''
-  newChannelAvailability.value = 'public'
-  createDialogOpen.value = true
+  if (!currentUser.value) {
+    window.alert('Najprv sa prihlás.');
+    return;
+  }
+  createChannelError.value = '';
+  newChannelTitle.value = '';
+  newChannelAvailability.value = 'public';
+  createDialogOpen.value = true;
 }
 
 function closeCreateDialog() {
-  if (creatingChannel.value) return
-  createDialogOpen.value = false
+  if (creatingChannel.value) return;
+  createDialogOpen.value = false;
 }
 
 function openAddChannelDialog() {
-  if (!currentUser.value) { window.alert('Najprv sa prihlás.'); return }
-  addChannelDialogOpen.value = true
+  if (!currentUser.value) {
+    window.alert('Najprv sa prihlás.');
+    return;
+  }
+  addChannelDialogOpen.value = true;
 }
 
 function closeAddChannelDialog() {
-  addChannelDialogOpen.value = false
+  addChannelDialogOpen.value = false;
 }
 
 const handleChannelJoinedFromDialog = (channel: ChannelFromApi) => {
-  if (!channels.value.find(c => c.id === channel.id)) {
-    channels.value.unshift(channel)
+  if (!channels.value.find((c) => c.id === channel.id)) {
+    channels.value.unshift(channel);
   }
-  closeAddChannelDialog()
-}
+  closeAddChannelDialog();
+};
 
 const onCreateChannelConfirm = async () => {
-  if (!currentUser.value) { createChannelError.value = 'Nie si prihlásený.'; return }
-  const title = newChannelTitle.value.trim()
-  if (title.length < 3) { createChannelError.value = 'Min. 3 znaky.'; return }
-  const lower = title.toLowerCase()
-  if (channels.value.some(c => c.title.trim().toLowerCase() === lower)) { createChannelError.value = 'Kanál už existuje.'; return }
-  creatingChannel.value = true
-  createChannelError.value = ''
+  if (!currentUser.value) {
+    createChannelError.value = 'Nie si prihlásený.';
+    return;
+  }
+  const title = newChannelTitle.value.trim();
+  if (title.length < 3) {
+    createChannelError.value = 'Min. 3 znaky.';
+    return;
+  }
+  const lower = title.toLowerCase();
+  if (channels.value.some((c) => c.title.trim().toLowerCase() === lower)) {
+    createChannelError.value = 'Kanál už existuje.';
+    return;
+  }
+  creatingChannel.value = true;
+  createChannelError.value = '';
   try {
-    const payload = { title, availability: newChannelAvailability.value, creatorId: currentUser.value.id }
-    const res = await api.post('/channels', payload)
-    const created = res.data as ChannelFromApi
-    
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    if (!channels.value.find(c => c.id === created.id)) {
-      channels.value.unshift(created)
-      handleChannelClick(created)
+    const payload = {
+      title,
+      availability: newChannelAvailability.value,
+      creatorId: currentUser.value.id,
+    };
+    const res = await api.post('/channels', payload);
+    const created = res.data as ChannelFromApi;
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    if (!channels.value.find((c) => c.id === created.id)) {
+      channels.value.unshift(created);
+      handleChannelClick(created);
     } else {
-      const existingChannel = channels.value.find(c => c.id === created.id)
+      const existingChannel = channels.value.find((c) => c.id === created.id);
       if (existingChannel) {
-        handleChannelClick(existingChannel)
+        handleChannelClick(existingChannel);
       }
     }
-    
-    createDialogOpen.value = false
-    creatingChannel.value = false
+
+    createDialogOpen.value = false;
+    creatingChannel.value = false;
   } catch (err: unknown) {
-    console.error('Chyba:', err)
-    const error = err as ApiError
-    createChannelError.value = error.response?.data?.message ?? 'Chyba.'
-    creatingChannel.value = false
+    console.error('Chyba:', err);
+    const error = err as ApiError;
+    createChannelError.value = error.response?.data?.message ?? 'Chyba.';
+    creatingChannel.value = false;
   }
-}
+};
 
 const onDeleteCurrentChannel = async () => {
-  if (!currentChannel.value || !currentUser.value || !canDeleteCurrentChannel.value) return
-  const ok = window.confirm(`Vymazať kanál "${currentChannel.value.title}"?`)
-  if (!ok) return
+  if (!currentChannel.value || !currentUser.value || !canDeleteCurrentChannel.value) return;
+  const ok = window.confirm(`Vymazať kanál "${currentChannel.value.title}"?`);
+  if (!ok) return;
   try {
-    deletingChannel.value = true
-    await api.delete(`/channels/${currentChannel.value.id}`)
-    channels.value = channels.value.filter(c => c.id !== currentChannel.value!.id)
-    currentChannel.value = null
-    currentChannelTitle.value = null
-    window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }))
+    deletingChannel.value = true;
+    await api.delete(`/channels/${currentChannel.value.id}`);
+    channels.value = channels.value.filter((c) => c.id !== currentChannel.value!.id);
+    currentChannel.value = null;
+    currentChannelTitle.value = null;
+    window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }));
   } catch (error) {
-    console.error('Chyba:', error)
-    window.alert('Chyba pri mazaní.')
+    console.error('Chyba:', error);
+    window.alert('Chyba pri mazaní.');
   } finally {
-    deletingChannel.value = false
+    deletingChannel.value = false;
   }
-}
+};
 
 const navigateHome = () => {
-  void router.push('/app')
-  currentChannel.value = null
-  currentChannelTitle.value = null
-  window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }))
-}
+  void router.push('/app');
+  currentChannel.value = null;
+  currentChannelTitle.value = null;
+  window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }));
+};
 
 const onTextBarTyping = (isTyping: boolean, draftContent?: string) => {
-  if (typeof window.emitTyping === 'function') window.emitTyping(isTyping, draftContent)
-}
+  if (typeof window.emitTyping === 'function') window.emitTyping(isTyping, draftContent);
+};
 
 const onTextBarSend = async (text: string) => {
-  const cmd = text.trim().toLowerCase()
-  if (cmd === '/list') { rightDrawerOpen.value = true; return }
-  if (!currentChannel.value || !currentUser.value) return
-  if (text.trim().startsWith('/')) { console.log('Príkaz:', text); return }
-  onTextBarTyping(false)
-  const messageText = text.trim()
-  if (typeof window.addMessageToChat === 'function') window.addMessageToChat(messageText)
-  try {
-    const response = await api.post(`/channels/${currentChannel.value.id}/messages`, { content: messageText, senderId: currentUser.value.id })
-    console.log('✅ Message sent:', response.data)
-  } catch (error) {
-    console.error('❌ Chyba pri odosielaní správy:', error)
-    window.alert('Nepodarilo sa odoslať správu.')
+  const cmd = text.trim().toLowerCase();
+  if (cmd === '/list') {
+    rightDrawerOpen.value = true;
+    return;
   }
-}
+  if (!currentChannel.value || !currentUser.value) return;
+  if (text.trim().startsWith('/')) {
+    console.log('Príkaz:', text);
+    return;
+  }
+  onTextBarTyping(false);
+  const messageText = text.trim();
+  if (typeof window.addMessageToChat === 'function') window.addMessageToChat(messageText);
+  try {
+    const response = await api.post(`/channels/${currentChannel.value.id}/messages`, {
+      content: messageText,
+      senderId: currentUser.value.id,
+    });
+    console.log('✅ Message sent:', response.data);
+  } catch (error) {
+    console.error('❌ Chyba pri odosielaní správy:', error);
+    window.alert('Nepodarilo sa odoslať správu.');
+  }
+};
 
 /* ===== Event Handlers ===== */
 const setupEventListeners = () => {
   const handleUserUpdate = (event: Event) => {
-    const customEvent = event as CustomEvent<CurrentUser>
+    const customEvent = event as CustomEvent<CurrentUser>;
     if (customEvent.detail) {
-      currentUser.value = customEvent.detail
-      localStorage.setItem('currentUser', JSON.stringify(customEvent.detail))
+      currentUser.value = customEvent.detail;
+      localStorage.setItem('currentUser', JSON.stringify(customEvent.detail));
     }
-  }
-  window.addEventListener('currentUserUpdated', handleUserUpdate)
+  };
+  window.addEventListener('currentUserUpdated', handleUserUpdate);
 
   const handleUserAvatarChanged = (event: Event) => {
-    const customEvent = event as CustomEvent<{ userId: number; profilePicture: string; name: string }>
-    const { userId, profilePicture } = customEvent.detail
-    
+    const customEvent = event as CustomEvent<{
+      userId: number;
+      profilePicture: string;
+      name: string;
+    }>;
+    const { userId, profilePicture } = customEvent.detail;
+
     if (currentUser.value && currentUser.value.id === userId) {
-      currentUser.value.profilePicture = profilePicture
-      localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
+      currentUser.value.profilePicture = profilePicture;
+      localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
     }
-  }
-  window.addEventListener('userAvatarChanged', handleUserAvatarChanged)
+  };
+  window.addEventListener('userAvatarChanged', handleUserAvatarChanged);
 
   const handleChannelDeleted = (event: Event) => {
-    const customEvent = event as CustomEvent<{ channelId: number; title: string }>
-    const { channelId } = customEvent.detail
-    
-    channels.value = channels.value.filter(c => c.id !== channelId)
-    
+    const customEvent = event as CustomEvent<{ channelId: number; title: string }>;
+    const { channelId } = customEvent.detail;
+
+    channels.value = channels.value.filter((c) => c.id !== channelId);
+
     if (currentChannel.value?.id === channelId) {
-      currentChannel.value = null
-      currentChannelTitle.value = null
-      window.dispatchEvent(new CustomEvent('channelSelected', { 
-        detail: { id: null, title: null } 
-      }))
+      currentChannel.value = null;
+      currentChannelTitle.value = null;
+      window.dispatchEvent(
+        new CustomEvent('channelSelected', {
+          detail: { id: null, title: null },
+        }),
+      );
     }
-    
-    console.log(`✅ Removed channel ${channelId} from list in real-time`)
-  }
-  window.addEventListener('channelDeleted', handleChannelDeleted)
+
+    console.log(`✅ Removed channel ${channelId} from list in real-time`);
+  };
+  window.addEventListener('channelDeleted', handleChannelDeleted);
 
   const handleChannelCreated = (event: Event) => {
-    const customEvent = event as CustomEvent<{ id: number; title: string; availability: string; creatorId: number; createdAt: string; userId?: number }>
-    const data = customEvent.detail
-    
+    const customEvent = event as CustomEvent<{
+      id: number;
+      title: string;
+      availability: string;
+      creatorId: number;
+      createdAt: string;
+      userId?: number;
+    }>;
+    const data = customEvent.detail;
+
     if (!data.userId || currentUser.value?.id !== data.userId) {
-      return
+      return;
     }
-    
-    if (!channels.value.find(c => c.id === data.id)) {
+
+    if (!channels.value.find((c) => c.id === data.id)) {
       channels.value.unshift({
         id: data.id,
         title: data.title,
         availability: data.availability,
         creatorId: data.creatorId,
-        createdAt: data.createdAt
-      })
-      console.log(`✅ Added channel ${data.id} (${data.title}) to list in real-time (creator only)`)
+        createdAt: data.createdAt,
+      });
+      console.log(
+        `✅ Added channel ${data.id} (${data.title}) to list in real-time (creator only)`,
+      );
     }
-  }
-  window.addEventListener('channelCreated', handleChannelCreated)
+  };
+  window.addEventListener('channelCreated', handleChannelCreated);
 
   const handleInviteCreated = (event: Event) => {
-    const customEvent = event as CustomEvent<{ id: number; channelId: number; title: string; availability: string; createdAt: string; userId: number }>
-    const data = customEvent.detail
-    
+    const customEvent = event as CustomEvent<{
+      id: number;
+      channelId: number;
+      title: string;
+      availability: string;
+      createdAt: string;
+      userId: number;
+    }>;
+    const data = customEvent.detail;
+
     if (currentUser.value?.id === data.userId) {
-      if (!invites.value.find(i => i.id === data.id)) {
+      if (!invites.value.find((i) => i.id === data.id)) {
         invites.value.unshift({
           id: data.id,
           channelId: data.channelId,
           title: data.title,
           availability: data.availability,
           inviterId: 0,
-          createdAt: data.createdAt
-        })
-        console.log(`✅ Added invite ${data.id} for channel ${data.channelId} to list in real-time`)
+          createdAt: data.createdAt,
+        });
+        console.log(
+          `✅ Added invite ${data.id} for channel ${data.channelId} to list in real-time`,
+        );
       }
     }
-  }
-  window.addEventListener('inviteCreated', handleInviteCreated)
+  };
+  window.addEventListener('inviteCreated', handleInviteCreated);
 
   const handleChannelJoined = (event: Event) => {
-    const customEvent = event as CustomEvent<{ channelId: number; userId: number; channel: ChannelFromApi }>
-    const data = customEvent.detail
-    
+    const customEvent = event as CustomEvent<{
+      channelId: number;
+      userId: number;
+      channel: ChannelFromApi;
+    }>;
+    const data = customEvent.detail;
+
     if (currentUser.value?.id === data.userId) {
-      if (!channels.value.find(c => c.id === data.channelId)) {
-        channels.value.unshift(data.channel)
-        console.log(`✅ Added channel ${data.channelId} (${data.channel.title}) to list in real-time`)
+      if (!channels.value.find((c) => c.id === data.channelId)) {
+        channels.value.unshift(data.channel);
+        console.log(
+          `✅ Added channel ${data.channelId} (${data.channel.title}) to list in real-time`,
+        );
       }
     }
-  }
-  window.addEventListener('channelJoined', handleChannelJoined)
+  };
+  window.addEventListener('channelJoined', handleChannelJoined);
 
   const handleOpenMemberList = () => {
-    rightDrawerOpen.value = true
-  }
-  window.addEventListener('openMemberList', handleOpenMemberList)
+    rightDrawerOpen.value = true;
+  };
+  window.addEventListener('openMemberList', handleOpenMemberList);
 
   return () => {
-    window.removeEventListener('currentUserUpdated', handleUserUpdate)
-    window.removeEventListener('userAvatarChanged', handleUserAvatarChanged)
-    window.removeEventListener('channelDeleted', handleChannelDeleted)
-    window.removeEventListener('channelCreated', handleChannelCreated)
-    window.removeEventListener('inviteCreated', handleInviteCreated)
-    window.removeEventListener('openMemberList', handleOpenMemberList)
-    window.removeEventListener('channelJoined', handleChannelJoined)
-  }
-}
+    window.removeEventListener('currentUserUpdated', handleUserUpdate);
+    window.removeEventListener('userAvatarChanged', handleUserAvatarChanged);
+    window.removeEventListener('channelDeleted', handleChannelDeleted);
+    window.removeEventListener('channelCreated', handleChannelCreated);
+    window.removeEventListener('inviteCreated', handleInviteCreated);
+    window.removeEventListener('openMemberList', handleOpenMemberList);
+    window.removeEventListener('channelJoined', handleChannelJoined);
+  };
+};
 
 /* ===== Lifecycle ===== */
 onMounted(async () => {
-  await loadUser()
-  await loadChannels()
-  await loadInvites()
+  await loadUser();
+  await loadChannels();
+  await loadInvites();
 
-  const cleanup = setupEventListeners()
-  
+  setupEventListeners();
+
   // Note: In a real app, you'd want to call cleanup on unmount
   // For now, we'll rely on the component being persistent
-})
+});
 </script>
 
 <style>
-.q-page-container, .no-page-scroll .q-page { height: 100%; overflow: hidden; }
-html, body, #q-app { height: 100%; overflow: hidden !important; }
-.no-page-scroll { height: 100vh !important; overflow: hidden !important; }
-.q-page-container { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
-.test { flex: 1; min-height: 0; overflow: hidden; }
-.footer-wrapper { border-radius: 20px; }
-.full-width { width: 100%; }
-.full-height { height: 100%; }
-.drawer-div-wrapper { border-radius: 20px; margin: 0 10px 0 10px; }
-.hide-scrollbar { overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.avatar-with-status { position: relative; }
-.status-dot { position: absolute; bottom: 0px; right: 0px; width: 22px; height: 22px; border-radius: 50%; border: 4px solid #fef3c7; box-sizing: border-box; }
-.section-label { color: #8d6e63; text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 6px; }
-.count-badge { font-size: 11px; line-height: 1; padding: 2px 6px; border-radius: 10px; background: #ffb74d; color: #4e342e; }
-.q-drawer__content::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
-.q-drawer__content { scrollbar-width: none !important; -ms-overflow-style: none !important; overflow-x: hidden !important; }
+.q-page-container,
+.no-page-scroll .q-page {
+  height: 100%;
+  overflow: hidden;
+}
+html,
+body,
+#q-app {
+  height: 100%;
+  overflow: hidden !important;
+}
+.no-page-scroll {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+.q-page-container {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.test {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.footer-wrapper {
+  border-radius: 20px;
+}
+.full-width {
+  width: 100%;
+}
+.full-height {
+  height: 100%;
+}
+.drawer-div-wrapper {
+  border-radius: 20px;
+  margin: 0 10px 0 10px;
+}
+.hide-scrollbar {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.avatar-with-status {
+  position: relative;
+}
+.status-dot {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 4px solid #fef3c7;
+  box-sizing: border-box;
+}
+.section-label {
+  color: #8d6e63;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.count-badge {
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #ffb74d;
+  color: #4e342e;
+}
+.q-drawer__content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.q-drawer__content {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow-x: hidden !important;
+}
 </style>

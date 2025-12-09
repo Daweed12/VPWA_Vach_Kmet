@@ -2,7 +2,7 @@ import { BaseSeeder } from '@adonisjs/lucid/seeders'
 import User from '#models/user'
 
 export default class UserSeeder extends BaseSeeder {
-  public async run () {
+  public async run() {
     const users = [
       {
         nickname: 'razdvach',
@@ -342,7 +342,7 @@ export default class UserSeeder extends BaseSeeder {
     for (const user of users) {
       await User.updateOrCreate(
         { email: user.email }, // vyhľadávací kľúč
-        user,                  // dáta na update / create
+        user // dáta na update / create
       )
     }
 

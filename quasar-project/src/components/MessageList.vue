@@ -8,11 +8,7 @@
       @load="onLoad"
       scroll-target="#chat-scroll"
     >
-      <div
-        v-for="msg in visibleMessages"
-        :key="msg.id"
-        class="q-px-sm q-py-xs"
-      >
+      <div v-for="msg in visibleMessages" :key="msg.id" class="q-px-sm q-py-xs">
         <q-chat-message
           :name="msg.name"
           :stamp="msg.stamp"
@@ -26,21 +22,18 @@
               size="38px"
               :class="['msg-avatar', msg.sent ? 'msg-avatar--sent' : 'msg-avatar--received']"
             >
-              <img :src="msg.avatar" style="object-fit: cover;" />
+              <img :src="msg.avatar" style="object-fit: cover" />
             </q-avatar>
           </template>
 
           <template #default>
             <span class="bubble-text">
-              <span
-                v-for="(chunk, idx) in chunks(msg.text)"
-                :key="msg.id + '-' + idx"
-              >
+              <span v-for="(chunk, idx) in chunks(msg.text)" :key="msg.id + '-' + idx">
                 <span
                   v-if="chunk.type === 'mention'"
                   :class="{
                     'mention-me': chunk.value === currentUserNickname,
-                    'mention-text': chunk.value !== currentUserNickname
+                    'mention-text': chunk.value !== currentUserNickname,
                   }"
                 >
                   @{{ chunk.value }}
@@ -64,20 +57,20 @@
 </template>
 
 <script setup lang="ts">
-import type { UiMessage } from 'src/composables/useMessages'
-import { parseMentions } from 'src/utils/mentionParser'
+import type { UiMessage } from 'src/composables/useMessages';
+import { parseMentions } from 'src/utils/mentionParser';
 
 interface Props {
-  visibleMessages: UiMessage[]
-  currentUserNickname?: string | null
-  infiniteKey: number
-  isLoading: boolean
-  onLoad: (index: number, done: (finished?: boolean) => void) => void
+  visibleMessages: UiMessage[];
+  currentUserNickname?: string | null | undefined;
+  infiniteKey: number;
+  isLoading: boolean;
+  onLoad: (index: number, done: (finished?: boolean) => void) => void;
 }
 
-const props = defineProps<Props>()
+defineProps<Props>();
 
-const chunks = (text: string) => parseMentions(text)
+const chunks = (text: string) => parseMentions(text);
 </script>
 
 <style scoped>
@@ -130,4 +123,3 @@ const chunks = (text: string) => parseMentions(text)
   margin-left: 8px;
 }
 </style>
-

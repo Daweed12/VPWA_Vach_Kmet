@@ -13,8 +13,7 @@ router.get('/invites', async ({ request }) => {
   const userId = Number(request.input('userId'))
   if (!userId) return []
 
-  const invites = await ChannelInvite
-    .query()
+  const invites = await ChannelInvite.query()
     .where('user_id', userId)
     .where('status', 'pending')
     .preload('channel')
@@ -50,16 +49,15 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
 
   await ChannelMember.firstOrCreate(
     { userId: invite.userId, channelId: invite.channelId },
-    { status: 'member' },
+    { status: 'member' }
   )
 
   const user = await User.find(invite.userId)
   const channel = await Channel.find(invite.channelId)
 
   if (user && channel) {
-    const userName = user.nickname || 
-      `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || 
-      user.email
+    const userName =
+      user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
 
     const io = getIO()
     if (io) {
@@ -68,9 +66,11 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
         channelId: channel.id,
         userId: user.id,
         userName: userName,
-        status: user.status || 'offline'
+        status: user.status || 'offline',
       })
-      console.log(`📢 Sent member:joined event for user ${user.id} (${userName}) to channel ${channel.id} room`)
+      console.log(
+        `📢 Sent member:joined event for user ${user.id} (${userName}) to channel ${channel.id} room`
+      )
     }
   }
 
@@ -103,7 +103,8 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
   const { userId, inviterId } = request.only(['userId', 'inviterId'])
 
   if (Number.isNaN(channelId)) return response.badRequest({ message: 'Neplatné ID kanála.' })
-  if (!userId || !inviterId) return response.badRequest({ message: 'userId a inviterId sú povinné.' })
+  if (!userId || !inviterId)
+    return response.badRequest({ message: 'userId a inviterId sú povinné.' })
 
   const channel = await Channel.find(channelId)
   if (!channel) return response.notFound({ message: 'Kanál neexistuje.' })
@@ -121,7 +122,7 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
 
     if (!inviterMember || inviterMember.status !== 'owner') {
       return response.forbidden({
-        message: 'Len vlastník súkromného kanála môže pozývať používateľov.'
+        message: 'Len vlastník súkromného kanála môže pozývať používateľov.',
       })
     }
   }
@@ -167,16 +168,18 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
     const io = getIO()
     if (io) {
       const createdAt = invite.createdAt?.toISO() || new Date().toISOString()
-      
+
       io.emit('invite:created', {
         id: invite.id,
         channelId: invite.channelId,
         title: invite.channel.title,
         availability: invite.channel.availability,
         createdAt: createdAt,
-        userId: invite.userId
+        userId: invite.userId,
       })
-      console.log(`📢 Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`)
+      console.log(
+        `📢 Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`
+      )
     }
 
     return invite
@@ -188,4 +191,3 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
     throw error
   }
 })
-

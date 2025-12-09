@@ -13,7 +13,7 @@ type Channel = {
 export default defineComponent({
   name: 'AddChannelToUser',
   props: {
-    userId: { type: Number as () => number | null, default: null }
+    userId: { type: Number as () => number | null, default: null },
   },
   emits: ['close', 'channel-joined'],
   setup(props, { emit }) {
@@ -42,23 +42,23 @@ export default defineComponent({
 
       try {
         const response = await api.get('/channels/search', {
-          params: { 
+          params: {
             q: searchTerm.trim(),
-            userId: props.userId
-          }
+            userId: props.userId,
+          },
         });
         searchResults.value = response.data || [];
       } catch (err) {
         console.error('Error searching channels:', err);
-        const axiosError = err as { 
-          response?: { 
+        const axiosError = err as {
+          response?: {
             data?: { message?: string; error?: string };
             status?: number;
             statusText?: string;
           };
           message?: string;
         };
-        
+
         if (axiosError.response?.data?.message) {
           error.value = axiosError.response.data.message;
         } else if (axiosError.response?.data?.error) {
@@ -101,7 +101,7 @@ export default defineComponent({
       }
 
       // Skontroluj, či userId je platné číslo
-      const userId = Number(props.userId)
+      const userId = Number(props.userId);
       if (Number.isNaN(userId) || userId <= 0) {
         error.value = 'Neplatné ID používateľa. Skús sa znova prihlásiť.';
         return;
@@ -112,7 +112,7 @@ export default defineComponent({
 
       try {
         const response = await api.post(`/channels/${selectedChannel.value.id}/join`, {
-          userId: userId
+          userId: userId,
         });
 
         console.log('Joined channel successfully:', response.data);
@@ -121,15 +121,15 @@ export default defineComponent({
         close();
       } catch (err) {
         console.error('Error joining channel:', err);
-        const axiosError = err as { 
-          response?: { 
+        const axiosError = err as {
+          response?: {
             data?: { message?: string };
             status?: number;
             statusText?: string;
           };
           message?: string;
         };
-        
+
         if (axiosError.response?.data?.message) {
           error.value = axiosError.response.data.message;
         } else if (axiosError.response?.statusText) {
@@ -161,14 +161,14 @@ export default defineComponent({
       error,
       selectChannel,
       joinChannel,
-      close
+      close,
     };
-  }
+  },
 });
 </script>
 
 <template>
-  <q-card style="min-width: 520px; max-width: 90vw;">
+  <q-card style="min-width: 520px; max-width: 90vw">
     <q-card-section class="row items-center justify-between">
       <div class="text-h6">Pripojiť sa ku kanálu</div>
       <q-btn flat round dense icon="close" @click="close" />
@@ -234,12 +234,18 @@ export default defineComponent({
             dense
             icon="close"
             color="white"
-            @click="selectedChannel = null; query = ''"
+            @click="
+              selectedChannel = null;
+              query = '';
+            "
           />
         </div>
       </div>
 
-      <div v-else-if="query.length >= 1 && !loading && searchResults.length === 0" class="text-grey-6 text-center q-pa-md">
+      <div
+        v-else-if="query.length >= 1 && !loading && searchResults.length === 0"
+        class="text-grey-6 text-center q-pa-md"
+      >
         Žiadne kanály nenájdené
       </div>
     </q-card-section>
@@ -260,7 +266,7 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.rounded-borders { border-radius: 12px; }
+.rounded-borders {
+  border-radius: 12px;
+}
 </style>
-
-

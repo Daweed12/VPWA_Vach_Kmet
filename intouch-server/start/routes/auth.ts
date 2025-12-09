@@ -9,10 +9,7 @@ import ChannelMember from '#models/channel_member'
 router.post('/login', async ({ request, response }) => {
   const { username, password } = request.only(['username', 'password'])
 
-  const user = await User.query()
-    .where('nickname', username)
-    .orWhere('email', username)
-    .first()
+  const user = await User.query().where('nickname', username).orWhere('email', username).first()
 
   if (!user || user.password !== password) {
     return response.unauthorized({ message: 'Nesprávne meno alebo heslo.' })
@@ -69,8 +66,8 @@ router.post('/register', async ({ request, response }) => {
         userId: user.id,
         channelId: ch.id,
         status: 'member',
-      }),
-    ),
+      })
+    )
   )
 
   return {
@@ -119,4 +116,3 @@ router.post('/auth/change-password', async ({ request, response }) => {
     message: 'Heslo bolo úspešne zmenené.',
   }
 })
-

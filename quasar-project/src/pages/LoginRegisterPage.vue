@@ -1,7 +1,6 @@
 <template>
   <q-page class="flex flex-center bg-orange-6">
     <div class="column items-center q-gutter-md">
-
       <q-img
         :src="logoUrl"
         contain
@@ -9,14 +8,14 @@
         alt="inTouch logo"
       />
 
-      <q-card class="q-pa-xl q-pt-lg" style="width: 420px; max-width: 90vw;">
+      <q-card class="q-pa-xl q-pt-lg" style="width: 420px; max-width: 90vw">
         <q-form v-if="!showRegister" @submit.prevent="handleLogin">
           <q-input
             v-model="loginForm.username"
             label="Meno"
             outlined
             class="q-mb-md"
-            :rules="[v => !!v || 'Zadaj meno']"
+            :rules="[(v) => !!v || 'Zadaj meno']"
           />
           <q-input
             v-model="loginForm.password"
@@ -24,7 +23,7 @@
             type="password"
             outlined
             class="q-mb-md"
-            :rules="[v => !!v || 'Zadaj heslo']"
+            :rules="[(v) => !!v || 'Zadaj heslo']"
           />
           <div class="row q-gutter-sm">
             <q-btn label="Prihlásiť" type="submit" color="primary" class="col" />
@@ -93,24 +92,24 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import logoUrl from 'src/assets/intouch-logo-name.svg'
-import { api } from 'boot/api'
-import axios from 'axios'
+import { defineComponent, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import logoUrl from 'src/assets/intouch-logo-name.svg';
+import { api } from 'boot/api';
+import axios from 'axios';
 
 export default defineComponent({
-  setup () {
-    const router = useRouter()
-    const $q = useQuasar()
+  setup() {
+    const router = useRouter();
+    const $q = useQuasar();
 
-    const showRegister = ref(false)
+    const showRegister = ref(false);
 
     const loginForm = reactive({
       username: '',
       password: '',
-    })
+    });
 
     const registerForm = reactive({
       firstName: '',
@@ -118,13 +117,13 @@ export default defineComponent({
       email: '',
       nickname: '',
       password: '',
-    })
+    });
 
-    const req = (v: string) => !!v || 'Povinné pole'
+    const req = (v: string) => !!v || 'Povinné pole';
 
     const goToApp = async () => {
-      await router.push('/app')
-    }
+      await router.push('/app');
+    };
 
     // LOGIN – iba používatelia z DB
     const handleLogin = async () => {
@@ -135,29 +134,25 @@ export default defineComponent({
           position: 'bottom',
           timeout: 2500,
           actions: [{ label: 'OK', color: 'white' }],
-        })
-        return
+        });
+        return;
       }
 
       try {
         const { data } = await api.post('/login', {
           username: loginForm.username,
           password: loginForm.password,
-        })
+        });
 
-        localStorage.setItem('currentUser', JSON.stringify(data))
-        await goToApp()
+        localStorage.setItem('currentUser', JSON.stringify(data));
+        await goToApp();
       } catch (error: unknown) {
-        let message = 'Nesprávne meno alebo heslo.'
+        let message = 'Nesprávne meno alebo heslo.';
 
         if (axios.isAxiosError(error)) {
-          const serverData = error.response?.data
-          if (
-            serverData &&
-            typeof serverData === 'object' &&
-            'message' in serverData
-          ) {
-            message = (serverData as { message: string }).message
+          const serverData = error.response?.data;
+          if (serverData && typeof serverData === 'object' && 'message' in serverData) {
+            message = (serverData as { message: string }).message;
           }
         }
 
@@ -167,13 +162,13 @@ export default defineComponent({
           position: 'bottom',
           timeout: 2500,
           actions: [{ label: 'OK', color: 'white' }],
-        })
+        });
       }
-    }
+    };
 
     // REGISTER – vytvorí account + prihlási
     const handleRegister = async () => {
-      const allFilled = Object.values(registerForm).every(Boolean)
+      const allFilled = Object.values(registerForm).every(Boolean);
       if (!allFilled) {
         $q.notify({
           type: 'negative',
@@ -181,8 +176,8 @@ export default defineComponent({
           position: 'bottom',
           timeout: 2500,
           actions: [{ label: 'OK', color: 'white' }],
-        })
-        return
+        });
+        return;
       }
 
       try {
@@ -192,21 +187,17 @@ export default defineComponent({
           email: registerForm.email,
           nickname: registerForm.nickname,
           password: registerForm.password,
-        })
+        });
 
-        localStorage.setItem('currentUser', JSON.stringify(data))
-        await router.push('/app')
+        localStorage.setItem('currentUser', JSON.stringify(data));
+        await router.push('/app');
       } catch (error: unknown) {
-        let message = 'Registrácia zlyhala.'
+        let message = 'Registrácia zlyhala.';
 
         if (axios.isAxiosError(error)) {
-          const serverData = error.response?.data
-          if (
-            serverData &&
-            typeof serverData === 'object' &&
-            'message' in serverData
-          ) {
-            message = (serverData as { message: string }).message
+          const serverData = error.response?.data;
+          if (serverData && typeof serverData === 'object' && 'message' in serverData) {
+            message = (serverData as { message: string }).message;
           }
         }
 
@@ -216,9 +207,9 @@ export default defineComponent({
           position: 'bottom',
           timeout: 2500,
           actions: [{ label: 'OK', color: 'white' }],
-        })
+        });
       }
-    }
+    };
 
     return {
       logoUrl,
@@ -228,7 +219,7 @@ export default defineComponent({
       req,
       handleLogin,
       handleRegister,
-    }
+    };
   },
-})
+});
 </script>

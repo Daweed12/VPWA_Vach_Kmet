@@ -4,7 +4,7 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 export default class Mentions extends BaseSchema {
   protected tableName = 'mentions'
 
-  public async up () {
+  public async up() {
     this.schema.createTable(this.tableName, (table) => {
       table
         .integer('message_id')
@@ -26,7 +26,7 @@ export default class Mentions extends BaseSchema {
     })
   }
 
-  public async down () {
+  public async down() {
     this.schema.dropTable(this.tableName)
   }
 }

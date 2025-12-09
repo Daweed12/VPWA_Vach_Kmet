@@ -9,7 +9,7 @@ import MessageSeeder from '#database/seeders/message_seeder'
 import KickVoteSeeder from '#database/seeders/kick_vote_seeder'
 
 export default class MainSeeder extends BaseSeeder {
-  public async run () {
+  public async run() {
     await new UserSeeder(this.client).run()
     await new ChannelSeeder(this.client).run()
     await new AccessSeeder(this.client).run()

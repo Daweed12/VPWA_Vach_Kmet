@@ -21,12 +21,9 @@ router.get('/channels/:id/members', async ({ params }) => {
 
   return channel.members.map((u) => ({
     id: u.id,
-    name:
-      u.nickname ||
-      `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() ||
-      u.email,
+    name: u.nickname || `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() || u.email,
     status: u.status || 'offline',
-    channelRole: u.$extras.pivot_status
+    channelRole: u.$extras.pivot_status,
   }))
 })
 
@@ -42,22 +39,16 @@ router.get('/channels', async ({ request }) => {
 
   const channels = await Channel.query()
     .where((query) => {
-      query
-        .where('availability', 'public')
-        .whereIn('id', (sub) => {
-          sub
-            .from('channel_members')
-            .select('channel_id')
-            .where('user_id', userId)
-            .where('status', '!=', 'banned')
-        })
+      query.where('availability', 'public').whereIn('id', (sub) => {
+        sub
+          .from('channel_members')
+          .select('channel_id')
+          .where('user_id', userId)
+          .where('status', '!=', 'banned')
+      })
     })
     .orWhereIn('id', (sub) => {
-      sub
-        .from('access')
-        .select('channel_id')
-        .where('user_id', userId)
-        .whereNull('deleted_at')
+      sub.from('access').select('channel_id').where('user_id', userId).whereNull('deleted_at')
     })
     .orderBy('title')
 
@@ -75,11 +66,9 @@ router.get('/channels/search', async ({ request, response }) => {
     return response.badRequest({ message: 'userId je povinný.' })
   }
 
-  const userChannelIds = await ChannelMember.query()
-    .where('user_id', userId)
-    .select('channel_id')
+  const userChannelIds = await ChannelMember.query().where('user_id', userId).select('channel_id')
 
-  const channelIds = userChannelIds.map(cm => cm.channelId)
+  const channelIds = userChannelIds.map((cm) => cm.channelId)
 
   let channelsQuery = Channel.query()
     .where('availability', 'public')
@@ -91,12 +80,12 @@ router.get('/channels/search', async ({ request, response }) => {
 
   const channels = await channelsQuery.orderBy('title').limit(20)
 
-  return channels.map(ch => ({
+  return channels.map((ch) => ({
     id: ch.id,
     title: ch.title,
     availability: ch.availability,
     creatorId: ch.creatorId,
-    createdAt: ch.createdAt.toISO()
+    createdAt: ch.createdAt.toISO(),
   }))
 })
 
@@ -142,7 +131,7 @@ router.post('/channels/:id/join', async ({ params, request, response }) => {
   await ChannelMember.create({
     userId: userId,
     channelId: channelId,
-    status: 'member'
+    status: 'member',
   })
 
   const io = getIO()
@@ -155,8 +144,8 @@ router.post('/channels/:id/join', async ({ params, request, response }) => {
         title: channel.title,
         availability: channel.availability,
         creatorId: channel.creatorId,
-        createdAt: channel.createdAt.toISO()
-      }
+        createdAt: channel.createdAt.toISO(),
+      },
     })
     console.log(`📢 Sent channel:joined event for user ${userId}, channel ${channel.id}`)
   }
@@ -168,8 +157,8 @@ router.post('/channels/:id/join', async ({ params, request, response }) => {
       title: channel.title,
       availability: channel.availability,
       creatorId: channel.creatorId,
-      createdAt: channel.createdAt.toISO()
-    }
+      createdAt: channel.createdAt.toISO(),
+    },
   }
 })
 
@@ -177,11 +166,7 @@ router.post('/channels/:id/join', async ({ params, request, response }) => {
  * POST /channels
  */
 router.post('/channels', async ({ request, response }) => {
-  const { title, availability, creatorId } = request.only([
-    'title',
-    'availability',
-    'creatorId',
-  ])
+  const { title, availability, creatorId } = request.only(['title', 'availability', 'creatorId'])
 
   if (!title || !creatorId) {
     return response.badRequest({ message: 'title a creatorId sú povinné.' })
@@ -200,8 +185,7 @@ router.post('/channels', async ({ request, response }) => {
     return response.conflict({ message: 'Kanál s týmto názvom už existuje.' })
   }
 
-  const safeAvailability =
-    availability === 'private' ? 'private' : 'public'
+  const safeAvailability = availability === 'private' ? 'private' : 'public'
 
   const channel = await Channel.create({
     title: title.trim(),
@@ -230,7 +214,7 @@ router.post('/channels', async ({ request, response }) => {
       availability: channel.availability,
       creatorId: channel.creatorId,
       createdAt: channel.createdAt.toISO(),
-      userId: user.id
+      userId: user.id,
     })
     console.log(`📢 Sent channel:created event for channel ${channel.id} to creator ${user.id}`)
   }
@@ -264,11 +248,11 @@ router.delete('/channels/:id', async ({ params, response }) => {
     const room = `channel:${channelId}`
     io.to(room).emit('channel:deleted', {
       channelId: channelId,
-      title: channel.title
+      title: channel.title,
     })
     io.emit('channel:deleted', {
       channelId: channelId,
-      title: channel.title
+      title: channel.title,
     })
     console.log(`📢 Sent channel:deleted event for channel ${channelId} (${channel.title})`)
   }
@@ -292,8 +276,7 @@ router.post('/channels/:id/leave', async ({ params, request, response }) => {
     return response.notFound({ message: 'Kanál neexistuje.' })
   }
 
-  const member = await ChannelMember
-    .query()
+  const member = await ChannelMember.query()
     .where('channelId', channelId)
     .where('userId', userId)
     .first()
@@ -304,7 +287,7 @@ router.post('/channels/:id/leave', async ({ params, request, response }) => {
 
   if (member.status === 'owner') {
     return response.forbidden({
-      message: 'Owner nemôže opustiť kanál. Môže ho iba vymazať.'
+      message: 'Owner nemôže opustiť kanál. Môže ho iba vymazať.',
     })
   }
 
@@ -313,7 +296,6 @@ router.post('/channels/:id/leave', async ({ params, request, response }) => {
 
   return {
     message: 'Opustil si kanál.',
-    channelId
+    channelId,
   }
 })
-

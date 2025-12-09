@@ -5,7 +5,7 @@ import Channel from '#models/channel'
 import Access from '#models/access'
 
 export default class AccessSeeder extends BaseSeeder {
-  public async run () {
+  public async run() {
     const david = await User.findByOrFail('nickname', 'razdvach')
     const kristof = await User.findByOrFail('nickname', 'Franta')
     const vpwa = await Channel.findByOrFail('title', 'VPWA - projekt')
