@@ -93,53 +93,73 @@ router
       if (!channel || !targetUser || !requesterMember)
         return response.badRequest({ message: 'Kanál alebo používateľ neexistuje.' })
 
+      // Pre private kanály môže pozývať len owner
       if (channel.availability === 'private') {
         if (requesterMember.status !== 'owner')
           return response.forbidden({ message: 'Do súkromného kanála môže pozývať len správca.' })
-        await Access.firstOrCreate({ userId: targetUser.id, channelId: channel.id })
-        await ChannelMember.updateOrCreate(
-          { userId: targetUser.id, channelId: channel.id },
-          { status: 'member' }
-        )
-
-        await KickVote.query()
-          .where('channel_id', channel.id)
-          .where('target_user_id', targetUser.id)
-          .delete()
-
-        return { message: `Používateľ ${targetNick} bol pridaný do súkromného kanála.` }
       }
 
+      // Skontrolovať, či používateľ už nie je členom
       const targetMember = await ChannelMember.query()
         .where('user_id', targetUser.id)
         .where('channel_id', channelId)
         .first()
-      if (targetMember && targetMember.status === 'banned') {
-        if (requesterMember.status === 'owner') {
-          targetMember.status = 'member'
-          await targetMember.save()
-          await KickVote.query()
-            .where('channel_id', channel.id)
-            .where('target_user_id', targetUser.id)
-            .delete()
 
-          return { message: `Ban pre ${targetNick} bol zrušený správcom.` }
-        } else {
-          return response.forbidden({
-            message: 'Tento používateľ má ban. Len správca ho môže obnoviť.',
-          })
+      if (targetMember) {
+        if (targetMember.status === 'banned') {
+          if (requesterMember.status === 'owner') {
+            targetMember.status = 'member'
+            await targetMember.save()
+            await KickVote.query()
+              .where('channel_id', channel.id)
+              .where('target_user_id', targetUser.id)
+              .delete()
+
+            return { message: `Ban pre ${targetNick} bol zrušený správcom.` }
+          } else {
+            return response.forbidden({
+              message: 'Tento používateľ má ban. Len správca ho môže obnoviť.',
+            })
+          }
         }
+        return { message: `${targetNick} už je členom kanála.` }
       }
-      if (!targetMember) {
-        await ChannelInvite.create({
-          channelId: channel.id,
-          userId: targetUser.id,
-          inviterId: userId,
-          status: 'pending',
+
+      // Skontrolovať, či už existuje pending pozvánka
+      const existingInvite = await ChannelInvite.query()
+        .where('user_id', targetUser.id)
+        .where('channel_id', channelId)
+        .where('status', 'pending')
+        .first()
+
+      if (existingInvite) {
+        return response.conflict({ message: 'Používateľ už má pending pozvánku.' })
+      }
+
+      // Vytvoriť pozvánku
+      const invite = await ChannelInvite.create({
+        channelId: channel.id,
+        userId: targetUser.id,
+        inviterId: userId,
+        status: 'pending',
+      })
+
+      const io = getIO()
+      if (io) {
+        io.emit('invite:created', {
+          id: invite.id,
+          channelId: invite.channelId,
+          title: channel.title,
+          availability: channel.availability,
+          createdAt: invite.createdAt.toISO(),
+          userId: invite.userId,
         })
-        return { message: `Pozvánka pre ${targetNick} bola odoslaná.` }
+        console.log(
+          `📢 Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`
+        )
       }
-      return { message: `${targetNick} už je členom kanála.` }
+
+      return { message: `Pozvánka pre ${targetNick} bola odoslaná.` }
     })
 
     /**
