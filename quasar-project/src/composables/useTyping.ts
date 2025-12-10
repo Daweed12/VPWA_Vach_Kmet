@@ -40,10 +40,28 @@ export function useTyping() {
       existingUser.draftContent = data.draftContent || '';
     }
 
+    // Emit window event for MainLayout (realtime update)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('typingUsersUpdated', {
+          detail: { typingUsers: [...typingUsers.value] },
+        }),
+      );
+    }
+
     // Set timeout to remove typing indicator after 3 seconds
     const timeout = setTimeout(() => {
       typingUsers.value = typingUsers.value.filter((u) => u.id !== data.userId);
       typingTimeouts.delete(data.userId);
+      
+      // Emit window event after removal
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('typingUsersUpdated', {
+            detail: { typingUsers: [...typingUsers.value] },
+          }),
+        );
+      }
     }, 3000);
 
     typingTimeouts.set(data.userId, timeout);
@@ -61,12 +79,30 @@ export function useTyping() {
 
     // Remove from typing users
     typingUsers.value = typingUsers.value.filter((u) => u.id !== data.userId);
+    
+    // Emit window event for MainLayout
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('typingUsersUpdated', {
+          detail: { typingUsers: [...typingUsers.value] },
+        }),
+      );
+    }
   };
 
   const clearTyping = () => {
     typingUsers.value = [];
     typingTimeouts.forEach((timeout) => clearTimeout(timeout));
     typingTimeouts.clear();
+    
+    // Emit window event for MainLayout
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('typingUsersUpdated', {
+          detail: { typingUsers: [] },
+        }),
+      );
+    }
   };
 
   return {

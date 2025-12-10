@@ -46,6 +46,27 @@ export async function boot() {
       io?.emit('chat:message', msg)
     })
 
+    socket.on('typing:update', (data: { channelId: number; userId: number; userName: string; userAvatar?: string; draftContent?: string }) => {
+      const room = `channel:${data.channelId}`
+      // Broadcast typing update to all users in the channel except the sender
+      socket.to(room).emit('typing:update', {
+        userId: data.userId,
+        userName: data.userName,
+        userAvatar: data.userAvatar,
+        draftContent: data.draftContent,
+      })
+      console.log(`⌨️ User ${data.userId} (${data.userName}) is typing in channel ${data.channelId}`)
+    })
+
+    socket.on('typing:stop', (data: { channelId: number; userId: number }) => {
+      const room = `channel:${data.channelId}`
+      // Broadcast typing stop to all users in the channel except the sender
+      socket.to(room).emit('typing:stop', {
+        userId: data.userId,
+      })
+      console.log(`⌨️ User ${data.userId} stopped typing in channel ${data.channelId}`)
+    })
+
     socket.on('disconnect', (reason) => {
       console.log('WS disconnected:', socket.id, reason)
     })

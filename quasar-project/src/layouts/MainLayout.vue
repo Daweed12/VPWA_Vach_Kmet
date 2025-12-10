@@ -14,6 +14,23 @@
           <span v-else> VPWA - projekt </span>
         </q-toolbar-title>
 
+        <!-- Typing Indicator in Header -->
+        <div v-if="!isSettingsPage && headerTypingUsers.length > 0" class="header-typing-indicator">
+          <q-chip
+            v-for="user in headerTypingUsers"
+            :key="user.id"
+            size="sm"
+            color="orange-3"
+            text-color="grey-9"
+            class="q-mr-xs clickable-chip"
+            @click="openDraftPopupFromHeader(user)"
+          >
+            <q-icon name="edit" size="12px" class="q-mr-xs" />
+            <span class="text-weight-medium">{{ user.name }}</span>
+            <span class="q-ml-xs text-caption">píše...</span>
+          </q-chip>
+        </div>
+
         <template v-if="!isSettingsPage">
           <q-btn
             v-if="canDeleteCurrentChannel"
@@ -215,6 +232,15 @@
       <text-bar class="full-width full-height" @send="onTextBarSend" @typing="onTextBarTyping" />
     </q-footer>
 
+    <!-- Draft Popup for Header -->
+    <DraftPopup
+      v-if="selectedHeaderUser"
+      v-model="headerPopupOpen"
+      :user-name="selectedHeaderUser.name || ''"
+      :user-avatar="selectedHeaderUser.avatar"
+      :draft-content="selectedHeaderUser.draftContent"
+    />
+
     <q-dialog v-model="createDialogOpen" persistent>
       <q-card style="min-width: 400px">
         <q-card-section>
@@ -273,7 +299,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import textBar from 'src/components/TextBar.vue';
 import ChannelBar from 'components/ChannelBar.vue';
@@ -281,10 +307,12 @@ import ChannelSearchHeader from 'components/ChannelSearchHeader.vue';
 import MemberList from 'components/MemberList.vue';
 import CommandPanel from 'components/CommandPanel.vue';
 import AddChannelToUser from 'components/AddChannelToUser.vue';
+import DraftPopup from 'components/DraftPopup.vue';
 import { api } from 'boot/api';
 import { useChannels, type ChannelFromApi } from 'src/composables/useChannels';
 import { useInvites, type InviteFromApi } from 'src/composables/useInvites';
 import { useUser, type CurrentUser } from 'src/composables/useUser';
+import type { TypingUser } from 'src/composables/useTyping';
 
 interface MemberListInstance {
   openAddDialog: () => void;
@@ -351,6 +379,41 @@ const creatingChannel = ref(false);
 const createChannelError = ref('');
 const deletingChannel = ref(false);
 const addChannelDialogOpen = ref(false);
+
+/* ===== Typing Indicator in Header ===== */
+const headerTypingUsers = ref<TypingUser[]>([]);
+const headerPopupOpen = ref(false);
+const selectedHeaderUser = ref<TypingUser | null>(null);
+
+const openDraftPopupFromHeader = (user: TypingUser) => {
+  selectedHeaderUser.value = user;
+  headerPopupOpen.value = true;
+};
+
+// Listen for typing updates via window events
+const handleTypingUsersUpdate = (event: Event) => {
+  const customEvent = event as CustomEvent<{ typingUsers: TypingUser[] }>;
+  headerTypingUsers.value = customEvent.detail.typingUsers || [];
+};
+
+// Watch for realtime updates to selected user's draft content
+watch(
+  headerTypingUsers,
+  (users) => {
+    // Update selected user if popup is open
+    if (selectedHeaderUser.value && headerPopupOpen.value) {
+      const updatedUser = users.find((u) => u.id === selectedHeaderUser.value?.id);
+      if (updatedUser) {
+        selectedHeaderUser.value = updatedUser;
+      } else {
+        // User stopped typing, close popup
+        headerPopupOpen.value = false;
+        selectedHeaderUser.value = null;
+      }
+    }
+  },
+  { deep: true },
+);
 
 const commandHistory = ref<CmdLog[]>([
   { type: 'output', text: 'Vitaj v inTouch CMD.' },
@@ -735,6 +798,9 @@ const setupEventListeners = () => {
   };
   window.addEventListener('openMemberList', handleOpenMemberList);
 
+  // Listen for typing users updates
+  window.addEventListener('typingUsersUpdated', handleTypingUsersUpdate);
+
   return () => {
     window.removeEventListener('currentUserUpdated', handleUserUpdate);
     window.removeEventListener('userAvatarChanged', handleUserAvatarChanged);
@@ -743,6 +809,7 @@ const setupEventListeners = () => {
     window.removeEventListener('inviteCreated', handleInviteCreated);
     window.removeEventListener('openMemberList', handleOpenMemberList);
     window.removeEventListener('channelJoined', handleChannelJoined);
+    window.removeEventListener('typingUsersUpdated', handleTypingUsersUpdate);
   };
 };
 
@@ -766,10 +833,12 @@ onMounted(async () => {
     }, 500);
   }
 
-  setupEventListeners();
+  const cleanup = setupEventListeners();
 
-  // Note: In a real app, you'd want to call cleanup on unmount
-  // For now, we'll rely on the component being persistent
+  // Cleanup on unmount
+  onUnmounted(() => {
+    if (cleanup) cleanup();
+  });
 });
 </script>
 
@@ -849,6 +918,21 @@ body,
   border-radius: 10px;
   background: #ffb74d;
   color: #4e342e;
+}
+.header-typing-indicator {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-right: 8px;
+}
+.clickable-chip {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.clickable-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 .q-drawer__content::-webkit-scrollbar {
   display: none !important;

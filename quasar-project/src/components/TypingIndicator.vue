@@ -5,7 +5,10 @@
         <div v-for="user in typingUsers" :key="user.id" class="typing-user-item">
           <div class="row items-center q-mb-xs">
             <q-icon name="edit" size="14px" class="q-mr-xs text-grey-7" />
-            <span class="text-caption text-weight-medium text-grey-8">
+            <span
+              class="text-caption text-weight-medium text-grey-8 clickable-nickname"
+              @click="openDraftPopup(user)"
+            >
               {{ user.name }}
             </span>
           </div>
@@ -16,15 +19,48 @@
         </div>
       </q-card-section>
     </q-card>
+
+    <!-- Draft Popup -->
+    <DraftPopup
+      v-if="selectedUser"
+      v-model="popupOpen"
+      :user-name="selectedUser.name || ''"
+      :user-avatar="selectedUser.avatar"
+      :draft-content="selectedUser.draftContent"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import type { TypingUser } from 'src/composables/useTyping';
+import DraftPopup from './DraftPopup.vue';
 
-defineProps<{
+const props = defineProps<{
   typingUsers: TypingUser[];
 }>();
+
+const popupOpen = ref(false);
+const selectedUser = ref<TypingUser | null>(null);
+
+const openDraftPopup = (user: TypingUser) => {
+  selectedUser.value = user;
+  popupOpen.value = true;
+};
+
+// Watch for realtime updates to selected user's draft content
+watch(
+  () => props.typingUsers,
+  (users) => {
+    if (selectedUser.value && popupOpen.value) {
+      const updatedUser = users.find((u) => u.id === selectedUser.value?.id);
+      if (updatedUser) {
+        selectedUser.value = updatedUser;
+      }
+    }
+  },
+  { deep: true },
+);
 </script>
 
 <style scoped>
@@ -80,6 +116,16 @@ defineProps<{
 
 .typing-dots span:nth-child(3) {
   animation-delay: 0.4s;
+}
+
+.clickable-nickname {
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.clickable-nickname:hover {
+  color: #1976d2 !important;
 }
 
 @keyframes typing-dot {
