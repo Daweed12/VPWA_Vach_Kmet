@@ -107,7 +107,11 @@
                   :name="ch.title"
                   :availability="ch.availability"
                   :image-url="ch.logo ?? ''"
+                  :channel-id="ch.id"
+                  :is-owner="ch.creatorId === currentUser?.id"
                   @click="() => handleChannelClick(ch)"
+                  @leave="() => handleLeaveChannel(ch)"
+                  @delete="() => handleDeleteChannel(ch)"
                 />
               </div>
               <div v-else class="text-grey-6 text-caption q-ml-sm q-mb-md">
@@ -504,6 +508,62 @@ const onDeleteCurrentChannel = async () => {
   } catch (error) {
     console.error('Chyba:', error);
     window.alert('Chyba pri mazaní.');
+  } finally {
+    deletingChannel.value = false;
+  }
+};
+
+const handleLeaveChannel = async (channel: ChannelFromApi) => {
+  if (!currentUser.value) {
+    window.alert('Najprv sa prihlás.');
+    return;
+  }
+  const ok = window.confirm(`Naozaj chceš opustiť kanál "${channel.title}"?`);
+  if (!ok) return;
+
+  try {
+    await api.post(`/channels/${channel.id}/leave`, { userId: currentUser.value.id });
+    // Odstrániť len tento konkrétny kanál zo zoznamu
+    const channelIndex = channels.value.findIndex((c) => c.id === channel.id);
+    if (channelIndex !== -1) {
+      channels.value.splice(channelIndex, 1);
+    }
+    if (currentChannel.value?.id === channel.id) {
+      currentChannel.value = null;
+      currentChannelTitle.value = null;
+      window.dispatchEvent(
+        new CustomEvent('channelSelected', { detail: { id: null, title: null } }),
+      );
+    }
+  } catch (error) {
+    console.error('Chyba pri opustení kanála:', error);
+    const apiError = error as ApiError;
+    window.alert(apiError.response?.data?.message || 'Chyba pri opustení kanála.');
+  }
+};
+
+const handleDeleteChannel = async (channel: ChannelFromApi) => {
+  if (!currentUser.value || channel.creatorId !== currentUser.value.id) {
+    window.alert('Len vlastník kanála ho môže zrušiť.');
+    return;
+  }
+  const ok = window.confirm(`Naozaj chceš zrušiť kanál "${channel.title}"?`);
+  if (!ok) return;
+
+  try {
+    deletingChannel.value = true;
+    await api.delete(`/channels/${channel.id}`);
+    channels.value = channels.value.filter((c) => c.id !== channel.id);
+    if (currentChannel.value?.id === channel.id) {
+      currentChannel.value = null;
+      currentChannelTitle.value = null;
+      window.dispatchEvent(
+        new CustomEvent('channelSelected', { detail: { id: null, title: null } }),
+      );
+    }
+  } catch (error) {
+    console.error('Chyba pri mazaní kanála:', error);
+    window.alert('Chyba pri mazaní kanála.');
   } finally {
     deletingChannel.value = false;
   }

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, computed } from 'vue';
+import { defineComponent, computed, ref } from 'vue';
 import { api } from 'boot/api'; // Dôležitý import pre adresu servera
 import defaultChannelLogo from 'src/assets/default_channel_logo.png';
 
@@ -22,10 +22,19 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    channelId: {
+      type: Number,
+      default: undefined,
+    },
+    isOwner: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['accept', 'reject', 'click'],
+  emits: ['accept', 'reject', 'click', 'leave', 'delete'],
 
   setup(props, { emit }) {
+    const contextMenuOpen = ref(false);
     const badgeColor = computed(() => (props.availability === 'private' ? 'red' : 'green'));
 
     const badgeText = computed(() => (props.availability === 'private' ? 'private' : 'public'));
@@ -50,7 +59,27 @@ export default defineComponent({
     // -------------------------------
 
     const handleClick = () => {
+      // Zatvoriť menu ak je otvorené
+      if (contextMenuOpen.value) {
+        contextMenuOpen.value = false;
+        return;
+      }
       emit('click');
+    };
+
+    const handleContextMenu = (event: MouseEvent) => {
+      if (!props.isInvite) {
+        event.preventDefault();
+        event.stopPropagation();
+        contextMenuOpen.value = true;
+      }
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
+      // Zatvoriť menu pri ľavom kliknutí
+      if (event.button === 0 && contextMenuOpen.value) {
+        contextMenuOpen.value = false;
+      }
     };
 
     const acceptInvite = () => {
@@ -61,13 +90,28 @@ export default defineComponent({
       emit('reject');
     };
 
+    const handleLeave = () => {
+      contextMenuOpen.value = false;
+      emit('leave');
+    };
+
+    const handleDelete = () => {
+      contextMenuOpen.value = false;
+      emit('delete');
+    };
+
     return {
       badgeColor,
       badgeText,
-      finalImageUrl, // Vrátime novú premennú
+      finalImageUrl,
       handleClick,
       acceptInvite,
       rejectInvite,
+      handleLeave,
+      handleDelete,
+      handleContextMenu,
+      handleMouseDown,
+      contextMenuOpen,
       defaultChannelLogo,
     };
   },
@@ -80,6 +124,8 @@ export default defineComponent({
     clickable
     v-ripple
     @click="handleClick"
+    @mousedown="handleMouseDown"
+    @contextmenu.prevent="handleContextMenu"
   >
     <q-item-section avatar class="q-mr-sm">
       <q-avatar rounded size="32px">
@@ -117,6 +163,30 @@ export default defineComponent({
         <q-btn flat round dense icon="close" color="white" size="md" @click.stop="rejectInvite" />
       </div>
     </q-item-section>
+
+    <q-menu v-model="contextMenuOpen" :offset="[0, 5]" touch-position no-parent-event>
+      <q-list style="min-width: 200px">
+        <q-item v-if="!isOwner" clickable v-close-popup @click="handleLeave">
+          <q-item-section avatar>
+            <q-icon name="exit_to_app" />
+          </q-item-section>
+          <q-item-section>Opustiť kanál</q-item-section>
+        </q-item>
+
+        <q-item
+          v-if="isOwner"
+          clickable
+          v-close-popup
+          @click="handleDelete"
+          class="text-negative"
+        >
+          <q-item-section avatar>
+            <q-icon name="delete" color="negative" />
+          </q-item-section>
+          <q-item-section>Zrušiť kanál</q-item-section>
+        </q-item>
+      </q-list>
+    </q-menu>
   </q-item>
 </template>
 
