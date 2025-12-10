@@ -37,18 +37,14 @@ router.get('/channels', async ({ request }) => {
     return []
   }
 
+  // Vrátiť len kanály, kde je používateľ členom (nie je banned)
   const channels = await Channel.query()
-    .where((query) => {
-      query.where('availability', 'public').whereIn('id', (sub) => {
-        sub
-          .from('channel_members')
-          .select('channel_id')
-          .where('user_id', userId)
-          .where('status', '!=', 'banned')
-      })
-    })
-    .orWhereIn('id', (sub) => {
-      sub.from('access').select('channel_id').where('user_id', userId).whereNull('deleted_at')
+    .whereIn('id', (sub) => {
+      sub
+        .from('channel_members')
+        .select('channel_id')
+        .where('user_id', userId)
+        .where('status', '!=', 'banned')
     })
     .orderBy('title')
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, computed, ref } from 'vue';
+import { defineComponent, computed, ref, onMounted, watch, nextTick } from 'vue';
 import { api } from 'boot/api'; // Dôležitý import pre adresu servera
 import defaultChannelLogo from 'src/assets/default_channel_logo.png';
 
@@ -35,9 +35,29 @@ export default defineComponent({
 
   setup(props, { emit }) {
     const contextMenuOpen = ref(false);
+    const nameRef = ref<HTMLElement | null>(null);
+    const showTooltip = ref(false);
+    
     const badgeColor = computed(() => (props.availability === 'private' ? 'red' : 'green'));
 
     const badgeText = computed(() => (props.availability === 'private' ? 'private' : 'public'));
+
+    const checkIfTruncated = () => {
+      void nextTick(() => {
+        if (nameRef.value) {
+          showTooltip.value = nameRef.value.scrollWidth > nameRef.value.clientWidth;
+        }
+      });
+    };
+
+    // Skontrolovať pri načítaní a pri zmene názvu
+    onMounted(() => {
+      checkIfTruncated();
+    });
+
+    watch(() => props.name, () => {
+      checkIfTruncated();
+    });
 
     // --- NOVÁ LOGIKA PRE OBRÁZKY ---
     const finalImageUrl = computed(() => {
@@ -113,6 +133,9 @@ export default defineComponent({
       handleMouseDown,
       contextMenuOpen,
       defaultChannelLogo,
+      nameRef,
+      showTooltip,
+      checkIfTruncated,
     };
   },
 });
@@ -144,8 +167,18 @@ export default defineComponent({
 
     <q-item-section
       :class="isInvite ? 'text-white text-weight-bold' : 'text-black text-weight-bold'"
+      class="channel-name-section"
     >
-      {{ name }}
+      <q-tooltip v-if="showTooltip" :delay="500">
+        {{ name }}
+      </q-tooltip>
+      <span
+        ref="nameRef"
+        class="channel-name-text"
+        @mouseenter="checkIfTruncated"
+      >
+        {{ name }}
+      </span>
     </q-item-section>
 
     <q-badge
@@ -220,5 +253,19 @@ export default defineComponent({
 .channel-item .q-item__section--side,
 .invite-item .q-item__section--side {
   padding-left: 10px;
+}
+
+.channel-name-section {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.channel-name-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 85px;
 }
 </style>
