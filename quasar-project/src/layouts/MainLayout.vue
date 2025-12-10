@@ -749,8 +749,22 @@ const setupEventListeners = () => {
 /* ===== Lifecycle ===== */
 onMounted(async () => {
   await loadUser();
-  await loadChannels();
-  await loadInvites();
+  
+  // Počkaj, kým sa načíta currentUser pred načítaním kanálov
+  if (currentUser.value?.id) {
+    await loadChannels();
+    await loadInvites();
+  } else {
+    // Ak sa currentUser nenačítal z localStorage, skús ešte raz po chvíli
+    setTimeout(() => {
+      void (async () => {
+        if (currentUser.value?.id) {
+          await loadChannels();
+          await loadInvites();
+        }
+      })();
+    }, 500);
+  }
 
   setupEventListeners();
 

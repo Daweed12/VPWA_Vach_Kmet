@@ -47,8 +47,19 @@ router.get('/channels', async ({ request }) => {
         .where('status', '!=', 'banned')
     })
     .orderBy('title')
+    .preload('members', (query) => {
+      query.pivotColumns(['status', 'joined_at'])
+    })
 
-  return channels
+  return channels.map((ch) => ({
+    id: ch.id,
+    title: ch.title,
+    availability: ch.availability,
+    creatorId: ch.creatorId,
+    createdAt: ch.createdAt?.toISO(),
+    lastMessageAt: ch.lastMessageAt?.toISO() || null,
+    logo: ch.imagePath || null,
+  }))
 })
 
 /**

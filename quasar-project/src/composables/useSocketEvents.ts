@@ -251,6 +251,12 @@ export function useSocketEvents(
   socket.on('chat:message', (data: unknown) => {
     console.log('🔵🔵🔵 RECEIVED chat:message event:', data);
 
+    // Ignorovať správy ak je používateľ offline
+    if (currentUser.value?.status === 'offline') {
+      console.log('⚠️ User is offline, ignoring message');
+      return;
+    }
+
     const message = data as MessageFromApi & { channelId?: number; channel_id?: number };
 
     // Validate message structure

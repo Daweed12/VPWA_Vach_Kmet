@@ -20,6 +20,7 @@ export default class Channels extends BaseSchema {
   }
 
   public async down() {
-    this.schema.dropTable(this.tableName)
+    // Použiť CASCADE na odstránenie všetkých závislostí
+    await this.db.rawQuery(`DROP TABLE IF EXISTS ${this.tableName} CASCADE`)
   }
 }
