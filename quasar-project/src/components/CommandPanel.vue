@@ -121,8 +121,18 @@ const processCommand = async (cmdString: string) => {
         break;
 
       case '/join': {
-        const name = args[0];
-        const type = args[1];
+        if (args.length === 0) {
+          log('Použitie: /join <názov> [private]', 'error');
+          return;
+        }
+
+        // Skontrolovať, či posledný argument je [private]
+        const lastArg = args[args.length - 1]?.toLowerCase();
+        const isPrivate = lastArg === '[private]';
+        
+        // Ak je [private], odstrániť ho z názvu
+        const name = isPrivate ? args.slice(0, -1).join(' ') : args.join(' ');
+        
         if (!name) {
           log('Použitie: /join <názov> [private]', 'error');
           return;
@@ -132,7 +142,7 @@ const processCommand = async (cmdString: string) => {
         const res = await api.post('/cmd/join', {
           userId: props.currentUser.id,
           channelName: name,
-          type: type,
+          type: isPrivate ? 'private' : 'public',
         });
         log(res.data.message);
         // Channel will be added via WebSocket event, no reload needed
