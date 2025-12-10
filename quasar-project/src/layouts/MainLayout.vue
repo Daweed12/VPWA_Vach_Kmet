@@ -228,8 +228,10 @@
       </q-page-container>
     </div>
 
-    <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper q-pa-sm">
-      <text-bar class="full-width full-height" @send="onTextBarSend" @typing="onTextBarTyping" />
+    <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper">
+      <!-- Typing Indicator above TextBar -->
+      <TypingIndicator v-if="headerTypingUsers.length > 0" :typing-users="headerTypingUsers" />
+      <text-bar class="full-width full-height q-pa-sm" @send="onTextBarSend" @typing="onTextBarTyping" />
     </q-footer>
 
     <!-- Draft Popup for Header -->
@@ -308,6 +310,7 @@ import MemberList from 'components/MemberList.vue';
 import CommandPanel from 'components/CommandPanel.vue';
 import AddChannelToUser from 'components/AddChannelToUser.vue';
 import DraftPopup from 'components/DraftPopup.vue';
+import TypingIndicator from 'components/TypingIndicator.vue';
 import { api } from 'boot/api';
 import { useChannels, type ChannelFromApi } from 'src/composables/useChannels';
 import { useInvites, type InviteFromApi } from 'src/composables/useInvites';
@@ -871,6 +874,9 @@ body,
 }
 .footer-wrapper {
   border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
 }
 .full-width {
   width: 100%;

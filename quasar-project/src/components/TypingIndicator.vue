@@ -1,24 +1,17 @@
 <template>
-  <div v-if="typingUsers.length > 0" class="typing-indicator-fixed">
-    <q-card class="typing-card">
-      <q-card-section class="q-pa-sm">
-        <div v-for="user in typingUsers" :key="user.id" class="typing-user-item">
-          <div class="row items-center q-mb-xs">
-            <q-icon name="edit" size="14px" class="q-mr-xs text-grey-7" />
-            <span
-              class="text-caption text-weight-medium text-grey-8 clickable-nickname"
-              @click="openDraftPopup(user)"
-            >
-              {{ user.name }}
-            </span>
-          </div>
-          <div v-if="user.draftContent" class="draft-content text-body2 text-grey-7 q-pl-md">
-            "{{ user.draftContent }}"
-          </div>
-          <div v-else class="typing-dots q-pl-md"><span>.</span><span>.</span><span>.</span></div>
-        </div>
-      </q-card-section>
-    </q-card>
+  <div v-if="typingUsers.length > 0" class="typing-indicator-bar">
+    <div
+      v-for="user in typingUsers"
+      :key="user.id"
+      class="typing-user-bar clickable-bar"
+      @click="openDraftPopup(user)"
+    >
+      <q-avatar size="32px" class="typing-avatar">
+        <img v-if="user.avatar" :src="user.avatar" :alt="user.name" />
+        <div v-else class="avatar-initials">{{ getUserInitials(user.name) }}</div>
+      </q-avatar>
+      <span class="typing-text">{{ user.name }} píše...</span>
+    </div>
 
     <!-- Draft Popup -->
     <DraftPopup
@@ -43,6 +36,21 @@ const props = defineProps<{
 const popupOpen = ref(false);
 const selectedUser = ref<TypingUser | null>(null);
 
+const getUserInitials = (name: string): string => {
+  if (!name) return '?';
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2) {
+    const first = parts[0]?.[0];
+    const last = parts[parts.length - 1]?.[0];
+    if (first && last) {
+      return (first + last).toUpperCase();
+    }
+  }
+  return trimmed.substring(0, 2).toUpperCase();
+};
+
 const openDraftPopup = (user: TypingUser) => {
   selectedUser.value = user;
   popupOpen.value = true;
@@ -64,78 +72,55 @@ watch(
 </script>
 
 <style scoped>
-.typing-indicator-fixed {
-  position: fixed;
-  bottom: 80px;
-  left: 20px;
-  z-index: 2000;
-  max-width: 300px;
-  min-width: 200px;
+.typing-indicator-bar {
+  width: 100%;
+  background-color: #424242;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.typing-card {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(8px);
+.typing-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
 }
 
-.typing-user-item {
-  margin-bottom: 8px;
+.typing-user-bar:hover {
+  opacity: 0.9;
 }
 
-.typing-user-item:last-child {
-  margin-bottom: 0;
+.typing-avatar {
+  flex-shrink: 0;
 }
 
-.draft-content {
-  font-style: italic;
-  word-break: break-word;
-  max-height: 60px;
+.avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #9e9e9e;
+  color: #424242;
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 50%;
+}
+
+.typing-text {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.4;
-  color: #666;
 }
 
-.typing-dots {
-  display: inline-flex;
-  margin-left: 0;
-}
-
-.typing-dots span {
-  animation: typing-dot 1.4s infinite;
-  margin: 0 2px;
-  font-size: 20px;
-  line-height: 1;
-}
-
-.typing-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-dots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-.clickable-nickname {
+.clickable-bar {
   cursor: pointer;
-  text-decoration: underline;
-  transition: color 0.2s;
-}
-
-.clickable-nickname:hover {
-  color: #1976d2 !important;
-}
-
-@keyframes typing-dot {
-  0%,
-  60%,
-  100% {
-    opacity: 0.3;
-  }
-  30% {
-    opacity: 1;
-  }
 }
 </style>

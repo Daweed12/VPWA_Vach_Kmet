@@ -29,8 +29,6 @@
           <div class="text-caption text-center">Tento kanál zatiaľ nemá žiadne správy.</div>
         </div>
 
-        <!-- Typing indicator -->
-        <TypingIndicator :typing-users="typingUsers" />
 
         <!-- Message list -->
         <MessageList
@@ -48,7 +46,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import TypingIndicator from 'src/components/TypingIndicator.vue';
 import MessageList from 'src/components/MessageList.vue';
 import { useSocket } from 'src/composables/useSocket';
 import { useMessages, type CurrentUser } from 'src/composables/useMessages';
@@ -73,7 +70,7 @@ const {
   addMessageOptimistically,
   updateMessageAvatar,
 } = useMessages(currentUser);
-const { typingUsers, handleTypingUpdate, handleTypingStop, clearTyping } = useTyping();
+const { handleTypingUpdate, handleTypingStop, clearTyping } = useTyping();
 const {
   visibleCount,
   isLoading,
