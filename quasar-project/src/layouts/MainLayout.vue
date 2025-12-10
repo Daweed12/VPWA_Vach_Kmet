@@ -126,7 +126,7 @@
                   :image-url="ch.logo ?? ''"
                   :channel-id="ch.id"
                   :is-owner="ch.creatorId === currentUser?.id"
-                  @click="() => handleChannelClick(ch)"
+                  @click="() => handleChannelClickWithNavigation(ch)"
                   @leave="() => handleLeaveChannel(ch)"
                   @delete="() => handleDeleteChannel(ch)"
                 />
@@ -153,7 +153,7 @@
           class="q-pa-none bg-orange-2 drawer-div-wrapper"
           style="margin-top: 10px; padding: 2px"
         >
-          <q-item>
+          <q-item style="min-height: 72px; height: 72px;">
             <q-item-section avatar>
               <q-avatar size="56px" class="avatar-with-status">
                 <img
@@ -172,7 +172,7 @@
 
             <q-item-section>
               <q-item-label>{{ currentUserName }}</q-item-label>
-              <q-item-label caption>{{ currentUserStatus }}</q-item-label>
+              <q-item-label caption>{{ displayStatusText }}</q-item-label>
             </q-item-section>
 
             <q-item-section side>
@@ -217,7 +217,7 @@
         v-model="rightDrawerOpen"
         :channel-id="currentChannel?.id ?? null"
         :inviter-id="currentUser?.id ?? null"
-        :current-user-status="currentUser?.status ?? null"
+        :current-user-status="computedUserStatus"
         :current-user-id="currentUser?.id ?? null"
         :channel-availability="currentChannel?.availability ?? null"
         :is-channel-owner="canDeleteCurrentChannel"
@@ -231,7 +231,9 @@
     <q-footer v-if="showComposer" class="bg-orange-1 footer-wrapper">
       <!-- Typing Indicator above TextBar -->
       <TypingIndicator v-if="headerTypingUsers.length > 0" :typing-users="headerTypingUsers" />
-      <text-bar class="full-width full-height q-pa-sm" @send="onTextBarSend" @typing="onTextBarTyping" />
+      <div class="textbar-container">
+        <text-bar class="textbar-content" @send="onTextBarSend" @typing="onTextBarTyping" />
+      </div>
     </q-footer>
 
     <!-- Draft Popup for Header -->
@@ -374,6 +376,39 @@ const showHeader = computed(() => route.meta.showHeader !== false);
 const isSettingsPage = computed(() => route.path.startsWith('/app/settings'));
 const showComposer = computed(() => !isSettingsPage.value);
 
+// Compute user status for MemberList (considering connection)
+const computedUserStatus = computed(() => {
+  if (!currentUser.value) return null;
+  
+  // If offline, return 'offline'
+  if (currentUser.value.connection === 'offline') {
+    return 'offline';
+  }
+  
+  // If online, return status (normal -> online)
+  const status = currentUser.value.status?.toLowerCase() ?? 'normal';
+  return status === 'normal' ? 'online' : status;
+});
+
+// Display status text for UI
+const displayStatusText = computed(() => {
+  const status = currentUserStatus.value;
+  if (!status) return 'Online';
+  
+  switch (status.toLowerCase()) {
+    case 'online':
+      return 'Online';
+    case 'away':
+      return 'Away';
+    case 'dnd':
+      return 'Do Not Disturb';
+    case 'offline':
+      return 'Offline';
+    default:
+      return 'Online';
+  }
+});
+
 /* ===== Channel Management ===== */
 const createDialogOpen = ref(false);
 const newChannelTitle = ref('');
@@ -474,6 +509,20 @@ const toggleSettings = async () => {
     }
   } else {
     await router.push('/app/settings');
+  }
+};
+
+const handleChannelClickWithNavigation = async (ch: ChannelFromApi) => {
+  // If on settings page, navigate to /app first
+  if (isSettingsPage.value) {
+    await router.push('/app');
+    // Wait a bit for navigation to complete, then select channel
+    setTimeout(() => {
+      handleChannelClick(ch);
+    }, 50);
+  } else {
+    // Normal channel click
+    handleChannelClick(ch);
   }
 };
 
@@ -877,6 +926,26 @@ body,
   display: flex;
   flex-direction: column;
   padding: 0 !important;
+}
+.textbar-container {
+  margin: 10px;
+  display: flex;
+  align-items: center;
+}
+.textbar-content {
+  width: 100%;
+  min-height: 72px; /* Match q-item min-height with 56px avatar */
+  height: 72px;
+  background-color: #fff3e0; /* bg-orange-2 to match user bubble */
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+.drawer-div-wrapper .q-item {
+  min-height: 72px !important;
+  height: 72px !important;
 }
 .full-width {
   width: 100%;

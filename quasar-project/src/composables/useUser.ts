@@ -38,10 +38,22 @@ export function useUser() {
     return `${cleanBase}${cleanPath}`;
   });
 
-  const currentUserStatus = computed(() => currentUser.value?.status ?? 'online');
+  // Compute status based on connection and status
+  const currentUserStatus = computed(() => {
+    if (!currentUser.value) return 'online';
+    
+    // If offline, always return offline
+    if (currentUser.value.connection === 'offline') {
+      return 'offline';
+    }
+    
+    // If online, return status (normal -> online)
+    const status = currentUser.value.status?.toLowerCase() ?? 'normal';
+    return status === 'normal' ? 'online' : status;
+  });
 
   const statusDotClass = computed(() => {
-    const status = (currentUser.value?.status ?? 'online').toLowerCase();
+    const status = currentUserStatus.value.toLowerCase();
     return {
       'bg-green': status === 'online',
       'bg-amber': status === 'away',

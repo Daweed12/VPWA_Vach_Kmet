@@ -18,7 +18,12 @@ export function useSocketEvents(
   activeChannelId: { value: number | null },
   rawMessages: { value: MessageFromApi[] },
   callbacks: {
-    onUserStatusChanged?: (data: { userId: number; status: string; name: string }) => void;
+    onUserStatusChanged?: (data: {
+      userId: number;
+      status: string;
+      connection?: string;
+      name: string;
+    }) => void;
     onUserAvatarChanged?: (data: { userId: number; profilePicture: string; name: string }) => void;
     onChannelDeleted?: (data: { channelId: number; title: string }) => void;
     onChannelCreated?: (data: {
@@ -60,21 +65,25 @@ export function useSocketEvents(
   if (!socket) return;
 
   // Listen for user status changes
-  socket.on('user:status:changed', (data: { userId: number; status: string; name: string }) => {
-    console.log('📢 Received user:status:changed event:', data);
+  socket.on(
+    'user:status:changed',
+    (data: { userId: number; status: string; connection?: string; name: string }) => {
+      console.log('📢 Received user:status:changed event:', data);
 
-    window.dispatchEvent(
-      new CustomEvent('userStatusChanged', {
-        detail: {
-          userId: data.userId,
-          status: data.status,
-          name: data.name,
-        },
-      }),
-    );
+      window.dispatchEvent(
+        new CustomEvent('userStatusChanged', {
+          detail: {
+            userId: data.userId,
+            status: data.status,
+            connection: data.connection,
+            name: data.name,
+          },
+        }),
+      );
 
-    callbacks.onUserStatusChanged?.(data);
-  });
+      callbacks.onUserStatusChanged?.(data);
+    },
+  );
 
   // Listen for user avatar changes
   socket.on(

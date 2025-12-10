@@ -39,18 +39,32 @@ export default defineComponent({
       loading.value = true;
       try {
         const response = await api.get(`/channels/${props.channelId}/members`);
-        members.value = response.data.map((m: { id: number; name: string; status: string }) => {
-          const status =
-            props.currentUserId === m.id && props.currentUserStatus
-              ? (props.currentUserStatus as Status)
-              : ((m.status || 'offline') as Status);
+        members.value = response.data.map(
+          (m: { id: number; name: string; status: string; connection?: string }) => {
+            let status: Status = 'offline';
 
-          return {
-            id: m.id,
-            name: m.name,
-            status,
-          };
-        });
+            if (props.currentUserId === m.id && props.currentUserStatus) {
+              // Map 'normal' to 'online' for current user
+              const userStatus = props.currentUserStatus.toLowerCase();
+              status = (userStatus === 'normal' ? 'online' : userStatus) as Status;
+            } else {
+              // Map status based on connection and status
+              const memberConnection = (m.connection || 'online').toLowerCase();
+              if (memberConnection === 'offline') {
+                status = 'offline';
+              } else {
+                const memberStatus = (m.status || 'normal').toLowerCase();
+                status = memberStatus === 'normal' ? 'online' : (memberStatus as Status);
+              }
+            }
+
+            return {
+              id: m.id,
+              name: m.name,
+              status,
+            };
+          },
+        );
       } catch (error) {
         console.error('Error fetching members:', error);
         members.value = [];
@@ -76,7 +90,9 @@ export default defineComponent({
         if (props.currentUserId && members.value.length > 0) {
           const currentUserMember = members.value.find((m) => m.id === props.currentUserId);
           if (currentUserMember && props.currentUserStatus) {
-            currentUserMember.status = props.currentUserStatus as Status;
+            // Map 'normal' to 'online'
+            const mappedStatus = props.currentUserStatus.toLowerCase() === 'normal' ? 'online' : props.currentUserStatus.toLowerCase();
+            currentUserMember.status = mappedStatus as Status;
           }
         }
       },
@@ -84,14 +100,32 @@ export default defineComponent({
 
     // Listen for real-time status changes from WebSocket
     const handleUserStatusChanged = (event: Event) => {
-      const customEvent = event as CustomEvent<{ userId: number; status: string; name: string }>;
-      const { userId, status } = customEvent.detail;
+      const customEvent = event as CustomEvent<{
+        userId: number;
+        status: string;
+        connection?: string;
+        name: string;
+      }>;
+      const { userId, status, connection } = customEvent.detail;
 
       // Update member status if they're in the current channel's member list
       const member = members.value.find((m) => m.id === userId);
       if (member) {
-        member.status = status as Status;
-        console.log(`✅ Updated status for user ${userId} to ${status} in MemberList`);
+        // Map status based on connection and status
+        let mappedStatus: Status = 'offline';
+        
+        if (connection === 'offline') {
+          mappedStatus = 'offline';
+        } else {
+          // If online, map status (normal -> online)
+          const statusLower = status.toLowerCase();
+          mappedStatus = statusLower === 'normal' ? 'online' : (statusLower as Status);
+        }
+        
+        member.status = mappedStatus;
+        console.log(
+          `✅ Updated status for user ${userId} to ${mappedStatus} (connection: ${connection}, status: ${status}) in MemberList`,
+        );
       }
     };
 
@@ -102,25 +136,47 @@ export default defineComponent({
         userId: number;
         userName: string;
         status: string;
+        connection?: string;
       }>;
-      const { channelId, userId, userName, status } = customEvent.detail;
+      const { channelId, userId, userName, status, connection } = customEvent.detail;
 
       // Only update if this is for the current channel
       if (channelId === props.channelId) {
         // Check if member already exists (shouldn't happen, but just in case)
         const existingMember = members.value.find((m) => m.id === userId);
         if (!existingMember) {
+          // Map status based on connection and status
+          let mappedStatus: Status = 'offline';
+          
+          const memberConnection = (connection || 'online').toLowerCase();
+          if (memberConnection === 'offline') {
+            mappedStatus = 'offline';
+          } else {
+            const statusLower = (status || 'normal').toLowerCase();
+            mappedStatus = statusLower === 'normal' ? 'online' : (statusLower as Status);
+          }
+          
           members.value.push({
             id: userId,
             name: userName,
-            status: (status || 'offline') as Status,
+            status: mappedStatus,
           });
           console.log(
             `✅ Added new member ${userName} (${userId}) to channel ${channelId} in real-time`,
           );
         } else {
           // If member already exists, just update their status
-          existingMember.status = (status || 'offline') as Status;
+          let mappedStatus: Status = 'offline';
+          
+          const memberConnection = (connection || 'online').toLowerCase();
+          if (memberConnection === 'offline') {
+            mappedStatus = 'offline';
+          } else {
+            const statusLower = (status || 'normal').toLowerCase();
+            mappedStatus = statusLower === 'normal' ? 'online' : (statusLower as Status);
+          }
+          
+          existingMember.status = mappedStatus;
           console.log(
             `✅ Updated existing member ${userName} (${userId}) status in channel ${channelId}`,
           );
@@ -188,6 +244,34 @@ export default defineComponent({
       return true;
     });
 
+    // Group members by status (Discord-like)
+    const membersByStatus = computed(() => {
+      const grouped: Record<Status, Member[]> = {
+        online: [],
+        away: [],
+        dnd: [],
+        offline: [],
+      };
+
+      members.value.forEach((member) => {
+        if (grouped[member.status]) {
+          grouped[member.status].push(member);
+        } else {
+          grouped.offline.push(member);
+        }
+      });
+
+      return grouped;
+    });
+
+    const statusOrder: Status[] = ['online', 'away', 'dnd', 'offline'];
+    const statusLabels: Record<Status, string> = {
+      online: 'ONLINE',
+      away: 'AWAY',
+      dnd: 'DO NOT DISTURB',
+      offline: 'OFFLINE',
+    };
+
     // ZMENA: Exponovanie funkcie pre rodiča
     expose({ openAddDialog: addMember });
 
@@ -202,6 +286,9 @@ export default defineComponent({
       showAddDialog,
       handleInviteSent,
       canInvite,
+      membersByStatus,
+      statusOrder,
+      statusLabels,
     };
   },
 });
@@ -216,25 +303,20 @@ export default defineComponent({
     :breakpoint="0"
     bordered
     :width="360"
-    class="bg-orange-5 column"
+    class="discord-member-list column"
   >
-    <div class="row items-center justify-between q-pa-md" style="gap: 8px">
-      <div class="text-h6 text-grey-10">Members list</div>
-      <div class="row items-center" style="gap: 6px">
-        <q-btn flat round dense icon="close" color="red-8" @click="isOpen = false" />
-      </div>
+    <div class="discord-header row items-center justify-between q-pa-md">
+      <div class="text-h6 text-grey-9">Members list</div>
+      <q-btn flat round dense icon="close" color="grey-9" @click="isOpen = false" />
     </div>
 
-    <div
-      class="col bg-orange-2 q-pa-lg hide-scrollbar"
-      style="margin: 0 16px 8px 16px; border-radius: 16px; overflow-y: auto"
-    >
+    <div class="col discord-content hide-scrollbar">
       <div v-if="loading" class="flex flex-center" style="min-height: 200px">
         <q-spinner color="primary" size="3em" />
       </div>
       <div
         v-else-if="members.length === 0"
-        class="flex flex-center text-grey-6"
+        class="flex flex-center text-grey-6 q-pa-lg"
         style="min-height: 200px"
       >
         <div class="text-center">
@@ -242,43 +324,34 @@ export default defineComponent({
           <div>Žiadni členovia</div>
         </div>
       </div>
-      <div v-else class="row q-col-gutter-md">
-        <div class="col-4" v-for="m in members" :key="m.id">
-          <div class="relative-position flex flex-center" style="height: 96px">
-            <q-avatar
-              size="70px"
-              color="orange-1"
-              text-color="blue-8"
-              class="shadow-2"
-              :title="`${m.name} - ${statusText(m.status)}`"
-            >
-              {{ getInitials(m.name) }}
-              <span class="status-dot" :class="m.status" />
-              <q-tooltip
-                :delay="250"
-                anchor="bottom middle"
-                self="top middle"
-                transition-show="jump-down"
-                transition-hide="jump-up"
-                class="bg-grey-10 text-white"
+      <div v-else class="discord-members">
+        <template v-for="statusKey in statusOrder" :key="statusKey">
+          <div v-if="membersByStatus[statusKey].length > 0" class="status-section">
+            <div class="status-header">
+              <span class="status-indicator" :class="statusKey"></span>
+              <span class="status-title">{{ statusLabels[statusKey] }}—{{ membersByStatus[statusKey].length }}</span>
+            </div>
+            <div class="members-list">
+              <div
+                v-for="member in membersByStatus[statusKey]"
+                :key="member.id"
+                class="member-item"
               >
-                <div class="text-weight-medium">{{ m.name }}</div>
-                <div class="row items-center q-mt-xs" style="gap: 6px">
-                  <q-badge
-                    rounded
-                    :color="statusColor(m.status)"
-                    style="width: 10px; height: 10px; padding: 0"
-                  />
-                  <span class="text-caption">{{ statusText(m.status) }}</span>
-                </div>
-              </q-tooltip>
-            </q-avatar>
+                <q-avatar size="32px" class="member-avatar">
+                  <div class="avatar-placeholder">{{ getInitials(member.name) }}</div>
+                  <span class="member-status-dot" :class="statusKey"></span>
+                </q-avatar>
+                <span class="member-name" :class="`text-${statusKey === 'online' ? 'green' : statusKey === 'away' ? 'yellow' : statusKey === 'dnd' ? 'red' : 'grey'}-4`">
+                  {{ member.name }}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        </template>
       </div>
     </div>
 
-    <div class="q-pa-md bg-orange-5">
+    <div class="discord-footer q-pa-md">
       <q-btn
         v-if="canInvite"
         icon="person_add"
@@ -311,55 +384,188 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.hide-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
+.discord-member-list {
+  background-color: #fff3e0;
 }
 
-.status-dot {
+.discord-header {
+  background-color: #ffe0b2;
+  border-bottom: 1px solid #ffcc80;
+}
+
+.discord-content {
+  background-color: #fff3e0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.discord-members {
+  padding: 8px 0;
+}
+
+.status-section {
+  margin-bottom: 24px;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 4px 8px;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #8d6e63;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator.online {
+  background-color: #4caf50;
+}
+
+.status-indicator.away {
+  background-color: #ff9800;
+}
+
+.status-indicator.dnd {
+  background-color: #f44336;
+}
+
+.status-indicator.offline {
+  background-color: #9e9e9e;
+}
+
+.status-title {
+  color: #8d6e63;
+}
+
+.members-list {
+  padding: 4px 0;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.member-item:hover {
+  background-color: #ffe0b2;
+}
+
+.member-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ff9800;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 50%;
+}
+
+.member-status-dot {
   position: absolute;
   right: -2px;
   bottom: -2px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 2px solid #fee7d7;
+  border: 2px solid #fff3e0;
+  box-sizing: border-box;
 }
-.status-dot.online {
-  background: #4caf50;
-} /* zelená */
-.status-dot.away {
-  background: #f2c037;
-} /* žltá */
-.status-dot.dnd {
-  background: #f44336;
-} /* červená */
-.status-dot.offline {
-  background: #9e9e9e;
-} /* šedá */
+
+.member-status-dot.online {
+  background-color: #4caf50;
+}
+
+.member-status-dot.away {
+  background-color: #ff9800;
+}
+
+.member-status-dot.dnd {
+  background-color: #f44336;
+}
+
+.member-status-dot.offline {
+  background-color: #9e9e9e;
+}
+
+.member-name {
+  font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.discord-footer {
+  background-color: #ffe0b2;
+  border-top: 1px solid #ffcc80;
+}
+
+.hide-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #ffcc80 #fff3e0;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-track {
+  background: #fff3e0;
+}
+
+.hide-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #ffcc80;
+  border-radius: 4px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #ffb74d;
+}
 
 .add-member-btn {
-  background-color: #fbe3bf;
-  color: #b86b09;
-  border-radius: 12px;
-  font-weight: 600;
+  background-color: #ff9800;
+  color: #ffffff;
+  border-radius: 4px;
+  font-weight: 500;
   text-transform: uppercase;
 }
+
 .add-member-btn:hover {
-  background-color: #f5d3a3;
+  background-color: #f57c00;
 }
+
 .add-member-btn:active {
   transform: translateY(1px);
 }
 
 .no-permission-btn {
-  background-color: #ffccbc !important;
-  color: #d84315 !important;
-  font-weight: 600;
+  background-color: #9e9e9e !important;
+  color: #ffffff !important;
+  font-weight: 500;
   text-transform: uppercase;
-  opacity: 1 !important;
+  opacity: 0.6 !important;
 }
 </style>

@@ -106,16 +106,8 @@
                         outlined
                         class="status-select"
                         label="Status"
-                        v-model="statusSelect"
-                        :options="statusOptions"
-                      />
-                      <q-select
-                        dense
-                        outlined
-                        class="status-select"
-                        label="Connection"
-                        v-model="connectionSelect"
-                        :options="connectionOptions"
+                        v-model="unifiedStatusSelect"
+                        :options="unifiedStatusOptions"
                       />
                     </div>
                   </div>
@@ -400,8 +392,7 @@ const original = reactive({
   notifyOnMentionOnly: false,
 });
 
-const statusOptions = ['ONLINE', 'AWAY', 'DND'];
-const connectionOptions = ['ONLINE', 'OFFLINE'];
+const unifiedStatusOptions = ['ONLINE', 'AWAY', 'DND', 'OFFLINE'];
 
 // RESET PASSWORD STATE
 const resetDialogOpen = ref(false);
@@ -477,54 +468,45 @@ const statusChipText = computed(() => {
   return form.status.toUpperCase();
 });
 
-const statusSelect = computed({
+// Unified status select - combines connection and status
+const unifiedStatusSelect = computed({
   get: () => {
-    // Map 'normal' to 'ONLINE' for display
-    if (form.status === 'normal') return 'ONLINE';
-    return form.status.toUpperCase();
-  },
-  set: (val: string | null) => {
-    // Map 'ONLINE' back to 'normal' for storage
-    let v = (val ?? 'ONLINE').toLowerCase();
-    if (v === 'online') v = 'normal';
-    form.status = v;
-
-    if (currentUser.value) {
-      const updatedCurrent: CurrentUser = {
-        ...currentUser.value,
-        status: v,
-      };
-      currentUser.value = updatedCurrent;
-      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
-
-      const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
-        detail: updatedCurrent,
-      });
-      window.dispatchEvent(event);
-
-      void (async () => {
-        try {
-          await api.put(`/users/${currentUser.value!.id}`, {
-            status: v,
-          });
-        } catch (error) {
-          console.error('Error updating status:', error);
-        }
-      })();
+    // If offline, always show OFFLINE
+    if (form.connection === 'offline') {
+      return 'OFFLINE';
     }
+    // If online, show status (normal -> ONLINE, away -> AWAY, dnd -> DND)
+    if (form.status === 'normal') return 'ONLINE';
+    return form.status?.toUpperCase() ?? 'ONLINE';
   },
-});
-
-const connectionSelect = computed({
-  get: () => (form.connection ?? 'online').toUpperCase(),
   set: (val: string | null) => {
-    const v = (val ?? 'ONLINE').toLowerCase();
-    form.connection = v;
+    const selectedStatus = (val ?? 'ONLINE').toUpperCase();
+    
+    let newConnection: string;
+    let newStatus: string;
+
+    if (selectedStatus === 'OFFLINE') {
+      // Offline: connection = 'offline', status zostáva
+      newConnection = 'offline';
+      newStatus = form.status; // Keep current status
+    } else {
+      // Online, Away, DND: connection = 'online', status = selected
+      newConnection = 'online';
+      if (selectedStatus === 'ONLINE') {
+        newStatus = 'normal';
+      } else {
+        newStatus = selectedStatus.toLowerCase();
+      }
+    }
+
+    form.connection = newConnection;
+    form.status = newStatus;
 
     if (currentUser.value) {
       const updatedCurrent: CurrentUser = {
         ...currentUser.value,
-        connection: v,
+        connection: newConnection,
+        status: newStatus,
       };
       currentUser.value = updatedCurrent;
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
@@ -537,10 +519,11 @@ const connectionSelect = computed({
       void (async () => {
         try {
           await api.put(`/users/${currentUser.value!.id}`, {
-            connection: v,
+            connection: newConnection,
+            status: newStatus,
           });
         } catch (error) {
-          console.error('Error updating connection:', error);
+          console.error('Error updating status/connection:', error);
         }
       })();
     }

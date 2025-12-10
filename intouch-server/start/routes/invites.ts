@@ -66,7 +66,8 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
         channelId: channel.id,
         userId: user.id,
         userName: userName,
-        status: user.status || 'offline',
+        status: user.status || 'normal',
+        connection: user.connection || 'online',
       })
       console.log(
         `📢 Sent member:joined event for user ${user.id} (${userName}) to channel ${channel.id} room`

@@ -1,5 +1,5 @@
 <template>
-  <div class="text-bar q-pa-sm row items-center">
+  <div class="text-bar row items-center">
     <q-input
       ref="inputRef"
       v-model="message"
@@ -141,7 +141,9 @@ export default defineComponent({
 <style scoped>
 .text-bar {
   width: 100%;
-  padding-left: 0.5cm;
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .emoji-btn {
