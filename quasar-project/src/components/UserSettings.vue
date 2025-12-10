@@ -18,7 +18,7 @@
                   </div>
 
                   <q-chip :color="statusChipColor" text-color="white" dense square>
-                    {{ form.status.toUpperCase() }}
+                    {{ statusChipText }}
                   </q-chip>
 
                   <div class="q-mt-sm q-pa-sm self-stretch text-center bg-grey-1 rounded-borders">
@@ -100,22 +100,24 @@
                 <q-card-section class="compact-section">
                   <div class="status-row">
                     <div class="text-subtitle1 col-title">Presence &amp; Notifications</div>
-                    <q-select
-                      dense
-                      outlined
-                      class="status-select"
-                      label="Status"
-                      v-model="statusSelect"
-                      :options="statusOptions"
-                    />
-                  </div>
-                </q-card-section>
-                <q-separator />
-                <q-card-section class="q-gutter-md compact-section">
-                  <div class="row items-center q-gutter-md">
-                    <q-toggle v-model="notifAll" label="Povoliť notifikácie" />
-                    <q-toggle v-model="form.notifyOnMentionOnly" label="Len @mentions" />
-                    <q-toggle v-model="notifMuteInDnd" label="Stlmiť v DND" />
+                    <div class="row q-gutter-sm" style="flex: 0 0 auto;">
+                      <q-select
+                        dense
+                        outlined
+                        class="status-select"
+                        label="Status"
+                        v-model="statusSelect"
+                        :options="statusOptions"
+                      />
+                      <q-select
+                        dense
+                        outlined
+                        class="status-select"
+                        label="Connection"
+                        v-model="connectionSelect"
+                        :options="connectionOptions"
+                      />
+                    </div>
                   </div>
                 </q-card-section>
               </q-card>
@@ -344,6 +346,7 @@ interface CurrentUser {
   firstname: string | null;
   surname: string | null;
   status: string | null;
+  connection?: string | null;
   profilePicture: string | null;
 }
 
@@ -354,6 +357,7 @@ interface UserFromApi {
   firstname: string | null;
   surname: string | null;
   status: string | null;
+  connection?: string | null;
   notifyOnMentionOnly: boolean | null;
   profilePicture: string | null;
 }
@@ -381,7 +385,8 @@ const form = reactive({
   surname: '',
   nickname: '',
   email: '',
-  status: 'online',
+  status: 'normal',
+  connection: 'online',
   notifyOnMentionOnly: false,
 });
 
@@ -390,14 +395,13 @@ const original = reactive({
   surname: '',
   nickname: '',
   email: '',
-  status: 'online',
+  status: 'normal',
+  connection: 'online',
   notifyOnMentionOnly: false,
 });
 
-const notifAll = ref(true);
-const notifMuteInDnd = ref(true);
-
-const statusOptions = ['ONLINE', 'AWAY', 'DND', 'OFFLINE'];
+const statusOptions = ['ONLINE', 'AWAY', 'DND'];
+const connectionOptions = ['ONLINE', 'OFFLINE'];
 
 // RESET PASSWORD STATE
 const resetDialogOpen = ref(false);
@@ -451,8 +455,11 @@ const displayName = computed(() => {
 });
 
 const statusChipColor = computed(() => {
+  if (form.connection === 'offline') {
+    return 'grey';
+  }
   switch (form.status) {
-    case 'online':
+    case 'normal':
       return 'positive';
     case 'away':
       return 'warning';
@@ -463,10 +470,23 @@ const statusChipColor = computed(() => {
   }
 });
 
+const statusChipText = computed(() => {
+  if (form.connection === 'offline') {
+    return 'OFFLINE';
+  }
+  return form.status.toUpperCase();
+});
+
 const statusSelect = computed({
-  get: () => form.status.toUpperCase(),
+  get: () => {
+    // Map 'normal' to 'ONLINE' for display
+    if (form.status === 'normal') return 'ONLINE';
+    return form.status.toUpperCase();
+  },
   set: (val: string | null) => {
-    const v = (val ?? 'ONLINE').toLowerCase();
+    // Map 'ONLINE' back to 'normal' for storage
+    let v = (val ?? 'ONLINE').toLowerCase();
+    if (v === 'online') v = 'normal';
     form.status = v;
 
     if (currentUser.value) {
@@ -495,12 +515,45 @@ const statusSelect = computed({
   },
 });
 
+const connectionSelect = computed({
+  get: () => (form.connection ?? 'online').toUpperCase(),
+  set: (val: string | null) => {
+    const v = (val ?? 'ONLINE').toLowerCase();
+    form.connection = v;
+
+    if (currentUser.value) {
+      const updatedCurrent: CurrentUser = {
+        ...currentUser.value,
+        connection: v,
+      };
+      currentUser.value = updatedCurrent;
+      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
+
+      const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
+        detail: updatedCurrent,
+      });
+      window.dispatchEvent(event);
+
+      void (async () => {
+        try {
+          await api.put(`/users/${currentUser.value!.id}`, {
+            connection: v,
+          });
+        } catch (error) {
+          console.error('Error updating connection:', error);
+        }
+      })();
+    }
+  },
+});
+
 function copyForm(src: typeof form, dst: typeof form) {
   dst.firstname = src.firstname;
   dst.surname = src.surname;
   dst.nickname = src.nickname;
   dst.email = src.email;
   dst.status = src.status;
+  dst.connection = src.connection;
   dst.notifyOnMentionOnly = src.notifyOnMentionOnly;
 }
 
@@ -790,7 +843,8 @@ async function loadUser() {
     form.surname = data.surname ?? '';
     form.nickname = data.nickname;
     form.email = data.email;
-    form.status = data.status ?? 'online';
+    form.status = data.status ?? 'normal';
+    form.connection = data.connection ?? 'online';
     form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly);
 
     copyForm(form, original);
@@ -802,6 +856,7 @@ async function loadUser() {
       firstname: data.firstname ?? null,
       surname: data.surname ?? null,
       status: data.status ?? null,
+      connection: data.connection ?? 'online',
       profilePicture: data.profilePicture ?? null,
     };
     currentUser.value = updatedCurrent;
@@ -839,6 +894,7 @@ async function saveChanges() {
       nickname: form.nickname,
       email: form.email,
       status: form.status,
+      connection: form.connection,
       notifyOnMentionOnly: form.notifyOnMentionOnly,
     });
 
@@ -846,7 +902,8 @@ async function saveChanges() {
     form.surname = data.surname ?? '';
     form.nickname = data.nickname;
     form.email = data.email;
-    form.status = data.status ?? 'online';
+    form.status = data.status ?? 'normal';
+    form.connection = data.connection ?? 'online';
     form.notifyOnMentionOnly = Boolean(data.notifyOnMentionOnly);
     copyForm(form, original);
 
@@ -857,6 +914,7 @@ async function saveChanges() {
       firstname: data.firstname ?? null,
       surname: data.surname ?? null,
       status: data.status ?? null,
+      connection: data.connection ?? 'online',
       profilePicture: data.profilePicture ?? currentUser.value.profilePicture,
     };
     currentUser.value = updatedCurrent;

@@ -35,6 +35,12 @@ export async function boot() {
       console.log(`📤 Socket ${socket.id} left room ${room}`)
     })
 
+    socket.on('user:join', (userId: number) => {
+      const userRoom = `user:${userId}`
+      socket.join(userRoom)
+      console.log(`📥 Socket ${socket.id} joined user room ${userRoom}`)
+    })
+
     socket.on('chat:message', (msg) => {
       // Broadcast to all connected clients (fallback if no room specified)
       io?.emit('chat:message', msg)

@@ -8,6 +8,7 @@ export interface CurrentUser {
   firstname: string | null;
   surname: string | null;
   status: string | null;
+  connection?: string | null;
   profilePicture?: string | null;
 }
 
@@ -252,7 +253,7 @@ export function useSocketEvents(
     console.log('🔵🔵🔵 RECEIVED chat:message event:', data);
 
     // Ignorovať správy ak je používateľ offline
-    if (currentUser.value?.status === 'offline') {
+    if (currentUser.value?.connection === 'offline') {
       console.log('⚠️ User is offline, ignoring message');
       return;
     }

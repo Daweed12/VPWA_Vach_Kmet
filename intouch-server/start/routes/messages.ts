@@ -3,6 +3,7 @@ import Channel from '#models/channel'
 import User from '#models/user'
 import Message from '#models/message'
 import Mention from '#models/mention'
+import OfflineMessage from '#models/offline_message'
 import { getIO } from '../socket.js'
 
 /**
@@ -68,6 +69,22 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
     return response.notFound({ message: 'Používateľ neexistuje.' })
   }
 
+  // Ak je používateľ offline, uložiť správu do queue
+  if (user.connection === 'offline') {
+    const offlineMessage = await OfflineMessage.create({
+      channelId,
+      senderId,
+      content: content.trim(),
+    })
+
+    return {
+      message: 'Správa bola uložená a bude odoslaná keď sa pripojíš.',
+      offline: true,
+      id: offlineMessage.id,
+    }
+  }
+
+  // Ak je online, vytvoriť normálnu správu
   const message = await Message.create({
     channelId,
     senderId,

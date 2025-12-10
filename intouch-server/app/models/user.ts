@@ -25,7 +25,10 @@ export default class User extends BaseModel {
   declare profilePicture: string | null
 
   @column()
-  declare status: string
+  declare status: 'away' | 'dnd' | 'normal'
+
+  @column()
+  declare connection: 'online' | 'offline'
 
   @column({ columnName: 'notify_on_mention_only' })
   declare notifyOnMentionOnly: boolean

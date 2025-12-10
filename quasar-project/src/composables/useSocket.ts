@@ -101,6 +101,15 @@ export function useSocket() {
     }
   };
 
+  const joinUserRoom = (userId: number) => {
+    if (!socket?.connected) {
+      console.warn('⚠️ Socket not connected, cannot join user room. User:', userId);
+      return;
+    }
+    socket.emit('user:join', userId);
+    console.log('✅ Emitted user:join for user:', userId);
+  };
+
   const getSocket = () => socket;
 
   return {
@@ -109,5 +118,6 @@ export function useSocket() {
     joinChannel,
     leaveChannel,
     disconnectSocket,
+    joinUserRoom,
   };
 }

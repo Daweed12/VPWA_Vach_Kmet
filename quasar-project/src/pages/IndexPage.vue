@@ -62,7 +62,7 @@ const activeChannelTitle = ref<string | null>(null);
 const currentUser = ref<CurrentUser | null>(null);
 
 /* ===== Composables ===== */
-const { socket, initSocket, joinChannel, leaveChannel, disconnectSocket } = useSocket();
+const { socket, initSocket, joinChannel, leaveChannel, disconnectSocket, joinUserRoom } = useSocket();
 const {
   rawMessages,
   loading,
@@ -150,15 +150,22 @@ const handleChannelSelected = (event: Event) => {
   activeChannelId.value = detail.id;
   activeChannelTitle.value = detail.title;
 
-  // Ensure socket is initialized and connected
-  if (!socket()) {
-    console.warn('⚠️ Socket not initialized, initializing now...');
-    initSocket();
-    setupSocketEvents();
+  // Len ak používateľ nie je offline, pripojiť WebSocket a načítať správy
+  if (currentUser.value?.connection !== 'offline') {
+    // Ensure socket is initialized and connected
+    if (!socket()) {
+      console.warn('⚠️ Socket not initialized, initializing now...');
+      initSocket();
+      setupSocketEvents();
+    }
+
+    // Join new channel (will wait for connection if needed)
+    joinChannel(detail.id);
+  } else {
+    console.log('⚠️ User is offline, not joining channel or loading messages via WebSocket');
   }
 
-  // Join new channel (will wait for connection if needed)
-  joinChannel(detail.id);
+  // Vždy načítať správy z DB (aj keď je offline)
 
   void loadMessagesForChannel(detail.id);
   resetPaging();
@@ -168,7 +175,47 @@ const handleChannelSelected = (event: Event) => {
 /* ===== Current User Update Handler ===== */
 const handleCurrentUserUpdated = (event: Event) => {
   const detail = (event as CustomEvent<CurrentUser>).detail;
+  const oldConnection = currentUser.value?.connection;
   currentUser.value = detail;
+
+  // Ak sa zmenil connection z online na offline, odpojiť WebSocket
+  if (oldConnection !== 'offline' && detail.connection === 'offline') {
+    console.log('🔌 User went offline, disconnecting WebSocket');
+    disconnectSocket();
+  }
+
+  // Ak sa zmenil connection z offline na online, pripojiť WebSocket a načítať správy
+  if (oldConnection === 'offline' && detail.connection !== 'offline') {
+    console.log('🔌 User went online, connecting WebSocket and loading messages');
+    initSocket();
+    setupSocketEvents();
+
+    const socketInstance = socket();
+    if (socketInstance) {
+      if (socketInstance.connected) {
+        // Join user room
+        if (currentUser.value?.id) {
+          joinUserRoom(currentUser.value.id);
+        }
+        if (activeChannelId.value) {
+          joinChannel(activeChannelId.value);
+          void loadMessagesForChannel(activeChannelId.value);
+        }
+      } else {
+        socketInstance.once('connect', () => {
+          setupSocketEvents();
+          // Join user room
+          if (currentUser.value?.id) {
+            joinUserRoom(currentUser.value.id);
+          }
+          if (activeChannelId.value) {
+            joinChannel(activeChannelId.value);
+            void loadMessagesForChannel(activeChannelId.value);
+          }
+        });
+      }
+    }
+  }
 };
 
 /* ===== User Avatar Changed Handler ===== */
@@ -272,37 +319,45 @@ onMounted(() => {
   const stored = localStorage.getItem('currentUser');
   if (stored) currentUser.value = JSON.parse(stored);
 
-  // Initialize socket.io connection immediately
-  initSocket();
-  setupSocketEvents();
-
-  // Ensure socket connects and joins channel when ready
-  const socketInstance = socket();
-  if (socketInstance) {
-    if (socketInstance.connected) {
-      console.log('✅ Socket already connected on mount');
-      if (activeChannelId.value) {
-        joinChannel(activeChannelId.value);
+  // Initialize socket.io connection len ak používateľ nie je offline
+  if (currentUser.value?.connection !== 'offline') {
+    initSocket();
+    setupSocketEvents();
+    const socketInstance = socket();
+    if (socketInstance) {
+      if (socketInstance.connected) {
+        console.log('✅ Socket already connected on mount');
+        // Join user room
+        if (currentUser.value?.id) {
+          joinUserRoom(currentUser.value.id);
+        }
+        if (activeChannelId.value) {
+          joinChannel(activeChannelId.value);
+        }
+      } else {
+        console.log('⏳ Waiting for socket connection...');
+        socketInstance.once('connect', () => {
+          console.log('✅ Socket connected after mount, joining channel if needed');
+          setupSocketEvents();
+          // Join user room
+          if (currentUser.value?.id) {
+            joinUserRoom(currentUser.value.id);
+          }
+          if (activeChannelId.value) {
+            joinChannel(activeChannelId.value);
+          }
+        });
       }
-    } else {
-      console.log('⏳ Waiting for socket connection...');
-      socketInstance.once('connect', () => {
-        console.log('✅ Socket connected after mount, joining channel if needed');
-        setupSocketEvents();
+
+      socketInstance.on('reconnect', () => {
+        console.log('🔄 Socket reconnected, rejoining channel if needed');
         if (activeChannelId.value) {
           joinChannel(activeChannelId.value);
         }
       });
+    } else {
+      console.error('❌ Failed to initialize socket');
     }
-
-    socketInstance.on('reconnect', () => {
-      console.log('🔄 Socket reconnected, rejoining channel if needed');
-      if (activeChannelId.value) {
-        joinChannel(activeChannelId.value);
-      }
-    });
-  } else {
-    console.error('❌ Failed to initialize socket');
   }
 
   window.addEventListener('channelSelected', handleChannelSelected as EventListener);

@@ -4,6 +4,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import User from '#models/user'
 import ChannelMember from '#models/channel_member'
+import OfflineMessage from '#models/offline_message'
+import Message from '#models/message'
+import Mention from '#models/mention'
 import { getIO } from '../socket.js'
 
 /**
@@ -79,30 +82,111 @@ router.put('/users/:id', async ({ params, request, response }) => {
     'nickname',
     'email',
     'status',
+    'connection',
     'notifyOnMentionOnly',
   ])
 
+  const oldConnection = user.connection
   const oldStatus = user.status
   user.merge(payload)
   await user.save()
 
-  // If status changed, send WebSocket event to all channels where user is a member
-  if (payload.status && payload.status !== oldStatus) {
-    const io = getIO()
-    if (io) {
-      const channelMembers = await ChannelMember.query()
-        .where('user_id', user.id)
-        .where('status', '!=', 'banned')
+  const io = getIO()
+  if (io) {
+    const channelMembers = await ChannelMember.query()
+      .where('user_id', user.id)
+      .where('status', '!=', 'banned')
 
+    // If connection changed from offline to online, load and send offline messages
+    if (payload.connection && payload.connection === 'online' && oldConnection === 'offline') {
+      // Načítať offline správy, ktoré používateľ poslal keď bol offline
+      const offlineMessages = await OfflineMessage.query()
+        .where('sender_id', user.id)
+        .preload('sender')
+        .preload('channel')
+        .orderBy('created_at', 'asc')
+
+      // Odoslať každú offline správu cez WebSocket
+      for (const offlineMsg of offlineMessages) {
+        const message = await Message.create({
+          channelId: offlineMsg.channelId,
+          senderId: offlineMsg.senderId,
+          content: offlineMsg.content,
+        })
+
+        // Handle mentions
+        const mentionMatches = offlineMsg.content.match(/\B@([\p{L}\p{N}_-]+)/gu)
+
+        if (mentionMatches && mentionMatches.length > 0) {
+          const uniqueMatches = [...new Set(mentionMatches)] as string[]
+          const nicknames = uniqueMatches.map((m) => m.substring(1))
+          const mentionedUsers = await User.query().whereIn('nickname', nicknames)
+
+          if (mentionedUsers.length > 0) {
+            const mentionsToCreate = mentionedUsers.map((u) => ({
+              messageId: message.id,
+              userId: u.id,
+            }))
+
+            await Mention.createMany(mentionsToCreate)
+          }
+        }
+
+        await message.load('sender')
+
+        const serialized = message.serialize()
+        const responseMessage = {
+          ...serialized,
+          timestamp: message.timestamp.toISO(),
+          sender: message.sender
+            ? {
+                id: message.sender.id,
+                nickname: message.sender.nickname,
+                firstname: message.sender.firstname,
+                surname: message.sender.surname,
+                email: message.sender.email,
+                profilePicture: message.sender.profilePicture,
+              }
+            : null,
+        }
+
+        const messageToBroadcast = {
+          ...responseMessage,
+          channelId: offlineMsg.channelId,
+          channel_id: offlineMsg.channelId,
+        }
+
+        const room = `channel:${offlineMsg.channelId}`
+        io.to(room).emit('chat:message', messageToBroadcast)
+        io.emit('chat:message', messageToBroadcast)
+
+        // Vymazať offline správu
+        await offlineMsg.delete()
+      }
+
+      console.log(`📢 Sent ${offlineMessages.length} offline messages for user ${user.id}`)
+    }
+
+    // If status or connection changed, send WebSocket event to all channels where user is a member
+    if ((payload.status && payload.status !== oldStatus) || (payload.connection && payload.connection !== oldConnection)) {
       for (const member of channelMembers) {
         const room = `channel:${member.channelId}`
         io.to(room).emit('user:status:changed', {
           userId: user.id,
           status: user.status,
+          connection: user.connection,
           name:
             user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
         })
         console.log(`📢 Sent status change event for user ${user.id} to room ${room}`)
+      }
+
+      // Pošli aj konkrétnemu používateľovi event o zmene connection (pre odpojenie WebSocketu)
+      if (payload.connection && payload.connection !== oldConnection) {
+        io.to(`user:${user.id}`).emit('user:connection:changed', {
+          userId: user.id,
+          connection: user.connection,
+        })
       }
     }
   }

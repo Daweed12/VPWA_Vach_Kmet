@@ -8,6 +8,7 @@ export interface CurrentUser {
   firstname: string | null;
   surname: string | null;
   status: string | null;
+  connection?: string | null;
   profilePicture: string | null;
 }
 
