@@ -52,11 +52,15 @@ import { useMessages, type CurrentUser } from 'src/composables/useMessages';
 import { useTyping } from 'src/composables/useTyping';
 import { useSocketEvents } from 'src/composables/useSocketEvents';
 import { useInfiniteScroll } from 'src/composables/useInfiniteScroll';
+import { useNotifications } from 'src/composables/useNotifications';
+import type { MessageFromApi } from 'src/composables/useMessages';
 
 /* ===== State ===== */
 const activeChannelId = ref<number | null>(null);
 const activeChannelTitle = ref<string | null>(null);
 const currentUser = ref<CurrentUser | null>(null);
+// Mapa channelId -> title pre notifikácie
+const channelTitleMap = ref<Map<number, string>>(new Map());
 
 /* ===== Composables ===== */
 const { socket, initSocket, joinChannel, leaveChannel, disconnectSocket, joinUserRoom } = useSocket();
@@ -80,6 +84,7 @@ const {
   onLoad: onInfiniteLoad,
   initializeVisibleCount,
 } = useInfiniteScroll(totalMessages);
+const { showMessageNotification, initialize: initializeNotifications } = useNotifications();
 
 /* ===== Computed ===== */
 const visibleMessages = computed(() => {
@@ -120,6 +125,39 @@ const setupSocketEvents = () => {
         }
       }, 100);
     },
+    onNewMessageNotification: (message: MessageFromApi & { channelId?: number; channel_id?: number }) => {
+      console.log('🔔 onNewMessageNotification called:', {
+        messageId: message.id,
+        channelId: message.channelId || message.channel_id,
+        senderId: message.sender?.id,
+        currentUserId: currentUser.value?.id,
+      });
+
+      // Zobraziť notifikáciu iba ak správa nie je od aktuálneho používateľa
+      if (currentUser.value && message.sender.id === currentUser.value.id) {
+        console.log('⚠️ Správa je od aktuálneho používateľa, notifikácia sa nezobrazí');
+        return;
+      }
+
+      // Získať channelId zo správy
+      const messageChannelId = message.channelId || message.channel_id;
+      if (!messageChannelId) {
+        console.warn('⚠️ Správa nemá channelId');
+        return;
+      }
+
+      // Získať názov kanála z mapy
+      const channelTitle = channelTitleMap.value.get(messageChannelId) || null;
+      console.log('📋 Channel title from map:', {
+        channelId: messageChannelId,
+        channelTitle,
+        mapSize: channelTitleMap.value.size,
+        mapKeys: Array.from(channelTitleMap.value.keys()),
+      });
+
+      // Zobraziť notifikáciu
+      showMessageNotification(message, channelTitle);
+    },
   });
 
   // Typing indicators
@@ -156,6 +194,14 @@ const handleChannelSelected = (event: Event) => {
 
   activeChannelId.value = detail.id;
   activeChannelTitle.value = detail.title;
+
+  // Aktualizovať mapu kanálov pre notifikácie
+  channelTitleMap.value.set(detail.id, detail.title);
+  console.log('📋 Channel title map updated:', {
+    channelId: detail.id,
+    channelTitle: detail.title,
+    mapSize: channelTitleMap.value.size,
+  });
 
   // Len ak používateľ nie je offline, pripojiť WebSocket a načítať správy
   if (currentUser.value?.connection !== 'offline') {
@@ -307,41 +353,35 @@ if (typeof window !== 'undefined') {
   };
 }
 
-/* ===== Notifications ===== */
-const notificationsSupported = typeof window !== 'undefined' && typeof Notification !== 'undefined';
-const notificationPermission = ref<NotificationPermission>(
-  notificationsSupported ? Notification.permission : 'default',
-);
-
-let notificationTimer: ReturnType<typeof setTimeout> | null = null;
-
-const showNotification = () => {
-  if (!notificationsSupported) return;
-  if (notificationPermission.value !== 'granted') return;
-
-  const last = uiMessages.value[uiMessages.value.length - 1];
-  if (!last) return;
-
-  const notification = new Notification(last.name, {
-    body: last.text,
-    icon: last.avatar,
-    badge: 'https://cdn-icons-png.flaticon.com/512/1384/1384069.png',
-  });
-  notification.onclick = () => {
-    window.focus();
-  };
+/* ===== Channel Title Map Handler ===== */
+const handleChannelCreated = (event: Event) => {
+  const customEvent = event as CustomEvent<{
+    id: number;
+    title: string;
+    availability: string;
+    creatorId: number;
+    createdAt: string;
+    userId?: number;
+  }>;
+  if (customEvent.detail) {
+    channelTitleMap.value.set(customEvent.detail.id, customEvent.detail.title);
+  }
 };
 
-const handleVisibilityChange = () => {
-  if (!notificationsSupported) return;
-
-  if (document.visibilityState === 'hidden') {
-    notificationTimer = setTimeout(() => {
-      showNotification();
-    }, 3000);
-  } else if (notificationTimer) {
-    clearTimeout(notificationTimer);
-    notificationTimer = null;
+const handleChannelJoined = (event: Event) => {
+  const customEvent = event as CustomEvent<{
+    channelId: number;
+    userId: number;
+    channel: {
+      id: number;
+      title: string;
+      availability: string;
+      creatorId: number;
+      createdAt: string;
+    };
+  }>;
+  if (customEvent.detail?.channel) {
+    channelTitleMap.value.set(customEvent.detail.channel.id, customEvent.detail.channel.title);
   }
 };
 
@@ -395,21 +435,11 @@ onMounted(() => {
   window.addEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener);
   window.addEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener);
   window.addEventListener('userNicknameChanged', handleUserNicknameChanged as EventListener);
+  window.addEventListener('channelCreated', handleChannelCreated as EventListener);
+  window.addEventListener('channelJoined', handleChannelJoined as EventListener);
 
-  if (notificationsSupported) {
-    notificationPermission.value = Notification.permission;
-    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-      Notification.requestPermission()
-        .then((permission) => {
-          notificationPermission.value = permission;
-        })
-        .catch((err) => {
-          console.error('Chyba pri žiadaní o povolenie na notifikácie:', err);
-        });
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-  }
+  // Inicializovať notifikácie
+  initializeNotifications();
 });
 
 onUnmounted(() => {
@@ -419,14 +449,8 @@ onUnmounted(() => {
   window.removeEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener);
   window.removeEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener);
   window.removeEventListener('userNicknameChanged', handleUserNicknameChanged as EventListener);
-
-  if (notificationsSupported) {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }
-  if (notificationTimer) {
-    clearTimeout(notificationTimer);
-    notificationTimer = null;
-  }
+  window.removeEventListener('channelCreated', handleChannelCreated as EventListener);
+  window.removeEventListener('channelJoined', handleChannelJoined as EventListener);
 });
 </script>
 

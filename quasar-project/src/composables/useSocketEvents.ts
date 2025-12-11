@@ -8,7 +8,6 @@ export interface CurrentUser {
   firstname: string | null;
   surname: string | null;
   status: string | null;
-  connection?: string | null;
   profilePicture?: string | null;
 }
 
@@ -68,60 +67,29 @@ export function useSocketEvents(
       status: string;
     }) => void;
     onMessage?: (message: MessageFromApi & { channelId?: number; channel_id?: number }) => void;
+    onNewMessageNotification?: (
+      message: MessageFromApi & { channelId?: number; channel_id?: number },
+    ) => void;
   },
 ) {
   if (!socket) return;
 
   // Listen for user status changes
-  socket.on(
-    'user:status:changed',
-    (data: { userId: number; status: string; connection?: string; name: string }) => {
-      console.log('📢 Received user:status:changed event:', data);
+  socket.on('user:status:changed', (data: { userId: number; status: string; name: string }) => {
+    console.log('📢 Received user:status:changed event:', data);
 
-      window.dispatchEvent(
-        new CustomEvent('userStatusChanged', {
-          detail: {
-            userId: data.userId,
-            status: data.status,
-            connection: data.connection,
-            name: data.name,
-          },
-        }),
-      );
+    window.dispatchEvent(
+      new CustomEvent('userStatusChanged', {
+        detail: {
+          userId: data.userId,
+          status: data.status,
+          name: data.name,
+        },
+      }),
+    );
 
-      callbacks.onUserStatusChanged?.(data);
-    },
-  );
-
-  // Listen for user nickname changes
-  socket.on(
-    'user:nickname:changed',
-    (data: {
-      userId: number;
-      nickname?: string | null;
-      firstname?: string | null;
-      surname?: string | null;
-      email?: string | null;
-      name: string;
-    }) => {
-      console.log('📢 Received user:nickname:changed event:', data);
-
-      window.dispatchEvent(
-        new CustomEvent('userNicknameChanged', {
-          detail: {
-            userId: data.userId,
-            nickname: data.nickname,
-            firstname: data.firstname,
-            surname: data.surname,
-            email: data.email,
-            name: data.name,
-          },
-        }),
-      );
-
-      callbacks.onUserNicknameChanged?.(data);
-    },
-  );
+    callbacks.onUserStatusChanged?.(data);
+  });
 
   // Listen for user avatar changes
   socket.on(
@@ -299,12 +267,6 @@ export function useSocketEvents(
   socket.on('chat:message', (data: unknown) => {
     console.log('🔵🔵🔵 RECEIVED chat:message event:', data);
 
-    // Ignorovať správy ak je používateľ offline
-    if (currentUser.value?.connection === 'offline') {
-      console.log('⚠️ User is offline, ignoring message');
-      return;
-    }
-
     const message = data as MessageFromApi & { channelId?: number; channel_id?: number };
 
     // Validate message structure
@@ -325,6 +287,10 @@ export function useSocketEvents(
       console.warn('⚠️ Received message without channelId:', message);
       return;
     }
+
+    // Volať callback pre notifikáciu pre VŠETKY správy (aj z iných kanálov)
+    // Toto sa volá pred kontrolou aktívneho kanála, aby sa notifikácie zobrazovali aj pre iné kanály
+    callbacks.onNewMessageNotification?.(message);
 
     // If we have an active channel, only show messages for that channel
     if (activeChannelId.value !== null && messageChannelId !== activeChannelId.value) {
