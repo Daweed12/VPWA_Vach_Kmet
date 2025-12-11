@@ -10,6 +10,7 @@ export interface CurrentUser {
   status: string | null;
   connection?: string | null;
   profilePicture: string | null;
+  notifyOnMentionOnly?: boolean;
 }
 
 export function useUser() {

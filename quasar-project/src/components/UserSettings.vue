@@ -112,6 +112,17 @@
                     </div>
                   </div>
                 </q-card-section>
+                <q-separator />
+                <q-card-section class="compact-section">
+                  <q-toggle
+                    v-model="form.notifyOnMentionOnly"
+                    label="Notifikácie len pri @mentions"
+                    color="primary"
+                  />
+                  <div class="text-caption text-grey-7 q-mt-xs">
+                    Ak je zapnuté, notifikácie budú chodiť len keď si spomenutý v správe pomocou @tvojnickname
+                  </div>
+                </q-card-section>
               </q-card>
 
               <!-- MY CHANNELS -->
@@ -340,6 +351,7 @@ interface CurrentUser {
   status: string | null;
   connection?: string | null;
   profilePicture: string | null;
+  notifyOnMentionOnly?: boolean;
 }
 
 interface UserFromApi {
@@ -847,6 +859,7 @@ async function loadUser() {
       status: data.status ?? null,
       connection: data.connection ?? 'online',
       profilePicture: data.profilePicture ?? null,
+      notifyOnMentionOnly: Boolean(data.notifyOnMentionOnly),
     };
     currentUser.value = updatedCurrent;
     localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
@@ -905,6 +918,7 @@ async function saveChanges() {
       status: data.status ?? null,
       connection: data.connection ?? 'online',
       profilePicture: data.profilePicture ?? currentUser.value.profilePicture,
+      notifyOnMentionOnly: Boolean(data.notifyOnMentionOnly),
     };
     currentUser.value = updatedCurrent;
     localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));

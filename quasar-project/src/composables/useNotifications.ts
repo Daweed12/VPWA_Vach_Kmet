@@ -63,25 +63,64 @@ export function useNotifications() {
   };
 
   /**
+   * Skontroluje, či je používateľ spomenutý v správe
+   * @param messageContent - Obsah správy
+   * @param userNickname - Nickname používateľa
+   * @returns true ak je používateľ spomenutý
+   */
+  const isUserMentioned = (messageContent: string, userNickname: string | null): boolean => {
+    if (!userNickname) return false;
+    const mentionRegex = new RegExp(`\\B@${userNickname}\\b`, 'gi');
+    return mentionRegex.test(messageContent);
+  };
+
+  /**
    * Zobrazí notifikáciu pre novú správu
    * @param message - Správa, pre ktorú sa má zobraziť notifikácia
    * @param channelTitle - Názov kanála (voliteľné)
+   * @param currentUser - Aktuálny používateľ (pre kontrolu DND a mentions)
    */
   const showMessageNotification = (
     message: MessageFromApi,
     channelTitle?: string | null,
+    currentUser?: { status?: string | null; notifyOnMentionOnly?: boolean; nickname?: string | null } | null,
   ): void => {
+    // Kontrola viditeľnosti aktuálneho okna/karty
+    const isWindowVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
+    const isAppVisible = $q.appVisible;
+    const shouldShowInApp = isWindowVisible && isAppVisible;
+
     console.log('🔔 showMessageNotification called:', {
-      appVisible: $q.appVisible,
+      appVisible: isAppVisible,
+      windowVisible: isWindowVisible,
+      shouldShowInApp,
       channelTitle,
       sender: message.sender?.nickname || message.sender?.email,
       content: message.content?.substring(0, 50),
+      userStatus: currentUser?.status,
+      notifyOnMentionOnly: currentUser?.notifyOnMentionOnly,
     });
 
     // Validácia správy
     if (!message.sender || !message.content) {
       console.warn('Správa nemá odosielateľa alebo obsah');
       return;
+    }
+
+    // Kontrola DND - ak je používateľ v DND režime, nezobrazovať notifikácie
+    if (currentUser?.status === 'dnd') {
+      console.log('⚠️ Používateľ je v DND režime, notifikácia sa nezobrazí');
+      return;
+    }
+
+    // Kontrola notifyOnMentionOnly - ak je zapnuté, zobraziť notifikáciu len pri mentions
+    if (currentUser?.notifyOnMentionOnly) {
+      const isMentioned = isUserMentioned(message.content, currentUser.nickname || null);
+      if (!isMentioned) {
+        console.log('⚠️ Notifikácie sú nastavené len pre mentions, používateľ nie je spomenutý');
+        return;
+      }
+      console.log('✅ Používateľ je spomenutý, notifikácia sa zobrazí');
     }
 
     // Získanie mena odosielateľa
@@ -100,8 +139,8 @@ export function useNotifications() {
     // Získanie URL avatara
     const avatarUrl = getFullAvatarUrl(message.sender.profilePicture);
 
-    // Ak je aplikácia viditeľná, zobraziť Quasar Notify notifikáciu priamo v aplikácii
-    if ($q.appVisible) {
+    // Ak je aplikácia viditeľná v aktuálnom okne, zobraziť Quasar Notify notifikáciu priamo v aplikácii
+    if (shouldShowInApp) {
       const notifyMessage = channelTitle
         ? `${senderName} v #${channelTitle}: ${messagePreview}`
         : `${senderName}: ${messagePreview}`;

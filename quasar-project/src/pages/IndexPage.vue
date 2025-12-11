@@ -155,8 +155,8 @@ const setupSocketEvents = () => {
         mapKeys: Array.from(channelTitleMap.value.keys()),
       });
 
-      // Zobraziť notifikáciu
-      showMessageNotification(message, channelTitle);
+      // Zobraziť notifikáciu (predáme aj currentUser pre kontrolu DND a mentions)
+      showMessageNotification(message, channelTitle, currentUser.value);
     },
   });
 
