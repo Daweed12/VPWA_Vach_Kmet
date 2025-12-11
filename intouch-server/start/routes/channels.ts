@@ -25,6 +25,7 @@ router.get('/channels/:id/members', async ({ params }) => {
     status: u.status || 'normal',
     connection: u.connection || 'online',
     channelRole: u.$extras.pivot_status,
+    profilePicture: u.profilePicture || null,
   }))
 })
 

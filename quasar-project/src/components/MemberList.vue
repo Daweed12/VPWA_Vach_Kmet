@@ -4,7 +4,7 @@ import AddUserToChannel from './AddUserToChannel.vue';
 import { api } from 'boot/api';
 
 type Status = 'online' | 'offline' | 'away' | 'dnd';
-type Member = { id: number; name: string; status: Status };
+type Member = { id: number; name: string; status: Status; profilePicture?: string | null };
 
 export default defineComponent({
   name: 'MemberList',
@@ -40,7 +40,7 @@ export default defineComponent({
       try {
         const response = await api.get(`/channels/${props.channelId}/members`);
         members.value = response.data.map(
-          (m: { id: number; name: string; status: string; connection?: string }) => {
+          (m: { id: number; name: string; status: string; connection?: string; profilePicture?: string | null }) => {
             let status: Status = 'offline';
 
             if (props.currentUserId === m.id && props.currentUserStatus) {
@@ -62,6 +62,7 @@ export default defineComponent({
               id: m.id,
               name: m.name,
               status,
+              profilePicture: m.profilePicture || null,
             };
           },
         );
@@ -153,6 +154,24 @@ export default defineComponent({
       }
     };
 
+    // Listen for user avatar changes
+    const handleUserAvatarChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        userId: number;
+        profilePicture: string;
+        name: string;
+      }>;
+      const { userId, profilePicture } = customEvent.detail;
+
+      const member = members.value.find((m) => m.id === userId);
+      if (member) {
+        // Remove cache busting parameter if present
+        const cleanPath = profilePicture.split('?')[0];
+        member.profilePicture = cleanPath || null;
+        console.log(`✅ Updated avatar for user ${userId} in MemberList`);
+      }
+    };
+
     // Listen for new member joined (when someone accepts an invite)
     const handleMemberJoined = (event: Event) => {
       const customEvent = event as CustomEvent<{
@@ -184,6 +203,7 @@ export default defineComponent({
             id: userId,
             name: userName,
             status: mappedStatus,
+            profilePicture: null,
           });
           console.log(
             `✅ Added new member ${userName} (${userId}) to channel ${channelId} in real-time`,
@@ -212,12 +232,14 @@ export default defineComponent({
       window.addEventListener('userStatusChanged', handleUserStatusChanged);
       window.addEventListener('memberJoined', handleMemberJoined);
       window.addEventListener('userNicknameChanged', handleUserNicknameChanged);
+      window.addEventListener('userAvatarChanged', handleUserAvatarChanged);
     });
 
     onUnmounted(() => {
       window.removeEventListener('userStatusChanged', handleUserStatusChanged);
       window.removeEventListener('memberJoined', handleMemberJoined);
       window.removeEventListener('userNicknameChanged', handleUserNicknameChanged);
+      window.removeEventListener('userAvatarChanged', handleUserAvatarChanged);
     });
 
     const getInitials = (fullName: string) =>
@@ -227,6 +249,17 @@ export default defineComponent({
         .slice(0, 2)
         .map((p) => p[0]?.toUpperCase() ?? '')
         .join('');
+
+    const getFullAvatarUrl = (path: string | null | undefined): string | null => {
+      if (!path) return null;
+      if (path.startsWith('http')) return path;
+
+      const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333';
+      const cleanBase = baseUrl.replace(/\/$/, '');
+      const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+      return `${cleanBase}${cleanPath}`;
+    };
 
     const statusText = (s: Status) => {
       switch (s) {
@@ -306,6 +339,7 @@ export default defineComponent({
       members,
       loading,
       getInitials,
+      getFullAvatarUrl,
       statusText,
       statusColor,
       addMember,
@@ -364,7 +398,13 @@ export default defineComponent({
                 class="member-item"
               >
                 <q-avatar size="32px" class="member-avatar">
-                  <div class="avatar-placeholder">{{ getInitials(member.name) }}</div>
+                  <img
+                    v-if="getFullAvatarUrl(member.profilePicture)"
+                    :src="getFullAvatarUrl(member.profilePicture)!"
+                    style="object-fit: cover; width: 100%; height: 100%"
+                    :alt="member.name"
+                  />
+                  <div v-else class="avatar-placeholder">{{ getInitials(member.name) }}</div>
                   <span class="member-status-dot" :class="statusKey"></span>
                 </q-avatar>
                 <span class="member-name" :class="`text-${statusKey === 'online' ? 'green' : statusKey === 'away' ? 'yellow' : statusKey === 'dnd' ? 'red' : 'grey'}-4`">
