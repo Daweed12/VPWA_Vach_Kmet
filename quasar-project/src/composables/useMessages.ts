@@ -154,6 +154,24 @@ export function useMessages(currentUser: { value: CurrentUser | null }) {
     });
   };
 
+  const updateMessageSenderName = (params: {
+    userId: number;
+    nickname?: string | null | undefined;
+    firstname?: string | null | undefined;
+    surname?: string | null | undefined;
+    email?: string | null | undefined;
+  }) => {
+    const { userId, nickname, firstname, surname, email } = params;
+    rawMessages.value.forEach((msg) => {
+      if (msg.sender && msg.sender.id === userId) {
+        if (nickname !== undefined) msg.sender.nickname = nickname ?? '';
+        if (firstname !== undefined) msg.sender.firstname = firstname ?? null;
+        if (surname !== undefined) msg.sender.surname = surname ?? null;
+        if (email !== undefined) msg.sender.email = email ?? msg.sender.email;
+      }
+    });
+  };
+
   return {
     rawMessages,
     loading,
@@ -163,6 +181,7 @@ export function useMessages(currentUser: { value: CurrentUser | null }) {
     loadMessagesForChannel,
     addMessageOptimistically,
     updateMessageAvatar,
+    updateMessageSenderName,
     getFullAvatarUrl,
   };
 }

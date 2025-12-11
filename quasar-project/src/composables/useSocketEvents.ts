@@ -24,6 +24,14 @@ export function useSocketEvents(
       connection?: string;
       name: string;
     }) => void;
+    onUserNicknameChanged?: (data: {
+      userId: number;
+      nickname?: string | null;
+      firstname?: string | null;
+      surname?: string | null;
+      email?: string | null;
+      name: string;
+    }) => void;
     onUserAvatarChanged?: (data: { userId: number; profilePicture: string; name: string }) => void;
     onChannelDeleted?: (data: { channelId: number; title: string }) => void;
     onChannelCreated?: (data: {
@@ -82,6 +90,36 @@ export function useSocketEvents(
       );
 
       callbacks.onUserStatusChanged?.(data);
+    },
+  );
+
+  // Listen for user nickname changes
+  socket.on(
+    'user:nickname:changed',
+    (data: {
+      userId: number;
+      nickname?: string | null;
+      firstname?: string | null;
+      surname?: string | null;
+      email?: string | null;
+      name: string;
+    }) => {
+      console.log('📢 Received user:nickname:changed event:', data);
+
+      window.dispatchEvent(
+        new CustomEvent('userNicknameChanged', {
+          detail: {
+            userId: data.userId,
+            nickname: data.nickname,
+            firstname: data.firstname,
+            surname: data.surname,
+            email: data.email,
+            name: data.name,
+          },
+        }),
+      );
+
+      callbacks.onUserNicknameChanged?.(data);
     },
   );
 

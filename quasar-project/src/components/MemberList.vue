@@ -129,6 +129,30 @@ export default defineComponent({
       }
     };
 
+    // Listen for user nickname changes
+    const handleUserNicknameChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        userId: number;
+        nickname?: string | null;
+        firstname?: string | null;
+        surname?: string | null;
+        email?: string | null;
+        name: string;
+      }>;
+      const { userId, nickname, firstname, surname, email } = customEvent.detail;
+
+      const member = members.value.find((m) => m.id === userId);
+      if (member) {
+        const newName =
+          nickname ||
+          `${firstname ?? ''} ${surname ?? ''}`.trim() ||
+          email ||
+          member.name;
+        member.name = newName;
+        console.log(`✅ Updated nickname for user ${userId} to ${newName} in MemberList`);
+      }
+    };
+
     // Listen for new member joined (when someone accepts an invite)
     const handleMemberJoined = (event: Event) => {
       const customEvent = event as CustomEvent<{
@@ -187,11 +211,13 @@ export default defineComponent({
     onMounted(() => {
       window.addEventListener('userStatusChanged', handleUserStatusChanged);
       window.addEventListener('memberJoined', handleMemberJoined);
+      window.addEventListener('userNicknameChanged', handleUserNicknameChanged);
     });
 
     onUnmounted(() => {
       window.removeEventListener('userStatusChanged', handleUserStatusChanged);
       window.removeEventListener('memberJoined', handleMemberJoined);
+      window.removeEventListener('userNicknameChanged', handleUserNicknameChanged);
     });
 
     const getInitials = (fullName: string) =>

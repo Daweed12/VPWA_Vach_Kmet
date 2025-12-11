@@ -87,6 +87,10 @@ router.put('/users/:id', async ({ params, request, response }) => {
   ])
 
   const oldConnection = user.connection
+  const oldNickname = user.nickname
+  const oldFirstname = user.firstname
+  const oldSurname = user.surname
+  const oldEmail = user.email
   const oldStatus = user.status
   user.merge(payload)
   await user.save()
@@ -167,6 +171,37 @@ router.put('/users/:id', async ({ params, request, response }) => {
       console.log(`📢 Sent ${offlineMessages.length} offline messages for user ${user.id}`)
     }
 
+    // If nickname or name fields changed, broadcast update
+    const nicknameChanged =
+      (payload.nickname && payload.nickname !== oldNickname) ||
+      (payload.firstname && payload.firstname !== oldFirstname) ||
+      (payload.surname && payload.surname !== oldSurname) ||
+      (payload.email && payload.email !== oldEmail)
+
+    if (nicknameChanged) {
+      for (const member of channelMembers) {
+        const room = `channel:${member.channelId}`
+        io.to(room).emit('user:nickname:changed', {
+          userId: user.id,
+          nickname: user.nickname,
+          firstname: user.firstname,
+          surname: user.surname,
+          email: user.email,
+          name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
+        })
+        console.log(`📢 Sent nickname change event for user ${user.id} to room ${room}`)
+      }
+      // Also broadcast globally for other listeners (optional)
+      io.emit('user:nickname:changed', {
+        userId: user.id,
+        nickname: user.nickname,
+        firstname: user.firstname,
+        surname: user.surname,
+        email: user.email,
+        name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
+      })
+    }
+
     // If status or connection changed, send WebSocket event to all channels where user is a member
     if ((payload.status && payload.status !== oldStatus) || (payload.connection && payload.connection !== oldConnection)) {
       for (const member of channelMembers) {
@@ -213,6 +248,7 @@ router.put('/users/:id/photo', async ({ params, request, response }) => {
   let ext = 'png'
   if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') ext = 'jpg'
   if (mimeType === 'image/webp') ext = 'webp'
+  if (mimeType === 'image/gif') ext = 'gif'
 
   const buffer = Buffer.from(base64, 'base64')
   const uploadDir = app.publicPath('avatars')

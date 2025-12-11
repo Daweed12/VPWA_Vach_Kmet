@@ -69,6 +69,7 @@ const {
   loadMessagesForChannel,
   addMessageOptimistically,
   updateMessageAvatar,
+  updateMessageSenderName,
 } = useMessages(currentUser);
 const { handleTypingUpdate, handleTypingStop, clearTyping } = useTyping();
 const {
@@ -101,6 +102,15 @@ const setupSocketEvents = () => {
     },
     onUserAvatarChanged: (data) => {
       updateMessageAvatar(data.userId, data.profilePicture);
+    },
+    onUserNicknameChanged: (data) => {
+      updateMessageSenderName({
+        userId: data.userId,
+        nickname: data.nickname,
+        firstname: data.firstname,
+        surname: data.surname,
+        email: data.email ?? undefined,
+      });
     },
     onMessage: () => {
       // Scroll to bottom when new message arrives
@@ -233,6 +243,30 @@ const handleUserAvatarChanged = (event: Event) => {
   }
 };
 
+/* ===== User Nickname Changed Handler ===== */
+const handleUserNicknameChanged = (event: Event) => {
+  const customEvent = event as CustomEvent<{
+    userId: number;
+    nickname?: string | null;
+    firstname?: string | null;
+    surname?: string | null;
+    email?: string | null;
+    name: string;
+  }>;
+  const { userId, nickname, firstname, surname, email } = customEvent.detail;
+
+  updateMessageSenderName({ userId, nickname, firstname, surname, email });
+
+  // Update current user locally if it is the same user
+  if (currentUser.value && currentUser.value.id === userId) {
+    if (nickname !== undefined) currentUser.value.nickname = nickname ?? currentUser.value.nickname;
+    if (firstname !== undefined) currentUser.value.firstname = firstname ?? currentUser.value.firstname;
+    if (surname !== undefined) currentUser.value.surname = surname ?? currentUser.value.surname;
+    if (email) currentUser.value.email = email;
+    localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+  }
+};
+
 /* ===== Expose functions to window ===== */
 declare global {
   interface Window {
@@ -360,6 +394,7 @@ onMounted(() => {
   window.addEventListener('channelSelected', handleChannelSelected as EventListener);
   window.addEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener);
   window.addEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener);
+  window.addEventListener('userNicknameChanged', handleUserNicknameChanged as EventListener);
 
   if (notificationsSupported) {
     notificationPermission.value = Notification.permission;
@@ -383,6 +418,7 @@ onUnmounted(() => {
   window.removeEventListener('channelSelected', handleChannelSelected as EventListener);
   window.removeEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener);
   window.removeEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener);
+  window.removeEventListener('userNicknameChanged', handleUserNicknameChanged as EventListener);
 
   if (notificationsSupported) {
     document.removeEventListener('visibilitychange', handleVisibilityChange);

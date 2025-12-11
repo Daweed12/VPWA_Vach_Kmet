@@ -605,6 +605,12 @@ function generateCroppedImage(): Promise<string> {
       return;
     }
 
+    // If GIF, skip canvas to preserve animation – upload original data URL
+    if (rawPhotoData.value.startsWith('data:image/gif')) {
+      resolve(rawPhotoData.value);
+      return;
+    }
+
     const img = new Image();
     img.onload = () => {
       const size = 400;
