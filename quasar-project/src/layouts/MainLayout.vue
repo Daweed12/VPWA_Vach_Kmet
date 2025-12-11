@@ -375,6 +375,7 @@ const {
 const showHeader = computed(() => route.meta.showHeader !== false);
 const isSettingsPage = computed(() => route.path.startsWith('/app/settings'));
 const showComposer = computed(() => !isSettingsPage.value);
+const isOffline = computed(() => currentUser.value?.connection === 'offline');
 
 // Compute user status for MemberList (considering connection)
 const computedUserStatus = computed(() => {
@@ -692,10 +693,18 @@ const navigateHome = () => {
 };
 
 const onTextBarTyping = (isTyping: boolean, draftContent?: string) => {
+  // Do not emit typing events when offline
+  if (isOffline.value) return;
   if (typeof window.emitTyping === 'function') window.emitTyping(isTyping, draftContent);
 };
 
 const onTextBarSend = async (text: string) => {
+  // Block sending while offline
+  if (isOffline.value) {
+    window.alert('Si offline. Správy sa odošlú až po pripojení.');
+    return;
+  }
+
   const cmd = text.trim().toLowerCase();
   if (cmd === '/list') {
     rightDrawerOpen.value = true;
