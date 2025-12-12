@@ -5,6 +5,8 @@ import ChannelMember from '#models/channel_member'
 import Access from '#models/access'
 import ChannelInvite from '#models/channel_invite'
 import KickVote from '#models/kick_vote'
+import Message from '#models/message'
+import { DateTime } from 'luxon'
 import { getIO } from '../socket.js'
 
 router
@@ -23,29 +25,39 @@ router
       const existingChannel = await Channel.findBy('title', safeTitle)
 
       if (existingChannel) {
-        if (existingChannel.availability === 'private') {
-          const hasAccess = await Access.query()
+        const thirtyDaysAgo = DateTime.now().minus({ days: 30 })
+        const lastMessageDate = existingChannel.lastMessageAt || existingChannel.createdAt
+        const isInactive = lastMessageDate < thirtyDaysAgo
+
+        if (isInactive) {
+          await existingChannel.delete()
+        } else {
+          if (existingChannel.availability === 'private') {
+            const hasAccess = await Access.query()
+              .where('user_id', userId)
+              .where('channel_id', existingChannel.id)
+              .first()
+            if (!hasAccess)
+              return response.forbidden({
+                message: `Kanál '${safeTitle}' je súkromný. Musíš byť pozvaný.`,
+              })
+          }
+          const existingMember = await ChannelMember.query()
             .where('user_id', userId)
             .where('channel_id', existingChannel.id)
             .first()
-          if (!hasAccess)
-            return response.forbidden({
-              message: `Kanál '${safeTitle}' je súkromný. Musíš byť pozvaný.`,
-            })
-        }
-        const existingMember = await ChannelMember.query()
-          .where('user_id', userId)
-          .where('channel_id', existingChannel.id)
-          .first()
-        if (existingMember && existingMember.status === 'banned')
-          return response.forbidden({ message: 'Máš ban v tomto kanáli.' })
+          if (existingMember && existingMember.status === 'banned')
+            return response.forbidden({ message: 'Máš ban v tomto kanáli.' })
 
-        await ChannelMember.firstOrCreate(
-          { userId: user.id, channelId: existingChannel.id },
-          { status: 'member' }
-        )
-        return { message: `Pripojený do kanála #${safeTitle}`, channel: existingChannel }
-      } else {
+          await ChannelMember.firstOrCreate(
+            { userId: user.id, channelId: existingChannel.id },
+            { status: 'member' }
+          )
+          return { message: `Pripojený do kanála #${safeTitle}`, channel: existingChannel }
+        }
+      }
+
+      {
         const availability = type === 'private' ? 'private' : 'public'
         const channel = await Channel.create({
           title: safeTitle,
@@ -181,11 +193,72 @@ router
       const targetUser = await User.findBy('nickname', targetNick)
       if (!targetUser) return response.notFound({ message: 'Používateľ nenájdený.' })
 
+      const targetMember = await ChannelMember.query()
+        .where('user_id', targetUser.id)
+        .where('channel_id', channelId)
+        .first()
+
+      if (!targetMember) {
+        return response.badRequest({ message: `${targetNick} nie je členom tohto kanála.` })
+      }
+
+      if (targetMember.status === 'owner') {
+        return response.forbidden({ message: 'Nemôžeš odobrať prístup správcovi kanála.' })
+      }
+
       await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
       await ChannelMember.query()
         .where('user_id', targetUser.id)
         .where('channel_id', channelId)
         .delete()
+
+      const userName =
+        targetUser.nickname ||
+        `${targetUser.firstname ?? ''} ${targetUser.surname ?? ''}`.trim() ||
+        targetUser.email
+
+      const systemMessage = await Message.create({
+        channelId,
+        senderId: targetUser.id,
+        content: `${userName} bol odobraný z kanála správcom`,
+      })
+
+      channel.lastMessageAt = systemMessage.timestamp
+      await channel.save()
+
+      await systemMessage.load('sender')
+
+      const serialized = systemMessage.serialize()
+      const responseMessage = {
+        ...serialized,
+        sender: {
+          id: targetUser.id,
+          nickname: targetUser.nickname,
+          firstname: targetUser.firstname,
+          surname: targetUser.surname,
+          email: targetUser.email,
+          profilePicture: targetUser.profilePicture,
+        },
+        channelId,
+      }
+
+      const io = getIO()
+      if (io) {
+        io.to(`channel:${channelId}`).emit('member:left', {
+          channelId,
+          userId: targetUser.id,
+          userName,
+        })
+        io.to(`channel:${channelId}`).emit('chat:message', responseMessage)
+        io.to(`user:${targetUser.id}`).emit('channel:left', {
+          channelId,
+          title: channel.title,
+        })
+        console.log(
+          `📢 Sent member:left and channel:left events for revoked user ${targetUser.id} from channel ${channelId}`
+        )
+      }
+
       return { message: `Prístup pre ${targetNick} bol odobratý.` }
     })
 
@@ -245,6 +318,53 @@ router
           .where('target_user_id', targetUser.id)
           .delete()
 
+        const userName =
+          targetUser.nickname ||
+          `${targetUser.firstname ?? ''} ${targetUser.surname ?? ''}`.trim() ||
+          targetUser.email
+
+        const systemMessage = await Message.create({
+          channelId,
+          senderId: targetUser.id,
+          content: `${userName} opustil kanál`,
+        })
+
+        channel.lastMessageAt = systemMessage.timestamp
+        await channel.save()
+
+        await systemMessage.load('sender')
+
+        const serialized = systemMessage.serialize()
+        const responseMessage = {
+          ...serialized,
+          sender: {
+            id: targetUser.id,
+            nickname: targetUser.nickname,
+            firstname: targetUser.firstname,
+            surname: targetUser.surname,
+            email: targetUser.email,
+            profilePicture: targetUser.profilePicture,
+          },
+          channelId,
+        }
+
+        const io = getIO()
+        if (io) {
+          io.to(`channel:${channelId}`).emit('member:left', {
+            channelId,
+            userId: targetUser.id,
+            userName,
+          })
+          io.to(`channel:${channelId}`).emit('chat:message', responseMessage)
+          io.to(`user:${targetUser.id}`).emit('channel:left', {
+            channelId,
+            title: channel.title,
+          })
+          console.log(
+            `📢 Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
+          )
+        }
+
         return { message: `Správca udelil BAN používateľovi ${targetNick}.` }
       }
 
@@ -287,6 +407,53 @@ router
           .where('target_user_id', targetUser.id)
           .delete()
 
+        const userName =
+          targetUser.nickname ||
+          `${targetUser.firstname ?? ''} ${targetUser.surname ?? ''}`.trim() ||
+          targetUser.email
+
+        const systemMessage = await Message.create({
+          channelId,
+          senderId: targetUser.id,
+          content: `${userName} opustil kanál`,
+        })
+
+        channel.lastMessageAt = systemMessage.timestamp
+        await channel.save()
+
+        await systemMessage.load('sender')
+
+        const serialized = systemMessage.serialize()
+        const responseMessage = {
+          ...serialized,
+          sender: {
+            id: targetUser.id,
+            nickname: targetUser.nickname,
+            firstname: targetUser.firstname,
+            surname: targetUser.surname,
+            email: targetUser.email,
+            profilePicture: targetUser.profilePicture,
+          },
+          channelId,
+        }
+
+        const io = getIO()
+        if (io) {
+          io.to(`channel:${channelId}`).emit('member:left', {
+            channelId,
+            userId: targetUser.id,
+            userName,
+          })
+          io.to(`channel:${channelId}`).emit('chat:message', responseMessage)
+          io.to(`user:${targetUser.id}`).emit('channel:left', {
+            channelId,
+            title: channel.title,
+          })
+          console.log(
+            `📢 Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
+          )
+        }
+
         return {
           message: `Používateľ ${targetNick} bol zabanovaný na základe hlasovania (${totalVotes} hlasov).`,
         }
@@ -305,8 +472,29 @@ router
       if (channel.creatorId !== userId)
         return response.forbidden({ message: 'Len správca môže zrušiť kanál.' })
 
+      const channelTitle = channel.title
+
       await KickVote.query().where('channel_id', channelId).delete()
+      await Message.query().where('channelId', channelId).delete()
+      await ChannelMember.query().where('channel_id', channelId).delete()
+      await Access.query().where('channel_id', channelId).delete()
+      await ChannelInvite.query().where('channel_id', channelId).delete()
       await channel.delete()
+
+      const io = getIO()
+      if (io) {
+        const room = `channel:${channelId}`
+        io.to(room).emit('channel:deleted', {
+          channelId: channelId,
+          title: channelTitle,
+        })
+        io.emit('channel:deleted', {
+          channelId: channelId,
+          title: channelTitle,
+        })
+        console.log(`📢 Sent channel:deleted event for channel ${channelId} (${channelTitle})`)
+      }
+
       return { message: 'Kanál bol úspešne zrušený.' }
     })
 
@@ -318,8 +506,21 @@ router
       const channel = await Channel.find(channelId)
       if (!channel) return response.notFound()
 
+      const user = await User.find(userId)
+      const userName = user
+        ? user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+        : 'Unknown'
+
       if (channel.creatorId === userId) {
         await channel.delete()
+        const io = getIO()
+        if (io) {
+          io.emit('channel:deleted', {
+            channelId,
+            title: channel.title,
+          })
+          console.log(`📢 Sent channel:deleted event for channel ${channelId}`)
+        }
         return { message: 'Opustil si kanál ako vlastník. Kanál bol zrušený.', action: 'deleted' }
       }
 
@@ -331,6 +532,47 @@ router
       if (channel.availability === 'private') {
         await Access.query().where('user_id', userId).where('channel_id', channelId).delete()
       }
+
+        const systemMessage = await Message.create({
+          channelId,
+          senderId: userId,
+          content: `${userName} opustil kanál`,
+        })
+
+        channel.lastMessageAt = systemMessage.timestamp
+        await channel.save()
+
+        await systemMessage.load('sender')
+
+      const serialized = systemMessage.serialize()
+      const responseMessage = {
+        ...serialized,
+        sender: {
+          id: user.id,
+          nickname: user.nickname,
+          firstname: user.firstname,
+          surname: user.surname,
+          email: user.email,
+          profilePicture: user.profilePicture,
+        },
+        channelId,
+      }
+
+      const io = getIO()
+      if (io) {
+        io.to(`channel:${channelId}`).emit('member:left', {
+          channelId,
+          userId,
+          userName,
+        })
+        io.to(`channel:${channelId}`).emit('chat:message', responseMessage)
+        io.to(`user:${userId}`).emit('channel:left', {
+          channelId,
+          title: channel.title,
+        })
+        console.log(`📢 Sent member:left and channel:left events for user ${userId} from channel ${channelId}`)
+      }
+
       return { message: 'Opustil si kanál.', action: 'left' }
     })
   })

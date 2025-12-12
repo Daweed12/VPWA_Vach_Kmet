@@ -118,6 +118,12 @@ router.put('/users/:id', async ({ params, request, response }) => {
           content: offlineMsg.content,
         })
 
+        const channel = await Channel.find(offlineMsg.channelId)
+        if (channel) {
+          channel.lastMessageAt = message.timestamp
+          await channel.save()
+        }
+
         // Handle mentions
         const mentionMatches = offlineMsg.content.match(/\B@([\p{L}\p{N}_-]+)/gu)
 

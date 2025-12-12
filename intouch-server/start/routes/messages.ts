@@ -4,6 +4,8 @@ import User from '#models/user'
 import Message from '#models/message'
 import Mention from '#models/mention'
 import OfflineMessage from '#models/offline_message'
+import ChannelMember from '#models/channel_member'
+import Access from '#models/access'
 import { getIO } from '../socket.js'
 
 /**
@@ -61,12 +63,36 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
 
   const channel = await Channel.find(channelId)
   if (!channel) {
-    return response.notFound({ message: 'Kanál neexistuje.' })
+    return response.notFound({ message: 'Kanál neexistuje alebo bol zmazaný.' })
   }
 
   const user = await User.find(senderId)
   if (!user) {
     return response.notFound({ message: 'Používateľ neexistuje.' })
+  }
+
+  const member = await ChannelMember.query()
+    .where('user_id', senderId)
+    .where('channel_id', channelId)
+    .first()
+
+  if (!member) {
+    return response.forbidden({ message: 'Nie si členom tohto kanála.' })
+  }
+
+  if (member.status === 'banned') {
+    return response.forbidden({ message: 'Máš ban v tomto kanáli a nemôžeš písať správy.' })
+  }
+
+  if (channel.availability === 'private') {
+    const hasAccess = await Access.query()
+      .where('user_id', senderId)
+      .where('channel_id', channelId)
+      .first()
+
+    if (!hasAccess) {
+      return response.forbidden({ message: 'Nemáš prístup do tohto súkromného kanála.' })
+    }
   }
 
   // Ak je používateľ offline, uložiť správu do queue
@@ -90,6 +116,9 @@ router.post('/channels/:id/messages', async ({ params, request, response }) => {
     senderId,
     content: content.trim(),
   })
+
+  channel.lastMessageAt = message.timestamp
+  await channel.save()
 
   // Handle mentions
   const mentionMatches = content.match(/\B@([\p{L}\p{N}_-]+)/gu)

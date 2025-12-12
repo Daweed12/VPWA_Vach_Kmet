@@ -4,6 +4,7 @@ import User from '#models/user'
 import ChannelMember from '#models/channel_member'
 import Access from '#models/access'
 import ChannelInvite from '#models/channel_invite'
+import Message from '#models/message'
 import { getIO } from '../socket.js'
 
 /**
@@ -39,25 +40,50 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
     })
   }
 
-  invite.status = 'accepted'
-  await invite.save()
+  const userId = invite.userId
+  const channelId = invite.channelId
 
   await Access.firstOrCreate({
-    userId: invite.userId,
-    channelId: invite.channelId,
+    userId: userId,
+    channelId: channelId,
   })
 
   await ChannelMember.firstOrCreate(
-    { userId: invite.userId, channelId: invite.channelId },
+    { userId: userId, channelId: channelId },
     { status: 'member' }
   )
 
-  const user = await User.find(invite.userId)
-  const channel = await Channel.find(invite.channelId)
+  const user = await User.find(userId)
+  const channel = await Channel.find(channelId)
 
   if (user && channel) {
     const userName =
       user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+
+  const systemMessage = await Message.create({
+    channelId: channel.id,
+    senderId: user.id,
+    content: `${userName} has joined the chat`,
+  })
+
+  channel.lastMessageAt = systemMessage.timestamp
+  await channel.save()
+
+  await systemMessage.load('sender')
+
+    const serialized = systemMessage.serialize()
+    const responseMessage = {
+      ...serialized,
+      sender: {
+        id: user.id,
+        nickname: user.nickname,
+        firstname: user.firstname,
+        surname: user.surname,
+        email: user.email,
+        profilePicture: user.profilePicture,
+      },
+      channelId: channel.id,
+    }
 
     const io = getIO()
     if (io) {
@@ -69,11 +95,14 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
         status: user.status || 'normal',
         connection: user.connection || 'online',
       })
+      io.to(room).emit('chat:message', responseMessage)
       console.log(
-        `📢 Sent member:joined event for user ${user.id} (${userName}) to channel ${channel.id} room`
+        `📢 Sent member:joined event and system message for user ${user.id} (${userName}) to channel ${channel.id} room`
       )
     }
   }
+
+  await invite.delete()
 
   return { ok: true }
 })
@@ -143,17 +172,14 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
 
   if (existingInvite) return response.conflict({ message: 'Používateľ už má pending pozvánku.' })
 
-  const anyInvite = await ChannelInvite.query()
+  const rejectedInvite = await ChannelInvite.query()
     .where('userId', userId)
     .where('channelId', channelId)
+    .where('status', 'rejected')
     .first()
 
-  if (anyInvite) {
-    if (anyInvite.status === 'rejected') {
-      await anyInvite.delete()
-    } else if (anyInvite.status === 'accepted') {
-      return response.conflict({ message: 'Používateľ už má pozvánku.' })
-    }
+  if (rejectedInvite) {
+    await rejectedInvite.delete()
   }
 
   try {

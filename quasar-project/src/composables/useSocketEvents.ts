@@ -66,6 +66,15 @@ export function useSocketEvents(
       userName: string;
       status: string;
     }) => void;
+    onMemberLeft?: (data: {
+      channelId: number;
+      userId: number;
+      userName: string;
+    }) => void;
+    onChannelLeft?: (data: {
+      channelId: number;
+      title: string;
+    }) => void;
     onMessage?: (message: MessageFromApi & { channelId?: number; channel_id?: number }) => void;
     onNewMessageNotification?: (
       message: MessageFromApi & { channelId?: number; channel_id?: number },
@@ -260,6 +269,55 @@ export function useSocketEvents(
       );
 
       callbacks.onMemberJoined?.(data);
+    },
+  );
+
+  // Listen for member left
+  socket.on(
+    'member:left',
+    (data: { channelId: number; userId: number; userName: string }) => {
+      console.log('📢 Received member:left event:', data);
+
+      window.dispatchEvent(
+        new CustomEvent('memberLeft', {
+          detail: {
+            channelId: data.channelId,
+            userId: data.userId,
+            userName: data.userName,
+          },
+        }),
+      );
+
+      callbacks.onMemberLeft?.(data);
+    },
+  );
+
+  // Listen for channel left (when user leaves a channel)
+  socket.on(
+    'channel:left',
+    (data: { channelId: number; title: string }) => {
+      console.log('📢 Received channel:left event:', data);
+
+      if (activeChannelId.value === data.channelId) {
+        activeChannelId.value = null;
+        rawMessages.value = [];
+        window.dispatchEvent(
+          new CustomEvent('channelSelected', {
+            detail: { id: null, title: null },
+          }),
+        );
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('channelLeft', {
+          detail: {
+            channelId: data.channelId,
+            title: data.title,
+          },
+        }),
+      );
+
+      callbacks.onChannelLeft?.(data);
     },
   );
 

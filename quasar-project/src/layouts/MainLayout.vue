@@ -766,20 +766,30 @@ const setupEventListeners = () => {
     const { channelId } = customEvent.detail;
 
     channels.value = channels.value.filter((c) => c.id !== channelId);
-
     if (currentChannel.value?.id === channelId) {
       currentChannel.value = null;
       currentChannelTitle.value = null;
       window.dispatchEvent(
-        new CustomEvent('channelSelected', {
-          detail: { id: null, title: null },
-        }),
+        new CustomEvent('channelSelected', { detail: { id: null, title: null } }),
       );
     }
-
-    console.log(`✅ Removed channel ${channelId} from list in real-time`);
   };
   window.addEventListener('channelDeleted', handleChannelDeleted);
+
+  const handleChannelLeft = (event: Event) => {
+    const customEvent = event as CustomEvent<{ channelId: number; title: string }>;
+    const { channelId } = customEvent.detail;
+
+    channels.value = channels.value.filter((c) => c.id !== channelId);
+    if (currentChannel.value?.id === channelId) {
+      currentChannel.value = null;
+      currentChannelTitle.value = null;
+      window.dispatchEvent(
+        new CustomEvent('channelSelected', { detail: { id: null, title: null } }),
+      );
+    }
+  };
+  window.addEventListener('channelLeft', handleChannelLeft);
 
   const handleChannelCreated = (event: Event) => {
     const customEvent = event as CustomEvent<{
@@ -871,6 +881,7 @@ const setupEventListeners = () => {
     window.removeEventListener('currentUserUpdated', handleUserUpdate);
     window.removeEventListener('userAvatarChanged', handleUserAvatarChanged);
     window.removeEventListener('channelDeleted', handleChannelDeleted);
+    window.removeEventListener('channelLeft', handleChannelLeft);
     window.removeEventListener('channelCreated', handleChannelCreated);
     window.removeEventListener('inviteCreated', handleInviteCreated);
     window.removeEventListener('openMemberList', handleOpenMemberList);
@@ -878,6 +889,18 @@ const setupEventListeners = () => {
     window.removeEventListener('typingUsersUpdated', handleTypingUsersUpdate);
   };
 };
+
+/* ===== Watch currentUser for loading channels ===== */
+watch(
+  () => currentUser.value?.id,
+  async (userId) => {
+    if (userId) {
+      await loadChannels();
+      await loadInvites();
+    }
+  },
+  { immediate: false },
+);
 
 /* ===== Lifecycle ===== */
 onMounted(async () => {

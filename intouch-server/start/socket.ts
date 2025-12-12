@@ -2,8 +2,10 @@
 import { Server as IOServer } from 'socket.io'
 import server from '@adonisjs/core/services/server'
 import Env from '#start/env'
+import { cleanupInactiveChannels } from '#start/routes/channels'
 
 let io: IOServer | null = null
+let cleanupInterval: ReturnType<typeof setInterval> | null = null
 
 export async function boot() {
   // Wait until Adonis boots the HTTP server
@@ -21,7 +23,7 @@ export async function boot() {
   })
 
   io.on('connection', (socket) => {
-    console.log('✅ WS connected:', socket.id, 'Total clients:', io.sockets.sockets.size)
+    console.log('✅ WS connected:', socket.id, 'Total clients:', io?.sockets.sockets.size ?? 0)
 
     socket.on('channel:join', (channelId: number) => {
       const room = `channel:${channelId}`
@@ -77,8 +79,26 @@ export async function boot() {
   })
 
   console.log('Socket.IO initialized')
+
+  cleanupInterval = setInterval(async () => {
+    try {
+      await cleanupInactiveChannels()
+    } catch (error) {
+      console.error('❌ Error during channel cleanup:', error)
+    }
+  }, 100)
+
+  console.log('🧹 Channel cleanup scheduled every 10 seconds')
 }
 
 export function getIO() {
   return io
+}
+
+export function stopCleanup() {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval)
+    cleanupInterval = null
+    console.log('🧹 Channel cleanup stopped')
+  }
 }

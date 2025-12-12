@@ -228,9 +228,31 @@ export default defineComponent({
       }
     };
 
+    // Listen for member left (when someone leaves or is kicked)
+    const handleMemberLeft = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        channelId: number;
+        userId: number;
+        userName: string;
+      }>;
+      const { channelId, userId } = customEvent.detail;
+
+      // Only update if this is for the current channel
+      if (channelId === props.channelId) {
+        const memberIndex = members.value.findIndex((m) => m.id === userId);
+        if (memberIndex !== -1) {
+          members.value.splice(memberIndex, 1);
+          console.log(
+            `✅ Removed member ${userId} from channel ${channelId} in real-time`,
+          );
+        }
+      }
+    };
+
     onMounted(() => {
       window.addEventListener('userStatusChanged', handleUserStatusChanged);
       window.addEventListener('memberJoined', handleMemberJoined);
+      window.addEventListener('memberLeft', handleMemberLeft);
       window.addEventListener('userNicknameChanged', handleUserNicknameChanged);
       window.addEventListener('userAvatarChanged', handleUserAvatarChanged);
     });
@@ -238,6 +260,7 @@ export default defineComponent({
     onUnmounted(() => {
       window.removeEventListener('userStatusChanged', handleUserStatusChanged);
       window.removeEventListener('memberJoined', handleMemberJoined);
+      window.removeEventListener('memberLeft', handleMemberLeft);
       window.removeEventListener('userNicknameChanged', handleUserNicknameChanged);
       window.removeEventListener('userAvatarChanged', handleUserAvatarChanged);
     });

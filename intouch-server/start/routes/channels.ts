@@ -5,6 +5,7 @@ import Access from '#models/access'
 import User from '#models/user'
 import Message from '#models/message'
 import ChannelInvite from '#models/channel_invite'
+import { DateTime } from 'luxon'
 import { getIO } from '../socket.js'
 
 /**
@@ -192,7 +193,15 @@ router.post('/channels', async ({ request, response }) => {
     .first()
 
   if (existingChannel) {
-    return response.conflict({ message: 'Kanál s týmto názvom už existuje.' })
+    const thirtyDaysAgo = DateTime.now().minus({ days: 30 })
+    const lastMessageDate = existingChannel.lastMessageAt || existingChannel.createdAt
+    const isInactive = lastMessageDate < thirtyDaysAgo
+
+    if (!isInactive) {
+      return response.conflict({ message: 'Kanál s týmto názvom už existuje.' })
+    }
+
+    await existingChannel.delete()
   }
 
   const safeAvailability = availability === 'private' ? 'private' : 'public'
@@ -301,11 +310,93 @@ router.post('/channels/:id/leave', async ({ params, request, response }) => {
     })
   }
 
+  const user = await User.find(userId)
+  const userName = user
+    ? user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email
+    : 'Unknown'
+
   await member.delete()
   await Access.query().where('userId', userId).where('channelId', channelId).delete()
+
+  const systemMessage = await Message.create({
+    channelId,
+    senderId: userId,
+    content: `${userName} opustil kanál`,
+  })
+
+  channel.lastMessageAt = systemMessage.timestamp
+  await channel.save()
+
+  await systemMessage.load('sender')
+
+  const serialized = systemMessage.serialize()
+  const responseMessage = {
+    ...serialized,
+    sender: {
+      id: user.id,
+      nickname: user.nickname,
+      firstname: user.firstname,
+      surname: user.surname,
+      email: user.email,
+      profilePicture: user.profilePicture,
+    },
+    channelId,
+  }
+
+  const io = getIO()
+  if (io) {
+    io.to(`channel:${channelId}`).emit('member:left', {
+      channelId,
+      userId,
+      userName,
+    })
+    io.to(`channel:${channelId}`).emit('chat:message', responseMessage)
+    io.to(`user:${userId}`).emit('channel:left', {
+      channelId,
+      title: channel.title,
+    })
+    console.log(`📢 Sent member:left and channel:left events for user ${userId} from channel ${channelId}`)
+  }
 
   return {
     message: 'Opustil si kanál.',
     channelId,
+  }
+})
+
+export async function cleanupInactiveChannels() {
+  const thirtyDaysAgo = DateTime.now().minus({ days: 30 })
+
+  const inactiveChannels = await Channel.query()
+    .where((query) => {
+      query
+        .whereNull('lastmessage_at')
+        .orWhere('lastmessage_at', '<', thirtyDaysAgo.toJSDate())
+    })
+    .where('created_at', '<', thirtyDaysAgo.toJSDate())
+
+  const deletedCount = inactiveChannels.length
+
+  for (const channel of inactiveChannels) {
+    await channel.delete()
+  }
+
+  if (deletedCount > 0) {
+    console.log(`🧹 Cleaned up ${deletedCount} inactive channels (30+ days without messages)`)
+  }
+
+  return deletedCount
+}
+
+/**
+ * POST /channels/cleanup-inactive
+ * Mazanie neaktívnych kanálov (30+ dní bez správy)
+ */
+router.post('/channels/cleanup-inactive', async ({ response }) => {
+  const deletedCount = await cleanupInactiveChannels()
+
+  return {
+    message: `Bolo vymazaných ${deletedCount} neaktívnych kanálov.`,
+    deletedCount,
   }
 })
