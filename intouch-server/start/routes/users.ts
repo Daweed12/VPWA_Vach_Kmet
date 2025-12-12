@@ -86,6 +86,17 @@ router.put('/users/:id', async ({ params, request, response }) => {
     'notifyOnMentionOnly',
   ])
 
+  if (payload.nickname && payload.nickname !== user.nickname) {
+    const existingUser = await User.query()
+      .where('nickname', payload.nickname)
+      .where('id', '!=', user.id)
+      .first()
+
+    if (existingUser) {
+      return response.conflict({ message: 'Tento nickname už je zabratý.' })
+    }
+  }
+
   const oldConnection = user.connection
   const oldNickname = user.nickname
   const oldFirstname = user.firstname
