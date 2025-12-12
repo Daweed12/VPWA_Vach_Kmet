@@ -47,13 +47,43 @@ router.post('/register', async ({ request, response }) => {
     return response.conflict({ message: 'Tento nickname sa už používa.' })
   }
 
+  if (!firstName || firstName.length < 3 || firstName.length > 12) {
+    return response.badRequest({ message: 'Meno musí mať 3 až 12 znakov.' })
+  }
+
+  if (!lastName || lastName.length < 3 || lastName.length > 12) {
+    return response.badRequest({ message: 'Priezvisko musí mať 3 až 12 znakov.' })
+  }
+
+  if (!nickname || nickname.length < 3 || nickname.length > 12) {
+    return response.badRequest({ message: 'Nickname musí mať 3 až 12 znakov.' })
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!email || !emailRegex.test(email)) {
+    return response.badRequest({ message: 'Zadajte platný e-mail.' })
+  }
+
+  if (!password || password.length < 8) {
+    return response.badRequest({ message: 'Heslo musí mať aspoň 8 znakov.' })
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return response.badRequest({ message: 'Heslo musí obsahovať aspoň jedno veľké písmeno.' })
+  }
+
+  if (!/[0-9]/.test(password)) {
+    return response.badRequest({ message: 'Heslo musí obsahovať aspoň jedno číslo.' })
+  }
+
   const user = await User.create({
     nickname,
     firstname: firstName,
     surname: lastName,
     email,
     profilePicture: null,
-    status: 'online',
+    status: 'normal',
+    connection: 'online',
     notifyOnMentionOnly: false,
     password,
   })

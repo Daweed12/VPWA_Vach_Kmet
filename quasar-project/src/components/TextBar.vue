@@ -6,46 +6,40 @@
         v-model="message"
         borderless
         placeholder="Napíš správu..."
-        @keyup.enter="sendMessage"
+        @keyup.enter="handleEnter"
         @input="handleInput"
         @keydown="handleKeyDown"
+        @keyup="handleKeyUp"
         class="col"
       />
-      <q-menu
-        v-model="showMentionMenu"
-        :target="false"
-        fit
-        no-parent-event
-        class="mention-menu"
-        max-height="200"
-        anchor="top left"
-        self="top left"
-      >
-        <q-list dense>
-          <q-item
-            v-for="member in filteredMembers"
-            :key="member.id"
-            clickable
-            v-close-popup
-            @click="selectMember(member)"
-            :class="{ 'mention-item-selected': selectedMemberIndex === filteredMembers.indexOf(member) }"
-          >
-            <q-item-section avatar>
-              <q-avatar size="32px">
-                <img :src="getAvatarUrl(member.profilePicture)" />
-              </q-avatar>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>{{ member.name }}</q-item-label>
-            </q-item-section>
-          </q-item>
-          <q-item v-if="filteredMembers.length === 0">
-            <q-item-section>
-              <q-item-label class="text-grey-6">Žiadni používatelia</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-menu>
+      <Teleport to="body">
+        <div
+          v-if="showMentionMenu && mentionStartPos >= 0 && filteredMembers.length > 0"
+          ref="mentionMenuRef"
+          class="mention-menu"
+          :style="mentionMenuStyle"
+        >
+          <q-list dense class="mention-list">
+            <q-item
+              v-for="(member, index) in filteredMembers"
+              :key="member.id"
+              clickable
+              @click="selectMember(member)"
+              :class="{ 'mention-item-selected': selectedMemberIndex === index }"
+              class="mention-item"
+            >
+              <q-item-section avatar>
+                <q-avatar size="36px">
+                  <img :src="getAvatarUrl(member.profilePicture)" />
+                </q-avatar>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="mention-name">{{ member.name }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </div>
+      </Teleport>
     </div>
     <q-btn round color="primary" icon="emoji_emotions" class="q-ml-sm" aria-label="Otvoriť emoji">
       <q-menu ref="emojiMenuRef" anchor="top right" self="bottom right" :offset="[0, 8]" fit>
@@ -68,6 +62,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, watch, nextTick } from 'vue';
+import { Teleport } from 'vue';
 import type { QInput } from 'quasar';
 import { api } from 'boot/api';
 
@@ -90,11 +85,29 @@ export default defineComponent({
     const message = ref('');
     const inputRef = ref<QInput | null>(null);
     const emojiMenuRef = ref();
+    const mentionMenuRef = ref<HTMLElement | null>(null);
     const showMentionMenu = ref(false);
     const members = ref<Member[]>([]);
     const mentionStartPos = ref(-1);
     const mentionQuery = ref('');
     const selectedMemberIndex = ref(0);
+    
+    watch(() => message.value, () => {
+      if (message.value.length === 0) {
+        showMentionMenu.value = false;
+        mentionStartPos.value = -1;
+        mentionQuery.value = '';
+      }
+    });
+    const mentionMenuStyle = ref<Record<string, string>>({
+      position: 'fixed',
+      top: '0px',
+      left: '0px',
+      width: '250px',
+      zIndex: '9999',
+      maxHeight: '250px',
+      overflowY: 'auto',
+    });
 
     let typingTimeout: ReturnType<typeof setTimeout> | null = null;
     let lastTypingEmit = 0;
@@ -162,9 +175,9 @@ export default defineComponent({
       }
       try {
         const response = await api.get(`/channels/${props.channelId}/members`);
-        members.value = response.data.map((m: { id: number; name: string; profilePicture?: string | null }) => ({
+        members.value = response.data.map((m: { id: number; name: string; nickname?: string | null; profilePicture?: string | null }) => ({
           id: m.id,
-          name: m.name,
+          name: m.nickname || m.name,
           profilePicture: m.profilePicture || null,
         }));
       } catch {
@@ -179,59 +192,82 @@ export default defineComponent({
         return members.value;
       }
       const query = mentionQuery.value.toLowerCase();
-      return members.value.filter((m) => m.name.toLowerCase().includes(query));
+      return members.value.filter((m) => m.name.toLowerCase().startsWith(query));
     });
 
     const findMentionPosition = (text: string, cursorPos: number): { start: number; end: number } | null => {
+      if (cursorPos === 0 || text.length === 0) return null;
+      
       let start = cursorPos - 1;
+      
       while (start >= 0 && /[\w-]/.test(text[start] || '')) {
         start--;
       }
+      
       if (start >= 0 && text[start] === '@') {
-        const end = cursorPos;
+        let end = cursorPos;
+        while (end < text.length && /[\w-]/.test(text[end] || '')) {
+          end++;
+        }
         return { start, end };
       }
+      
+      if (cursorPos > 0 && text[cursorPos - 1] === '@') {
+        return { start: cursorPos - 1, end: cursorPos };
+      }
+      
       return null;
     };
 
     const handleInput = () => {
       handleTyping();
-      const input = inputRef.value?.$el?.querySelector('input') as HTMLInputElement;
-      if (!input) return;
+      
+      void nextTick(() => {
+        const input = inputRef.value?.$el?.querySelector('input') as HTMLInputElement;
+        if (!input) {
+          showMentionMenu.value = false;
+          mentionStartPos.value = -1;
+          mentionQuery.value = '';
+          return;
+        }
 
-      const cursorPos = input.selectionStart || 0;
-      const mentionPos = findMentionPosition(message.value, cursorPos);
+        const cursorPos = input.selectionStart || 0;
+        const mentionPos = findMentionPosition(message.value, cursorPos);
 
-      if (mentionPos) {
-        mentionStartPos.value = mentionPos.start;
-        mentionQuery.value = message.value.substring(mentionPos.start + 1, mentionPos.end);
-        selectedMemberIndex.value = 0;
-        showMentionMenu.value = true;
-        void nextTick(() => {
-          updateMentionMenuPosition();
-        });
-      } else {
-        showMentionMenu.value = false;
-        mentionStartPos.value = -1;
-        mentionQuery.value = '';
-      }
+        if (mentionPos && props.channelId) {
+          mentionStartPos.value = mentionPos.start;
+          mentionQuery.value = message.value.substring(mentionPos.start + 1, mentionPos.end);
+          selectedMemberIndex.value = 0;
+          
+          if (members.value.length > 0) {
+            showMentionMenu.value = true;
+            updateMentionMenuPosition();
+          } else {
+            showMentionMenu.value = false;
+          }
+        } else {
+          showMentionMenu.value = false;
+          mentionStartPos.value = -1;
+          mentionQuery.value = '';
+        }
+      });
     };
 
     const updateMentionMenuPosition = () => {
-      void nextTick(() => {
-        const input = inputRef.value?.$el?.querySelector('input') as HTMLInputElement;
-        if (!input || !showMentionMenu.value) return;
+      const input = inputRef.value?.$el?.querySelector('input') as HTMLInputElement;
+      if (!input || !showMentionMenu.value) return;
 
-        const rect = input.getBoundingClientRect();
-        const menu = document.querySelector('.mention-menu') as HTMLElement;
-        if (menu) {
-          menu.style.position = 'fixed';
-          menu.style.top = `${rect.bottom + 8}px`;
-          menu.style.left = `${rect.left}px`;
-          menu.style.width = `${Math.max(rect.width, 250)}px`;
-          menu.style.zIndex = '9999';
-        }
-      });
+      const rect = input.getBoundingClientRect();
+      mentionMenuStyle.value = {
+        position: 'fixed',
+        top: `${rect.top - 8}px`,
+        left: `${rect.left}px`,
+        width: `${Math.max(rect.width, 250)}px`,
+        zIndex: '99999',
+        maxHeight: '250px',
+        overflowY: 'auto',
+        transform: 'translateY(-100%)',
+      };
     };
 
     const selectMember = (member: Member) => {
@@ -257,6 +293,21 @@ export default defineComponent({
       handleTyping();
     };
 
+    const handleEnter = () => {
+      if (showMentionMenu.value && filteredMembers.value.length > 0) {
+        const selectedMember = filteredMembers.value[selectedMemberIndex.value];
+        if (selectedMember) {
+          selectMember(selectedMember);
+          return;
+        }
+      }
+      sendMessage();
+    };
+
+    const handleKeyUp = () => {
+      handleInput();
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (showMentionMenu.value) {
         if (event.key === 'ArrowDown') {
@@ -265,21 +316,18 @@ export default defineComponent({
         } else if (event.key === 'ArrowUp') {
           event.preventDefault();
           selectedMemberIndex.value = Math.max(selectedMemberIndex.value - 1, 0);
-        } else if (event.key === 'Enter' && filteredMembers.value.length > 0) {
-          event.preventDefault();
-          const selectedMember = filteredMembers.value[selectedMemberIndex.value];
-          if (selectedMember) {
-            selectMember(selectedMember);
-          }
         } else if (event.key === 'Escape') {
+          event.preventDefault();
           showMentionMenu.value = false;
           mentionStartPos.value = -1;
           mentionQuery.value = '';
-        } else {
-          handleTyping();
+        } else if (event.key === 'Backspace') {
+          if (mentionQuery.value.length === 0 && mentionStartPos.value >= 0) {
+            showMentionMenu.value = false;
+            mentionStartPos.value = -1;
+            mentionQuery.value = '';
+          }
         }
-      } else {
-        handleTyping();
       }
     };
 
@@ -303,7 +351,10 @@ export default defineComponent({
     const sendMessage = () => {
       if (message.value.trim() === '') return;
 
-      // Stop typing indicator
+      showMentionMenu.value = false;
+      mentionStartPos.value = -1;
+      mentionQuery.value = '';
+
       if (typingTimeout) {
         clearTimeout(typingTimeout);
         typingTimeout = null;
@@ -316,6 +367,7 @@ export default defineComponent({
     };
 
     return {
+      Teleport,
       message,
       emojis,
       addEmoji,
@@ -323,9 +375,14 @@ export default defineComponent({
       handleTyping,
       handleInput,
       handleKeyDown,
+      handleKeyUp,
+      handleEnter,
       inputRef,
       emojiMenuRef,
+      mentionMenuRef,
       showMentionMenu,
+      mentionMenuStyle,
+      mentionStartPos,
       filteredMembers,
       selectedMemberIndex,
       selectMember,
@@ -350,10 +407,47 @@ export default defineComponent({
 }
 
 .mention-menu {
-  max-width: 300px;
+  position: fixed !important;
+  max-width: 320px;
+  min-width: 250px;
+  background: white !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 99999 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.mention-list {
+  padding: 4px;
+}
+
+.mention-item {
+  border-radius: 6px;
+  margin: 2px 0;
+  transition: background-color 0.15s ease;
+}
+
+.mention-item:hover {
+  background-color: rgba(255, 152, 0, 0.1);
 }
 
 .mention-item-selected {
-  background-color: rgba(25, 118, 210, 0.1);
+  background-color: rgba(255, 152, 0, 0.2);
+}
+
+.mention-item-selected:hover {
+  background-color: rgba(255, 152, 0, 0.25);
+}
+
+.mention-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+.mention-item-empty {
+  padding: 12px 16px;
 }
 </style>

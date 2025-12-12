@@ -43,14 +43,14 @@
             label="Meno"
             outlined
             class="q-mb-md"
-            :rules="[req]"
+            :rules="[validateName]"
           />
           <q-input
             v-model="registerForm.lastName"
             label="Priezvisko"
             outlined
             class="q-mb-md"
-            :rules="[req]"
+            :rules="[validateSurname]"
           />
           <q-input
             v-model="registerForm.email"
@@ -58,14 +58,14 @@
             type="email"
             outlined
             class="q-mb-md"
-            :rules="[req]"
+            :rules="[validateEmail]"
           />
           <q-input
             v-model="registerForm.nickname"
             label="Nickname"
             outlined
             class="q-mb-md"
-            :rules="[req]"
+            :rules="[validateNickname]"
           />
           <q-input
             v-model="registerForm.password"
@@ -73,7 +73,7 @@
             type="password"
             outlined
             class="q-mb-md"
-            :rules="[req]"
+            :rules="[validatePassword]"
           />
           <div class="row q-gutter-sm">
             <q-btn label="Vytvoriť účet" type="submit" color="primary" class="col" />
@@ -120,6 +120,42 @@ export default defineComponent({
     });
 
     const req = (v: string) => !!v || 'Povinné pole';
+
+    const validateName = (v: string) => {
+      if (!v) return 'Povinné pole';
+      if (v.length < 3) return 'Meno musí mať aspoň 3 znaky';
+      if (v.length > 12) return 'Meno môže mať maximálne 12 znakov';
+      return true;
+    };
+
+    const validateSurname = (v: string) => {
+      if (!v) return 'Povinné pole';
+      if (v.length < 3) return 'Priezvisko musí mať aspoň 3 znaky';
+      if (v.length > 12) return 'Priezvisko môže mať maximálne 12 znakov';
+      return true;
+    };
+
+    const validateNickname = (v: string) => {
+      if (!v) return 'Povinné pole';
+      if (v.length < 3) return 'Nickname musí mať aspoň 3 znaky';
+      if (v.length > 12) return 'Nickname môže mať maximálne 12 znakov';
+      return true;
+    };
+
+    const validateEmail = (v: string) => {
+      if (!v) return 'Povinné pole';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(v)) return 'Zadajte platný e-mail';
+      return true;
+    };
+
+    const validatePassword = (v: string) => {
+      if (!v) return 'Povinné pole';
+      if (v.length < 8) return 'Heslo musí mať aspoň 8 znakov';
+      if (!/[A-Z]/.test(v)) return 'Heslo musí obsahovať aspoň jedno veľké písmeno';
+      if (!/[0-9]/.test(v)) return 'Heslo musí obsahovať aspoň jedno číslo';
+      return true;
+    };
 
     const goToApp = async () => {
       await router.push('/app');
@@ -217,6 +253,11 @@ export default defineComponent({
       loginForm,
       registerForm,
       req,
+      validateName,
+      validateSurname,
+      validateNickname,
+      validateEmail,
+      validatePassword,
       handleLogin,
       handleRegister,
     };
