@@ -114,6 +114,6 @@ export default class ChannelMemberSeeder extends BaseSeeder {
       { userId: patrik.id, channelId: hr.id, status: 'member' },
     ])
 
-    console.log('✅ ChannelMemberSeeder finished')
+    console.log('ChannelMemberSeeder finished')
   }
 }

@@ -379,6 +379,6 @@ export default class UserSeeder extends BaseSeeder {
       )
     }
 
-    console.log('✅ UserSeeder finished')
+    console.log('UserSeeder finished')
   }
 }

@@ -17,6 +17,6 @@ export default class MainSeeder extends BaseSeeder {
     await new ChannelInviteSeeder(this.client).run()
     await new MessageSeeder(this.client).run()
     await new KickVoteSeeder(this.client).run()
-    console.log('✅ MainSeeder finished – all sub-seeders executed.')
+    console.log('MainSeeder finished – all sub-seeders executed.')
   }
 }

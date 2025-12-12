@@ -15,6 +15,6 @@ export default class AccessSeeder extends BaseSeeder {
       { userId: kristof.id, channelId: vpwa.id },
     ])
 
-    console.log('✅ AccessSeeder finished')
+    console.log('AccessSeeder finished')
   }
 }

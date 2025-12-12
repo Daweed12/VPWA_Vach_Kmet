@@ -628,7 +628,6 @@ const onDeleteCurrentChannel = async () => {
     window.dispatchEvent(new CustomEvent('channelSelected', { detail: { id: null, title: null } }));
   } catch (error) {
     console.error('Chyba:', error);
-    window.alert('Chyba pri mazaní.');
   } finally {
     deletingChannel.value = false;
   }
@@ -665,7 +664,6 @@ const handleLeaveChannel = async (channel: ChannelFromApi) => {
 
 const handleDeleteChannel = async (channel: ChannelFromApi) => {
   if (!currentUser.value || channel.creatorId !== currentUser.value.id) {
-    window.alert('Len vlastník kanála ho môže zrušiť.');
     return;
   }
   const ok = window.confirm(`Naozaj chceš zrušiť kanál "${channel.title}"?`);
@@ -684,7 +682,6 @@ const handleDeleteChannel = async (channel: ChannelFromApi) => {
     }
   } catch (error) {
     console.error('Chyba pri mazaní kanála:', error);
-    window.alert('Chyba pri mazaní kanála.');
   } finally {
     deletingChannel.value = false;
   }
@@ -728,9 +725,9 @@ const onTextBarSend = async (text: string) => {
       content: messageText,
       senderId: currentUser.value.id,
     });
-    console.log('✅ Message sent:', response.data);
+    console.log('Message sent:', response.data);
   } catch (error) {
-    console.error('❌ Chyba pri odosielaní správy:', error);
+    console.error('Chyba pri odosielaní správy:', error);
     window.alert('Nepodarilo sa odoslať správu.');
   }
 };
@@ -815,7 +812,7 @@ const setupEventListeners = () => {
         createdAt: data.createdAt,
       });
       console.log(
-        `✅ Added channel ${data.id} (${data.title}) to list in real-time (creator only)`,
+        `Added channel ${data.id} (${data.title}) to list in real-time (creator only)`,
       );
     }
   };
@@ -843,7 +840,7 @@ const setupEventListeners = () => {
           createdAt: data.createdAt,
         });
         console.log(
-          `✅ Added invite ${data.id} for channel ${data.channelId} to list in real-time`,
+          `Added invite ${data.id} for channel ${data.channelId} to list in real-time`,
         );
       }
     }
@@ -862,7 +859,7 @@ const setupEventListeners = () => {
       if (!channels.value.find((c) => c.id === data.channelId)) {
         channels.value.unshift(data.channel);
         console.log(
-          `✅ Added channel ${data.channelId} (${data.channel.title}) to list in real-time`,
+          `Added channel ${data.channelId} (${data.channel.title}) to list in real-time`,
         );
       }
     }

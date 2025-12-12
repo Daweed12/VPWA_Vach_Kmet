@@ -1065,7 +1065,7 @@ const handleChannelDeleted = (event: Event) => {
   // Remove channel from myChannels list
   myChannels.value = myChannels.value.filter((c) => c.id !== channelId);
 
-  console.log(`✅ Removed channel ${channelId} from myChannels in real-time`);
+  console.log(`Removed channel ${channelId} from myChannels in real-time`);
 };
 
 onMounted(() => {

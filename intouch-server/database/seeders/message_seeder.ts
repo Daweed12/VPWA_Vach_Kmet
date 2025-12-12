@@ -59,9 +59,9 @@ export default class MessageSeeder extends BaseSeeder {
         '@david priprav prosím krátky update k VPWA.',
         'Jasné, mám hotový prototyp a základ backendu.',
         'Super, chcem vidieť demo ešte tento týždeň.',
-        'Za mňa dobré, vieme ukázať aj reálne správy v kanáloch. 😉',
+        'Za mňa dobré, vieme ukázať aj reálne správy v kanáloch.',
         'Cieľ: nech sa tím cíti ako v Slacku, ale je to naše riešenie.',
-        'Perfektné, ďakujem všetkým. 💡',
+        'Perfektné, ďakujem všetkým.',
         'Pripravím aj krátku prezentáciu architektúry.',
       ],
       '#CEOs'
@@ -76,7 +76,7 @@ export default class MessageSeeder extends BaseSeeder {
         'Implementujem prepínač „notifyOnMentionOnly“ do profilu.',
         'Super, odpíšem klientovi, že feature bude nasadená zajtra.',
         'Backend to už podporuje, stačí uložiť flag pre usera.',
-        'Ďakujem, tím CS ❤️ vývoj.',
+        'Ďakujem, tím CS vývoj.',
       ],
       '#Customer Success'
     )
@@ -175,6 +175,6 @@ export default class MessageSeeder extends BaseSeeder {
       { messageId: mHr1.id, userId: filip.id },
     ])
 
-    console.log('✅ MessageSeeder (messages + mentions) finished')
+    console.log('MessageSeeder (messages + mentions) finished')
   }
 }

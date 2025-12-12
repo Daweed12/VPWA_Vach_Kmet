@@ -189,7 +189,7 @@ const handleChannelSelected = (event: Event) => {
   if (currentUser.value?.connection !== 'offline') {
     // Ensure socket is initialized and connected
     if (!socket()) {
-      console.warn('⚠️ Socket not initialized, initializing now...');
+      console.warn('Socket not initialized, initializing now...');
       initSocket();
       setupSocketEvents();
     }
@@ -197,7 +197,7 @@ const handleChannelSelected = (event: Event) => {
     // Join new channel (will wait for connection if needed)
     joinChannel(detail.id);
   } else {
-    console.log('⚠️ User is offline, not joining channel or loading messages via WebSocket');
+    console.log('User is offline, not joining channel or loading messages via WebSocket');
   }
 
   // Vždy načítať správy z DB (aj keď je offline)
@@ -215,13 +215,13 @@ const handleCurrentUserUpdated = (event: Event) => {
 
   // Ak sa zmenil connection z online na offline, odpojiť WebSocket
   if (oldConnection !== 'offline' && detail.connection === 'offline') {
-    console.log('🔌 User went offline, disconnecting WebSocket');
+    console.log('User went offline, disconnecting WebSocket');
     disconnectSocket();
   }
 
   // Ak sa zmenil connection z offline na online, pripojiť WebSocket a načítať správy
   if (oldConnection === 'offline' && detail.connection !== 'offline') {
-    console.log('🔌 User went online, connecting WebSocket and loading messages');
+    console.log('User went online, connecting WebSocket and loading messages');
     initSocket();
     setupSocketEvents();
 
@@ -379,7 +379,7 @@ onMounted(() => {
     const socketInstance = socket();
     if (socketInstance) {
       if (socketInstance.connected) {
-        console.log('✅ Socket already connected on mount');
+        console.log('Socket already connected on mount');
         // Join user room
         if (currentUser.value?.id) {
           joinUserRoom(currentUser.value.id);
@@ -390,7 +390,7 @@ onMounted(() => {
       } else {
         console.log('⏳ Waiting for socket connection...');
         socketInstance.once('connect', () => {
-          console.log('✅ Socket connected after mount, joining channel if needed');
+          console.log('Socket connected after mount, joining channel if needed');
           setupSocketEvents();
           // Join user room
           if (currentUser.value?.id) {
@@ -409,7 +409,7 @@ onMounted(() => {
         }
       });
     } else {
-      console.error('❌ Failed to initialize socket');
+      console.error('Failed to initialize socket');
     }
   }
 

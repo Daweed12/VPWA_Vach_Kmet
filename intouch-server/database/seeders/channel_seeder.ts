@@ -72,6 +72,6 @@ export default class ChannelSeeder extends BaseSeeder {
       },
     ])
 
-    console.log('✅ ChannelSeeder finished')
+    console.log('ChannelSeeder finished')
   }
 }

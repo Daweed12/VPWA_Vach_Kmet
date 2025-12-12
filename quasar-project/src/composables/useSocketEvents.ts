@@ -85,7 +85,7 @@ export function useSocketEvents(
 
   // Listen for user status changes
   socket.on('user:status:changed', (data: { userId: number; status: string; name: string }) => {
-    console.log('📢 Received user:status:changed event:', data);
+    console.log('Received user:status:changed event:', data);
 
     window.dispatchEvent(
       new CustomEvent('userStatusChanged', {
@@ -104,7 +104,7 @@ export function useSocketEvents(
   socket.on(
     'user:avatar:changed',
     (data: { userId: number; profilePicture: string; name: string }) => {
-      console.log('📢 Received user:avatar:changed event:', data);
+      console.log('Received user:avatar:changed event:', data);
 
       // Aktualizuj avatary v správach - pridaj timestamp pre cache busting
       const timestamp = Date.now();
@@ -137,7 +137,7 @@ export function useSocketEvents(
 
   // Listen for channel deletion
   socket.on('channel:deleted', (data: { channelId: number; title: string }) => {
-    console.log('📢 Received channel:deleted event:', data);
+    console.log('Received channel:deleted event:', data);
 
     if (activeChannelId.value === data.channelId) {
       activeChannelId.value = null;
@@ -172,7 +172,7 @@ export function useSocketEvents(
       createdAt: string;
       userId?: number;
     }) => {
-      console.log('📢 Received channel:created event:', data);
+      console.log('Received channel:created event:', data);
 
       window.dispatchEvent(
         new CustomEvent('channelCreated', {
@@ -202,7 +202,7 @@ export function useSocketEvents(
       createdAt: string;
       userId: number;
     }) => {
-      console.log('📢 Received invite:created event:', data);
+      console.log('Received invite:created event:', data);
 
       window.dispatchEvent(
         new CustomEvent('inviteCreated', {
@@ -235,7 +235,7 @@ export function useSocketEvents(
         createdAt: string;
       };
     }) => {
-      console.log('📢 Received channel:joined event:', data);
+      console.log('Received channel:joined event:', data);
 
       window.dispatchEvent(
         new CustomEvent('channelJoined', {
@@ -255,7 +255,7 @@ export function useSocketEvents(
   socket.on(
     'member:joined',
     (data: { channelId: number; userId: number; userName: string; status: string }) => {
-      console.log('📢 Received member:joined event:', data);
+      console.log('Received member:joined event:', data);
 
       window.dispatchEvent(
         new CustomEvent('memberJoined', {
@@ -276,7 +276,7 @@ export function useSocketEvents(
   socket.on(
     'member:left',
     (data: { channelId: number; userId: number; userName: string }) => {
-      console.log('📢 Received member:left event:', data);
+      console.log('Received member:left event:', data);
 
       window.dispatchEvent(
         new CustomEvent('memberLeft', {
@@ -296,7 +296,7 @@ export function useSocketEvents(
   socket.on(
     'channel:left',
     (data: { channelId: number; title: string }) => {
-      console.log('📢 Received channel:left event:', data);
+      console.log('Received channel:left event:', data);
 
       if (activeChannelId.value === data.channelId) {
         activeChannelId.value = null;
@@ -323,18 +323,18 @@ export function useSocketEvents(
 
   // Listen for chat messages
   socket.on('chat:message', (data: unknown) => {
-    console.log('🔵🔵🔵 RECEIVED chat:message event:', data);
+    console.log('RECEIVED chat:message event:', data);
 
     const message = data as MessageFromApi & { channelId?: number; channel_id?: number };
 
     // Validate message structure
     if (!message.sender) {
-      console.warn('⚠️ Received message without sender:', message);
+      console.warn('Received message without sender:', message);
       return;
     }
 
     if (!message.content) {
-      console.warn('⚠️ Received message without content:', message);
+      console.warn('Received message without content:', message);
       return;
     }
 
@@ -342,7 +342,7 @@ export function useSocketEvents(
     const messageChannelId = message.channelId || message.channel_id;
 
     if (!messageChannelId) {
-      console.warn('⚠️ Received message without channelId:', message);
+      console.warn('Received message without channelId:', message);
       return;
     }
 
@@ -353,12 +353,12 @@ export function useSocketEvents(
     // If we have an active channel, only show messages for that channel
     if (activeChannelId.value !== null && messageChannelId !== activeChannelId.value) {
       console.log(
-        `ℹ️ Ignoring message - active channel (${activeChannelId.value}) != message channel (${messageChannelId})`,
+        `Ignoring message - active channel (${activeChannelId.value}) != message channel (${messageChannelId})`,
       );
       return;
     }
 
-    console.log('✅ Message passed channel filter, processing...');
+    console.log('Message passed channel filter, processing...');
 
     // Check if this is from current user - might be replacing optimistic message
     const isFromCurrentUser = currentUser.value && message.sender.id === currentUser.value.id;
@@ -368,7 +368,7 @@ export function useSocketEvents(
         (m) => m.id < 0 && m.content === message.content,
       );
       if (optimisticIndex !== -1) {
-        console.log('✅ Replacing optimistic message with real one');
+        console.log('Replacing optimistic message with real one');
         rawMessages.value[optimisticIndex] = message;
         callbacks.onMessage?.(message);
         return;
@@ -378,11 +378,11 @@ export function useSocketEvents(
     // Check if message already exists (avoid duplicates)
     const exists = rawMessages.value.some((m) => m.id === message.id && m.id > 0);
     if (exists) {
-      console.log('ℹ️ Message already exists, skipping (duplicate)');
+      console.log('Message already exists, skipping (duplicate)');
       return;
     }
 
-    console.log('✅ Adding new message to chat');
+    console.log('Adding new message to chat');
     rawMessages.value.push(message);
 
     callbacks.onMessage?.(message);

@@ -114,7 +114,7 @@ router.post('/channels/:id/join', async ({ params, request, response }) => {
 
   const user = await User.find(userId)
   if (!user) {
-    console.error(`❌ User ${userId} not found when trying to join channel ${channelId}`)
+    console.error(`User ${userId} not found when trying to join channel ${channelId}`)
     return response.notFound({ message: `Používateľ s ID ${userId} neexistuje.` })
   }
 
@@ -158,7 +158,7 @@ router.post('/channels/:id/join', async ({ params, request, response }) => {
         createdAt: channel.createdAt.toISO(),
       },
     })
-    console.log(`📢 Sent channel:joined event for user ${userId}, channel ${channel.id}`)
+    console.log(`Sent channel:joined event for user ${userId}, channel ${channel.id}`)
   }
 
   return {
@@ -235,7 +235,7 @@ router.post('/channels', async ({ request, response }) => {
       createdAt: channel.createdAt.toISO(),
       userId: user.id,
     })
-    console.log(`📢 Sent channel:created event for channel ${channel.id} to creator ${user.id}`)
+    console.log(`Sent channel:created event for channel ${channel.id} to creator ${user.id}`)
   }
 
   return channel
@@ -273,7 +273,7 @@ router.delete('/channels/:id', async ({ params, response }) => {
       channelId: channelId,
       title: channel.title,
     })
-    console.log(`📢 Sent channel:deleted event for channel ${channelId} (${channel.title})`)
+    console.log(`Sent channel:deleted event for channel ${channelId} (${channel.title})`)
   }
 
   return { message: 'Kanál bol úspešne vymazaný.' }
@@ -355,7 +355,7 @@ router.post('/channels/:id/leave', async ({ params, request, response }) => {
       channelId,
       title: channel.title,
     })
-    console.log(`📢 Sent member:left and channel:left events for user ${userId} from channel ${channelId}`)
+    console.log(`Sent member:left and channel:left events for user ${userId} from channel ${channelId}`)
   }
 
   return {
@@ -382,7 +382,7 @@ export async function cleanupInactiveChannels() {
   }
 
   if (deletedCount > 0) {
-    console.log(`🧹 Cleaned up ${deletedCount} inactive channels (30+ days without messages)`)
+    console.log(`Cleaned up ${deletedCount} inactive channels (30+ days without messages)`)
   }
 
   return deletedCount

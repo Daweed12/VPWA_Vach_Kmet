@@ -44,6 +44,6 @@ export default class ChannelInviteSeeder extends BaseSeeder {
       },
     ])
 
-    console.log('✅ ChannelInviteSeeder finished')
+    console.log('ChannelInviteSeeder finished')
   }
 }

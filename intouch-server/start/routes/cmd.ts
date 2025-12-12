@@ -49,10 +49,29 @@ router
           if (existingMember && existingMember.status === 'banned')
             return response.forbidden({ message: 'Máš ban v tomto kanáli.' })
 
-          await ChannelMember.firstOrCreate(
+          const member = await ChannelMember.firstOrCreate(
             { userId: user.id, channelId: existingChannel.id },
             { status: 'member' }
           )
+
+          const io = getIO()
+          if (io) {
+            io.emit('channel:joined', {
+              channelId: existingChannel.id,
+              userId: user.id,
+              channel: {
+                id: existingChannel.id,
+                title: existingChannel.title,
+                availability: existingChannel.availability,
+                creatorId: existingChannel.creatorId,
+                createdAt: existingChannel.createdAt.toISO(),
+              },
+            })
+            console.log(
+              `Sent channel:joined event (via /join) for user ${user.id}, channel ${existingChannel.id}`
+            )
+          }
+
           return { message: `Pripojený do kanála #${safeTitle}`, channel: existingChannel }
         }
       }
@@ -82,7 +101,7 @@ router
             userId: user.id,
           })
           console.log(
-            `📢 Sent channel:created event (via /join) for channel ${channel.id} to creator ${user.id}`
+            `Sent channel:created event (via /join) for channel ${channel.id} to creator ${user.id}`
           )
         }
 
@@ -167,7 +186,7 @@ router
           userId: invite.userId,
         })
         console.log(
-          `📢 Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`
+          `Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`
         )
       }
 
@@ -255,7 +274,7 @@ router
           title: channel.title,
         })
         console.log(
-          `📢 Sent member:left and channel:left events for revoked user ${targetUser.id} from channel ${channelId}`
+          `Sent member:left and channel:left events for revoked user ${targetUser.id} from channel ${channelId}`
         )
       }
 
@@ -361,7 +380,7 @@ router
             title: channel.title,
           })
           console.log(
-            `📢 Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
+            `Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
           )
         }
 
@@ -450,7 +469,7 @@ router
             title: channel.title,
           })
           console.log(
-            `📢 Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
+            `Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
           )
         }
 
@@ -492,7 +511,7 @@ router
           channelId: channelId,
           title: channelTitle,
         })
-        console.log(`📢 Sent channel:deleted event for channel ${channelId} (${channelTitle})`)
+        console.log(`Sent channel:deleted event for channel ${channelId} (${channelTitle})`)
       }
 
       return { message: 'Kanál bol úspešne zrušený.' }
@@ -519,7 +538,7 @@ router
             channelId,
             title: channel.title,
           })
-          console.log(`📢 Sent channel:deleted event for channel ${channelId}`)
+          console.log(`Sent channel:deleted event for channel ${channelId}`)
         }
         return { message: 'Opustil si kanál ako vlastník. Kanál bol zrušený.', action: 'deleted' }
       }
@@ -570,7 +589,7 @@ router
           channelId,
           title: channel.title,
         })
-        console.log(`📢 Sent member:left and channel:left events for user ${userId} from channel ${channelId}`)
+        console.log(`Sent member:left and channel:left events for user ${userId} from channel ${channelId}`)
       }
 
       return { message: 'Opustil si kanál.', action: 'left' }

@@ -23,24 +23,24 @@ export async function boot() {
   })
 
   io.on('connection', (socket) => {
-    console.log('✅ WS connected:', socket.id, 'Total clients:', io?.sockets.sockets.size ?? 0)
+    console.log('WS connected:', socket.id, 'Total clients:', io?.sockets.sockets.size ?? 0)
 
     socket.on('channel:join', (channelId: number) => {
       const room = `channel:${channelId}`
       socket.join(room)
-      console.log(`📥 Socket ${socket.id} joined room ${room}`)
+      console.log(`Socket ${socket.id} joined room ${room}`)
     })
 
     socket.on('channel:leave', (channelId: number) => {
       const room = `channel:${channelId}`
       socket.leave(room)
-      console.log(`📤 Socket ${socket.id} left room ${room}`)
+      console.log(`Socket ${socket.id} left room ${room}`)
     })
 
     socket.on('user:join', (userId: number) => {
       const userRoom = `user:${userId}`
       socket.join(userRoom)
-      console.log(`📥 Socket ${socket.id} joined user room ${userRoom}`)
+      console.log(`Socket ${socket.id} joined user room ${userRoom}`)
     })
 
     socket.on('chat:message', (msg) => {
@@ -57,7 +57,7 @@ export async function boot() {
         userAvatar: data.userAvatar,
         draftContent: data.draftContent,
       })
-      console.log(`⌨️ User ${data.userId} (${data.userName}) is typing in channel ${data.channelId}`)
+      console.log(`User ${data.userId} (${data.userName}) is typing in channel ${data.channelId}`)
     })
 
     socket.on('typing:stop', (data: { channelId: number; userId: number }) => {
@@ -66,7 +66,7 @@ export async function boot() {
       socket.to(room).emit('typing:stop', {
         userId: data.userId,
       })
-      console.log(`⌨️ User ${data.userId} stopped typing in channel ${data.channelId}`)
+      console.log(`User ${data.userId} stopped typing in channel ${data.channelId}`)
     })
 
     socket.on('disconnect', (reason) => {
@@ -84,11 +84,11 @@ export async function boot() {
     try {
       await cleanupInactiveChannels()
     } catch (error) {
-      console.error('❌ Error during channel cleanup:', error)
+      console.error('Error during channel cleanup:', error)
     }
   }, 100)
 
-  console.log('🧹 Channel cleanup scheduled every 10 seconds')
+  console.log('Channel cleanup scheduled every 10 seconds')
 }
 
 export function getIO() {
@@ -99,6 +99,6 @@ export function stopCleanup() {
   if (cleanupInterval) {
     clearInterval(cleanupInterval)
     cleanupInterval = null
-    console.log('🧹 Channel cleanup stopped')
+    console.log('Channel cleanup stopped')
   }
 }

@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { useQuasar, Notify } from 'quasar';
+import { useQuasar } from 'quasar';
 import type { MessageFromApi } from './useMessages';
 import { api } from 'boot/api';
 
@@ -64,30 +64,43 @@ export function useNotifications() {
   ): void => {
     const isWindowVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
     const isAppVisible = $q.appVisible;
-    const shouldShowInApp = isWindowVisible && isAppVisible;
+    const isAppNotVisible = !isWindowVisible || !isAppVisible;
 
     if (!message.sender || !message.content) {
       return;
     }
 
-    if (currentUser?.status === 'dnd') {
+    if (currentUser?.status === 'dnd' || currentUser?.status === 'offline') {
       return;
     }
 
     const isMentioned = isUserMentioned(message.content, currentUser?.nickname || null);
-    
+    const isInSameChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId === messageChannelId;
+    const isInDifferentChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId !== messageChannelId;
+
+    if (isInSameChannel) {
+      return;
+    }
+
     if (currentUser?.notifyOnMentionOnly === true) {
-      const isInDifferentChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId !== messageChannelId;
       if (!isInDifferentChannel) {
         return;
       }
       if (!isMentioned) {
         return;
       }
-    } else if (currentUser?.notifyOnMentionOnly === false) {
-      if (!isMentioned) {
-        return;
-      }
+    }
+
+    if (!isAppNotVisible) {
+      return;
+    }
+
+    if (!isNotificationSupported) {
+      return;
+    }
+
+    if (notificationPermission.value !== 'granted') {
+      return;
     }
 
     const senderName =
@@ -102,37 +115,6 @@ export function useNotifications() {
         : message.content;
 
     const avatarUrl = getFullAvatarUrl(message.sender.profilePicture);
-
-    if (shouldShowInApp) {
-      const notifyMessage = channelTitle
-        ? `${senderName} v #${channelTitle}: ${messagePreview}`
-        : `${senderName}: ${messagePreview}`;
-
-      Notify.create({
-        type: 'info',
-        message: notifyMessage,
-        position: 'top-right',
-        timeout: 5000,
-        icon: 'chat',
-        avatar: avatarUrl,
-        actions: [
-          {
-            icon: 'close',
-            color: 'white',
-            handler: () => {},
-          },
-        ],
-      });
-      return;
-    }
-
-    if (!isNotificationSupported) {
-      return;
-    }
-
-    if (notificationPermission.value !== 'granted') {
-      return;
-    }
 
     const notificationTitle = channelTitle ? `#${channelTitle}` : senderName;
     const notificationBody = channelTitle

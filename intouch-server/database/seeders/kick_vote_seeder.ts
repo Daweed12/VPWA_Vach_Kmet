@@ -25,6 +25,6 @@ export default class KickVoteSeeder extends BaseSeeder {
       },
     ])
 
-    console.log('✅ KickVoteSeeder finished')
+    console.log('KickVoteSeeder finished')
   }
 }

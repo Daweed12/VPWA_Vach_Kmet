@@ -112,38 +112,7 @@ export default defineComponent({
     let typingTimeout: ReturnType<typeof setTimeout> | null = null;
     let lastTypingEmit = 0;
 
-    const emojis = [
-      '😀',
-      '😁',
-      '😂',
-      '🤣',
-      '😊',
-      '😍',
-      '😎',
-      '🤔',
-      '😅',
-      '🙃',
-      '😉',
-      '😇',
-      '😭',
-      '😴',
-      '🤯',
-      '🥳',
-      '👍',
-      '👏',
-      '🙌',
-      '🔥',
-      '🎉',
-      '💡',
-      '🚀',
-      '❤️',
-      '💪',
-      '🙏',
-      '👀',
-      '🤝',
-      '⚡',
-      '📷',
-    ];
+    const emojis: string[] = [];
 
     const focusInput = () => {
       inputRef.value?.focus();

@@ -97,7 +97,7 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
       })
       io.to(room).emit('chat:message', responseMessage)
       console.log(
-        `📢 Sent member:joined event and system message for user ${user.id} (${userName}) to channel ${channel.id} room`
+        `Sent member:joined event and system message for user ${user.id} (${userName}) to channel ${channel.id} room`
       )
     }
   }
@@ -205,7 +205,7 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
         userId: invite.userId,
       })
       console.log(
-        `📢 Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`
+        `Sent invite:created event for user ${invite.userId}, channel ${invite.channelId}`
       )
     }
 

@@ -125,7 +125,7 @@ export default defineComponent({
         
         member.status = mappedStatus;
         console.log(
-          `✅ Updated status for user ${userId} to ${mappedStatus} (connection: ${connection}, status: ${status}) in MemberList`,
+          `Updated status for user ${userId} to ${mappedStatus} (connection: ${connection}, status: ${status}) in MemberList`,
         );
       }
     };
@@ -150,7 +150,7 @@ export default defineComponent({
           email ||
           member.name;
         member.name = newName;
-        console.log(`✅ Updated nickname for user ${userId} to ${newName} in MemberList`);
+        console.log(`Updated nickname for user ${userId} to ${newName} in MemberList`);
       }
     };
 
@@ -168,7 +168,7 @@ export default defineComponent({
         // Remove cache busting parameter if present
         const cleanPath = profilePicture.split('?')[0];
         member.profilePicture = cleanPath || null;
-        console.log(`✅ Updated avatar for user ${userId} in MemberList`);
+        console.log(`Updated avatar for user ${userId} in MemberList`);
       }
     };
 
@@ -206,7 +206,7 @@ export default defineComponent({
             profilePicture: null,
           });
           console.log(
-            `✅ Added new member ${userName} (${userId}) to channel ${channelId} in real-time`,
+            `Added new member ${userName} (${userId}) to channel ${channelId} in real-time`,
           );
         } else {
           // If member already exists, just update their status
@@ -222,7 +222,7 @@ export default defineComponent({
           
           existingMember.status = mappedStatus;
           console.log(
-            `✅ Updated existing member ${userName} (${userId}) status in channel ${channelId}`,
+            `Updated existing member ${userName} (${userId}) status in channel ${channelId}`,
           );
         }
       }
@@ -243,7 +243,7 @@ export default defineComponent({
         if (memberIndex !== -1) {
           members.value.splice(memberIndex, 1);
           console.log(
-            `✅ Removed member ${userId} from channel ${channelId} in real-time`,
+            `Removed member ${userId} from channel ${channelId} in real-time`,
           );
         }
       }

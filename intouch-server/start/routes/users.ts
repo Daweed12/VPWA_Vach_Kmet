@@ -185,7 +185,7 @@ router.put('/users/:id', async ({ params, request, response }) => {
         await offlineMsg.delete()
       }
 
-      console.log(`📢 Sent ${offlineMessages.length} offline messages for user ${user.id}`)
+      console.log(`Sent ${offlineMessages.length} offline messages for user ${user.id}`)
     }
 
     // If nickname or name fields changed, broadcast update
@@ -206,7 +206,7 @@ router.put('/users/:id', async ({ params, request, response }) => {
           email: user.email,
           name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
         })
-        console.log(`📢 Sent nickname change event for user ${user.id} to room ${room}`)
+        console.log(`Sent nickname change event for user ${user.id} to room ${room}`)
       }
       // Also broadcast globally for other listeners (optional)
       io.emit('user:nickname:changed', {
@@ -230,7 +230,7 @@ router.put('/users/:id', async ({ params, request, response }) => {
           name:
             user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
         })
-        console.log(`📢 Sent status change event for user ${user.id} to room ${room}`)
+        console.log(`Sent status change event for user ${user.id} to room ${room}`)
       }
 
       // Pošli aj konkrétnemu používateľovi event o zmene connection (pre odpojenie WebSocketu)
@@ -297,7 +297,7 @@ router.put('/users/:id/photo', async ({ params, request, response }) => {
         profilePicture: publicPath,
         name: user.nickname || `${user.firstname ?? ''} ${user.surname ?? ''}`.trim() || user.email,
       })
-      console.log(`📢 Sent avatar change event for user ${user.id} to room ${room}`)
+      console.log(`Sent avatar change event for user ${user.id} to room ${room}`)
     }
 
     io.emit('user:avatar:changed', {
