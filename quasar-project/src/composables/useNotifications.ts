@@ -76,23 +76,19 @@ export function useNotifications() {
 
     const isMentioned = isUserMentioned(message.content, currentUser?.nickname || null);
     const isInSameChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId === messageChannelId;
-    const isInDifferentChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId !== messageChannelId;
 
     if (isInSameChannel) {
       return;
     }
 
     if (currentUser?.notifyOnMentionOnly === true) {
-      if (!isInDifferentChannel) {
-        return;
-      }
       if (!isMentioned) {
         return;
       }
-    }
-
-    if (!isAppNotVisible) {
-      return;
+    } else {
+      if (!isAppNotVisible) {
+        return;
+      }
     }
 
     if (!isNotificationSupported) {
