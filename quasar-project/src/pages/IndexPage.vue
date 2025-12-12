@@ -126,37 +126,18 @@ const setupSocketEvents = () => {
       }, 100);
     },
     onNewMessageNotification: (message: MessageFromApi & { channelId?: number; channel_id?: number }) => {
-      console.log('🔔 onNewMessageNotification called:', {
-        messageId: message.id,
-        channelId: message.channelId || message.channel_id,
-        senderId: message.sender?.id,
-        currentUserId: currentUser.value?.id,
-      });
-
-      // Zobraziť notifikáciu iba ak správa nie je od aktuálneho používateľa
       if (currentUser.value && message.sender.id === currentUser.value.id) {
-        console.log('⚠️ Správa je od aktuálneho používateľa, notifikácia sa nezobrazí');
         return;
       }
 
-      // Získať channelId zo správy
       const messageChannelId = message.channelId || message.channel_id;
       if (!messageChannelId) {
-        console.warn('⚠️ Správa nemá channelId');
         return;
       }
 
-      // Získať názov kanála z mapy
       const channelTitle = channelTitleMap.value.get(messageChannelId) || null;
-      console.log('📋 Channel title from map:', {
-        channelId: messageChannelId,
-        channelTitle,
-        mapSize: channelTitleMap.value.size,
-        mapKeys: Array.from(channelTitleMap.value.keys()),
-      });
 
-      // Zobraziť notifikáciu (predáme aj currentUser pre kontrolu DND a mentions)
-      showMessageNotification(message, channelTitle, currentUser.value);
+      showMessageNotification(message, channelTitle, currentUser.value, activeChannelId.value, messageChannelId);
     },
   });
 
