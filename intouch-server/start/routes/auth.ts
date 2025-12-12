@@ -88,18 +88,6 @@ router.post('/register', async ({ request, response }) => {
     password,
   })
 
-  const publicChannels = await Channel.query().where('availability', 'public')
-
-  await Promise.all(
-    publicChannels.map((ch) =>
-      ChannelMember.create({
-        userId: user.id,
-        channelId: ch.id,
-        status: 'member',
-      })
-    )
-  )
-
   return {
     id: user.id,
     email: user.email,

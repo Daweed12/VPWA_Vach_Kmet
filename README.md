@@ -50,10 +50,9 @@ npm run dev -> typicky na http://localhost:9000
 
 npm run build
 
-# Databáza (ERD)
+# Databáza
 
-_screenshot sa nachadza v /docs/databaza.png_
-
+![alt text](FINAL_DATABASE.png)
 ---
 
 # Príkazový riadok

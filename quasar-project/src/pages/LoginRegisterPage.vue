@@ -20,11 +20,19 @@
           <q-input
             v-model="loginForm.password"
             label="Heslo"
-            type="password"
+            :type="showLoginPassword ? 'text' : 'password'"
             outlined
             class="q-mb-md"
             :rules="[(v) => !!v || 'Zadaj heslo']"
-          />
+          >
+            <template v-slot:append>
+              <q-icon
+                :name="showLoginPassword ? 'visibility' : 'visibility_off'"
+                class="cursor-pointer"
+                @click="showLoginPassword = !showLoginPassword"
+              />
+            </template>
+          </q-input>
           <div class="row q-gutter-sm">
             <q-btn label="Prihlásiť" type="submit" color="primary" class="col" />
             <q-btn
@@ -70,11 +78,35 @@
           <q-input
             v-model="registerForm.password"
             label="Heslo"
-            type="password"
+            :type="showRegisterPassword ? 'text' : 'password'"
             outlined
             class="q-mb-md"
             :rules="[validatePassword]"
-          />
+          >
+            <template v-slot:append>
+              <q-icon
+                :name="showRegisterPassword ? 'visibility' : 'visibility_off'"
+                class="cursor-pointer"
+                @click="showRegisterPassword = !showRegisterPassword"
+              />
+            </template>
+          </q-input>
+          <q-input
+            v-model="registerForm.confirmPassword"
+            label="Potvrdiť heslo"
+            :type="showConfirmPassword ? 'text' : 'password'"
+            outlined
+            class="q-mb-md"
+            :rules="[validateConfirmPassword]"
+          >
+            <template v-slot:append>
+              <q-icon
+                :name="showConfirmPassword ? 'visibility' : 'visibility_off'"
+                class="cursor-pointer"
+                @click="showConfirmPassword = !showConfirmPassword"
+              />
+            </template>
+          </q-input>
           <div class="row q-gutter-sm">
             <q-btn label="Vytvoriť účet" type="submit" color="primary" class="col" />
             <q-btn
@@ -105,6 +137,9 @@ export default defineComponent({
     const $q = useQuasar();
 
     const showRegister = ref(false);
+    const showLoginPassword = ref(false);
+    const showRegisterPassword = ref(false);
+    const showConfirmPassword = ref(false);
 
     const loginForm = reactive({
       username: '',
@@ -117,6 +152,7 @@ export default defineComponent({
       email: '',
       nickname: '',
       password: '',
+      confirmPassword: '',
     });
 
     const req = (v: string) => !!v || 'Povinné pole';
@@ -154,6 +190,12 @@ export default defineComponent({
       if (v.length < 8) return 'Heslo musí mať aspoň 8 znakov';
       if (!/[A-Z]/.test(v)) return 'Heslo musí obsahovať aspoň jedno veľké písmeno';
       if (!/[0-9]/.test(v)) return 'Heslo musí obsahovať aspoň jedno číslo';
+      return true;
+    };
+
+    const validateConfirmPassword = (v: string) => {
+      if (!v) return 'Povinné pole';
+      if (v !== registerForm.password) return 'Heslá sa nezhodujú';
       return true;
     };
 
@@ -204,11 +246,23 @@ export default defineComponent({
 
     // REGISTER – vytvorí account + prihlási
     const handleRegister = async () => {
-      const allFilled = Object.values(registerForm).every(Boolean);
+      const { confirmPassword, ...rest } = registerForm;
+      const allFilled = Object.values(rest).every(Boolean) && confirmPassword;
       if (!allFilled) {
         $q.notify({
           type: 'negative',
           message: 'Vyplň všetky polia v registrácii.',
+          position: 'bottom',
+          timeout: 2500,
+          actions: [{ label: 'OK', color: 'white' }],
+        });
+        return;
+      }
+
+      if (registerForm.password !== registerForm.confirmPassword) {
+        $q.notify({
+          type: 'negative',
+          message: 'Heslá sa nezhodujú.',
           position: 'bottom',
           timeout: 2500,
           actions: [{ label: 'OK', color: 'white' }],
@@ -250,6 +304,9 @@ export default defineComponent({
     return {
       logoUrl,
       showRegister,
+      showLoginPassword,
+      showRegisterPassword,
+      showConfirmPassword,
       loginForm,
       registerForm,
       req,
@@ -258,6 +315,7 @@ export default defineComponent({
       validateNickname,
       validateEmail,
       validatePassword,
+      validateConfirmPassword,
       handleLogin,
       handleRegister,
     };
