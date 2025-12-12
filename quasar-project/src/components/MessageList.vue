@@ -57,8 +57,10 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import type { UiMessage } from 'src/composables/useMessages';
 import { parseMentions } from 'src/utils/mentionParser';
+import { api } from 'boot/api';
 
 interface Props {
   visibleMessages: UiMessage[];
@@ -66,11 +68,46 @@ interface Props {
   infiniteKey: number;
   isLoading: boolean;
   onLoad: (index: number, done: (finished?: boolean) => void) => void;
+  channelId?: number | null;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
-const chunks = (text: string) => parseMentions(text);
+const channelMembers = ref<Set<string>>(new Set());
+
+const fetchChannelMembers = async () => {
+  if (!props.channelId) {
+    channelMembers.value = new Set();
+    return;
+  }
+  try {
+    const response = await api.get(`/channels/${props.channelId}/members`);
+    const memberNames = new Set<string>();
+    response.data.forEach((m: { name: string; nickname?: string | null }) => {
+      if (m.nickname) {
+        memberNames.add(m.nickname.toLowerCase());
+      }
+    });
+    channelMembers.value = memberNames;
+  } catch {
+    channelMembers.value = new Set();
+  }
+};
+
+watch(() => props.channelId, fetchChannelMembers, { immediate: true });
+
+const chunks = (text: string) => {
+  const parsed = parseMentions(text);
+  return parsed.map((chunk) => {
+    if (chunk.type === 'mention') {
+      const isRealMember = channelMembers.value.has(chunk.value.toLowerCase());
+      if (!isRealMember) {
+        return { type: 'text' as const, value: `@${chunk.value}` };
+      }
+    }
+    return chunk;
+  });
+};
 </script>
 
 <style scoped>

@@ -44,7 +44,7 @@ export function useNotifications() {
       const permission = await Notification.requestPermission();
       notificationPermission.value = permission;
       return permission === 'granted';
-    } catch (error) {
+    } catch {
       return false;
     }
   };
@@ -74,8 +74,17 @@ export function useNotifications() {
       return;
     }
 
+    const isMentioned = isUserMentioned(message.content, currentUser?.nickname || null);
+    
     if (currentUser?.notifyOnMentionOnly === true) {
-      const isMentioned = isUserMentioned(message.content, currentUser.nickname || null);
+      const isInDifferentChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId !== messageChannelId;
+      if (!isInDifferentChannel) {
+        return;
+      }
+      if (!isMentioned) {
+        return;
+      }
+    } else if (currentUser?.notifyOnMentionOnly === false) {
       if (!isMentioned) {
         return;
       }

@@ -22,6 +22,7 @@ router.get('/channels/:id/members', async ({ params }) => {
   return channel.members.map((u) => ({
     id: u.id,
     name: u.nickname || `${u.firstname ?? ''} ${u.surname ?? ''}`.trim() || u.email,
+    nickname: u.nickname || null,
     status: u.status || 'normal',
     connection: u.connection || 'online',
     channelRole: u.$extras.pivot_status,

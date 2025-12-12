@@ -232,7 +232,12 @@
       <!-- Typing Indicator above TextBar -->
       <TypingIndicator v-if="headerTypingUsers.length > 0" :typing-users="headerTypingUsers" />
       <div class="textbar-container">
-        <text-bar class="textbar-content" @send="onTextBarSend" @typing="onTextBarTyping" />
+        <text-bar
+          class="textbar-content"
+          :channel-id="currentChannel?.id ?? null"
+          @send="onTextBarSend"
+          @typing="onTextBarTyping"
+        />
       </div>
     </q-footer>
 

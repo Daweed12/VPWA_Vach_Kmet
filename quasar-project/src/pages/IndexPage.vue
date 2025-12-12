@@ -38,6 +38,7 @@
           :infinite-key="infiniteKey"
           :is-loading="isLoading"
           :on-load="handleLoad"
+          :channel-id="activeChannelId"
         />
       </div>
     </div>
