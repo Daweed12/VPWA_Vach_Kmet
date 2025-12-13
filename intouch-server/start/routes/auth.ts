@@ -1,7 +1,7 @@
 import router from '@adonisjs/core/services/router'
 import User from '#models/user'
-import Channel from '#models/channel'
-import ChannelMember from '#models/channel_member'
+//import Channel from '#models/channel'
+//import ChannelMember from '#models/channel_member'
 
 /**
  * POST /login

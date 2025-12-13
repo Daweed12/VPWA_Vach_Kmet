@@ -434,9 +434,19 @@ onMounted(() => {
       }
 
       socketInstance.on('reconnect', () => {
-        console.log('🔄 Socket reconnected, rejoining channel if needed');
-        if (activeChannelId.value) {
-          joinChannel(activeChannelId.value);
+        // Reconnect len ak používateľ nie je offline
+        if (currentUser.value?.connection !== 'offline') {
+          console.log('🔄 Socket reconnected, rejoining channel if needed');
+          if (activeChannelId.value) {
+            joinChannel(activeChannelId.value);
+          }
+          if (currentUser.value?.id) {
+            joinUserRoom(currentUser.value.id);
+          }
+        } else {
+          // Ak je offline, odpojiť socket znova
+          console.log('User is offline, disconnecting reconnected socket');
+          disconnectSocket();
         }
       });
     } else {
