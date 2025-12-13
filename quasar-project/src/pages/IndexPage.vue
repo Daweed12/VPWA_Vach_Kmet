@@ -55,6 +55,7 @@ import { useSocketEvents } from 'src/composables/useSocketEvents';
 import { useInfiniteScroll } from 'src/composables/useInfiniteScroll';
 import { useNotifications } from 'src/composables/useNotifications';
 import type { MessageFromApi } from 'src/composables/useMessages';
+import { api } from 'boot/api';
 
 /* ===== State ===== */
 const activeChannelId = ref<number | null>(null);
@@ -76,7 +77,7 @@ const {
   updateMessageAvatar,
   updateMessageSenderName,
 } = useMessages(currentUser);
-const { handleTypingUpdate, handleTypingStop, clearTyping } = useTyping();
+const { typingUsers, handleTypingUpdate, handleTypingStop, clearTyping } = useTyping();
 const {
   visibleCount,
   isLoading,
@@ -108,6 +109,22 @@ const setupSocketEvents = () => {
     },
     onUserAvatarChanged: (data) => {
       updateMessageAvatar(data.userId, data.profilePicture);
+      // Aktualizovať avatar v typing indikátore
+      const typingUser = typingUsers.value.find((u) => u.id === data.userId);
+      if (typingUser) {
+        const getFullAvatarUrl = (path: string | null | undefined): string => {
+          if (!path) {
+            const defaultAvatar = new URL('../assets/default_user_avatar.png', import.meta.url).href;
+            return defaultAvatar;
+          }
+          if (path.startsWith('http')) return path;
+          const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333';
+          const cleanBase = baseUrl.replace(/\/$/, '');
+          const cleanPath = path.startsWith('/') ? path : `/${path}`;
+          return `${cleanBase}${cleanPath}`;
+        };
+        typingUser.avatar = getFullAvatarUrl(data.profilePicture);
+      }
     },
     onUserNicknameChanged: (data) => {
       updateMessageSenderName({
@@ -318,12 +335,26 @@ if (typeof window !== 'undefined') {
         ? `${currentUser.value.firstname} ${currentUser.value.surname}`
         : currentUser.value.nickname || currentUser.value.email;
 
+    // Použiť getFullAvatarUrl na konverziu relatívnej cesty na plnú URL
+    const getFullAvatarUrl = (path: string | null | undefined): string => {
+      if (!path) {
+        const defaultAvatar = new URL('../assets/default_user_avatar.png', import.meta.url).href;
+        return defaultAvatar;
+      }
+      if (path.startsWith('http')) return path;
+
+      const baseUrl = (api.defaults.baseURL as string) || 'http://localhost:3333';
+      const cleanBase = baseUrl.replace(/\/$/, '');
+      const cleanPath = path.startsWith('/') ? path : `/${path}`;
+      return `${cleanBase}${cleanPath}`;
+    };
+
     if (isTyping) {
       socketInstance.emit('typing:update', {
         channelId: activeChannelId.value,
         userId: currentUser.value.id,
         userName: userName,
-        userAvatar: currentUser.value.profilePicture,
+        userAvatar: getFullAvatarUrl(currentUser.value.profilePicture),
         draftContent: draftContent || '',
       });
     } else {

@@ -48,10 +48,26 @@ router.post('/invites/:id/accept', async ({ params, response }) => {
     channelId: channelId,
   })
 
-  await ChannelMember.firstOrCreate(
-    { userId: userId, channelId: channelId },
-    { status: 'member' }
-  )
+  // Skontrolovať, či už existuje ChannelMember (aj so statusom 'banned')
+  const existingMember = await ChannelMember.query()
+    .where('user_id', userId)
+    .where('channel_id', channelId)
+    .first()
+
+  if (existingMember) {
+    // Ak existuje (aj so statusom 'banned'), aktualizovať na 'member'
+    existingMember.status = 'member'
+    await existingMember.save()
+    console.log(`Updated ChannelMember status from 'banned' to 'member' for user ${userId} in channel ${channelId}`)
+  } else {
+    // Ak neexistuje, vytvoriť nový
+    await ChannelMember.create({
+      userId: userId,
+      channelId: channelId,
+      status: 'member',
+    })
+    console.log(`Created new ChannelMember with status 'member' for user ${userId} in channel ${channelId}`)
+  }
 
   const user = await User.find(userId)
   const channel = await Channel.find(channelId)
@@ -144,11 +160,11 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
 
   if (userId === inviterId) return response.badRequest({ message: 'Nemôžeš pozvať sám seba.' })
 
-  if (channel.availability === 'private') {
-    const inviterMember = await ChannelMember.query()
-      .where('userId', inviterId)
-      .where('channelId', channelId)
-      .first()
+    if (channel.availability === 'private') {
+      const inviterMember = await ChannelMember.query()
+        .where('user_id', inviterId)
+        .where('channel_id', channelId)
+        .first()
 
     if (!inviterMember || inviterMember.status !== 'owner') {
       return response.forbidden({
@@ -158,11 +174,31 @@ router.post('/channels/:id/invites', async ({ params, request, response }) => {
   }
 
   const existingMember = await ChannelMember.query()
-    .where('userId', userId)
-    .where('channelId', channelId)
+    .where('user_id', userId)
+    .where('channel_id', channelId)
     .first()
 
-  if (existingMember) return response.conflict({ message: 'Používateľ už je členom tohto kanála.' })
+  // Ak existuje člen, skontrolovať status
+  if (existingMember) {
+    // Ak má ban, správca môže pozvať znova (zruší sa ban pri acceptovaní pozvánky)
+    if (existingMember.status === 'banned') {
+      // Overiť, či je pozývateľ správca (owner)
+      const inviterMember = await ChannelMember.query()
+        .where('user_id', inviterId)
+        .where('channel_id', channelId)
+        .first()
+      
+      if (!inviterMember || inviterMember.status !== 'owner') {
+        return response.forbidden({
+          message: 'Tento používateľ má ban. Len správca ho môže pozvať znova.',
+        })
+      }
+      // Ak je správca, pokračovať - ban sa zruší pri acceptovaní pozvánky
+    } else {
+      // Ak je normálny člen (nie banned), nemôže sa pozvať znova
+      return response.conflict({ message: 'Používateľ už je členom tohto kanála.' })
+    }
+  }
 
   const existingInvite = await ChannelInvite.query()
     .where('userId', userId)
