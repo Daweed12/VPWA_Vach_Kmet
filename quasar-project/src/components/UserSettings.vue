@@ -483,9 +483,11 @@ const statusChipText = computed(() => {
 // Unified status select - combines connection and status
 const unifiedStatusSelect = computed({
   get: () => {
+    // If offline, always show OFFLINE
     if (form.connection === 'offline') {
       return 'OFFLINE';
     }
+    // If online, show status (normal -> ONLINE, away -> AWAY, dnd -> DND)
     if (form.status === 'normal') return 'ONLINE';
     return form.status?.toUpperCase() ?? 'ONLINE';
   },
@@ -496,9 +498,11 @@ const unifiedStatusSelect = computed({
     let newStatus: string;
 
     if (selectedStatus === 'OFFLINE') {
+      // Offline: connection = 'offline', status zostáva
       newConnection = 'offline';
-      newStatus = form.status;
+      newStatus = form.status; // Keep current status
     } else {
+      // Online, Away, DND: connection = 'online', status = selected
       newConnection = 'online';
       if (selectedStatus === 'ONLINE') {
         newStatus = 'normal';
@@ -511,7 +515,7 @@ const unifiedStatusSelect = computed({
     form.status = newStatus;
 
     if (currentUser.value) {
-      const updatedCurrent = {
+      const updatedCurrent: CurrentUser = {
         ...currentUser.value,
         connection: newConnection,
         status: newStatus,
@@ -519,9 +523,10 @@ const unifiedStatusSelect = computed({
       currentUser.value = updatedCurrent;
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
 
-      window.dispatchEvent(new CustomEvent('currentUserUpdated', {
+      const event = new CustomEvent<CurrentUser>('currentUserUpdated', {
         detail: updatedCurrent,
-      }));
+      });
+      window.dispatchEvent(event);
 
       void (async () => {
         try {

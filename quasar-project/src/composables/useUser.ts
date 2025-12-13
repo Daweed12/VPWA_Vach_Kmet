@@ -1,6 +1,5 @@
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { api } from 'boot/api';
-import { useSocket } from './useSocket';
 
 export interface CurrentUser {
   id: number;
@@ -14,24 +13,8 @@ export interface CurrentUser {
   notifyOnMentionOnly?: boolean;
 }
 
-const currentUser = ref<CurrentUser | null>(null);
-
 export function useUser() {
-  const { initSocket, disconnectSocket, joinUserRoom } = useSocket();
-
-  watch(
-    () => currentUser.value?.connection,
-    (newConnection, oldConnection) => {
-      if (newConnection === 'offline') {
-        disconnectSocket();
-      } else if (newConnection === 'online' && oldConnection === 'offline') {
-        initSocket();
-        if (currentUser.value?.id) {
-          joinUserRoom(currentUser.value.id);
-        }
-      }
-    }
-  );
+  const currentUser = ref<CurrentUser | null>(null);
 
   const currentUserName = computed(() => {
     if (!currentUser.value) return 'User';
@@ -56,11 +39,16 @@ export function useUser() {
     return `${cleanBase}${cleanPath}`;
   });
 
+  // Compute status based on connection and status
   const currentUserStatus = computed(() => {
     if (!currentUser.value) return 'online';
+
+    // If offline, always return offline
     if (currentUser.value.connection === 'offline') {
       return 'offline';
     }
+
+    // If online, return status (normal -> online)
     const status = currentUser.value.status?.toLowerCase() ?? 'normal';
     return status === 'normal' ? 'online' : status;
   });
@@ -79,26 +67,15 @@ export function useUser() {
     const stored = localStorage.getItem('currentUser');
     if (stored) {
       currentUser.value = JSON.parse(stored);
-      if (currentUser.value?.connection === 'offline') {
-        disconnectSocket();
-      }
     }
 
     if (currentUser.value?.id) {
       try {
         const userRes = await api.get(`/users/${currentUser.value.id}`);
-        const freshUser = userRes.data;
-        currentUser.value = freshUser;
-        localStorage.setItem('currentUser', JSON.stringify(freshUser));
-
-        if (freshUser.connection === 'offline') {
-          disconnectSocket();
-        } else {
-          initSocket();
-          joinUserRoom(freshUser.id);
-        }
+        currentUser.value = userRes.data;
+        localStorage.setItem('currentUser', JSON.stringify(userRes.data));
       } catch (error) {
-        console.error('Error refreshing user data:', error);
+        console.error('Nepodarilo sa obnoviť údaje používateľa:', error);
       }
     }
   };
