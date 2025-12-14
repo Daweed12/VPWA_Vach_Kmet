@@ -240,6 +240,12 @@ const handleChannelSelected = (event: Event) => {
   initializeVisibleCount(15);
 };
 
+/* ===== Disconnect Socket Handler ===== */
+const handleDisconnectSocket = () => {
+  console.log('Disconnecting socket due to offline status');
+  disconnectSocket();
+};
+
 /* ===== Current User Update Handler ===== */
 const handleCurrentUserUpdated = (event: Event) => {
   const detail = (event as CustomEvent<CurrentUser>).detail;
@@ -476,6 +482,9 @@ onMounted(() => {
   window.addEventListener('userNicknameChanged', handleUserNicknameChanged as EventListener);
   window.addEventListener('channelCreated', handleChannelCreated as EventListener);
   window.addEventListener('channelJoined', handleChannelJoined as EventListener);
+  
+  // Listen for disconnectSocket event (when user goes offline)
+  window.addEventListener('disconnectSocket', handleDisconnectSocket);
 
   // Inicializovať notifikácie
   initializeNotifications();
@@ -487,6 +496,7 @@ onUnmounted(() => {
   window.removeEventListener('channelSelected', handleChannelSelected as EventListener);
   window.removeEventListener('currentUserUpdated', handleCurrentUserUpdated as EventListener);
   window.removeEventListener('userAvatarChanged', handleUserAvatarChanged as EventListener);
+  window.removeEventListener('disconnectSocket', handleDisconnectSocket);
   window.removeEventListener('userNicknameChanged', handleUserNicknameChanged as EventListener);
   window.removeEventListener('channelCreated', handleChannelCreated as EventListener);
   window.removeEventListener('channelJoined', handleChannelJoined as EventListener);

@@ -528,6 +528,12 @@ const unifiedStatusSelect = computed({
       });
       window.dispatchEvent(event);
 
+      // Ak sa nastavil OFFLINE, odpojiť WebSocket
+      if (newConnection === 'offline') {
+        // Dispatch event pre odpojenie WebSocketu
+        window.dispatchEvent(new CustomEvent('disconnectSocket'));
+      }
+
       void (async () => {
         try {
           await api.put(`/users/${currentUser.value!.id}`, {

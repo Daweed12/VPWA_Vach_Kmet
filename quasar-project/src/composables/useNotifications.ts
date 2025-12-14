@@ -68,7 +68,12 @@ export function useNotifications() {
   const showMessageNotification = (
     message: MessageFromApi,
     channelTitle?: string | null,
-    currentUser?: { status?: string | null; notifyOnMentionOnly?: boolean; nickname?: string | null } | null,
+    currentUser?: { 
+      status?: string | null; 
+      connection?: string | null;
+      notifyOnMentionOnly?: boolean; 
+      nickname?: string | null 
+    } | null,
     activeChannelId?: number | null,
     messageChannelId?: number | null,
   ): void => {
@@ -80,17 +85,25 @@ export function useNotifications() {
       return;
     }
 
-    if (currentUser?.status === 'dnd' || currentUser?.status === 'offline') {
+    // OFFLINE - žiadne notifikácie (a WebSocket je odpojený)
+    if (currentUser?.connection === 'offline') {
+      return;
+    }
+
+    // DND - žiadne notifikácie
+    if (currentUser?.status === 'dnd') {
       return;
     }
 
     const isMentioned = isUserMentioned(message.content, currentUser?.nickname || null);
     const isInSameChannel = activeChannelId !== null && messageChannelId !== null && activeChannelId === messageChannelId;
 
+    // Ak som v tom istom kanáli, notifikácia sa nezobrazí
     if (isInSameChannel) {
       return;
     }
 
+    // AWAY a ONLINE - rovnaké správanie (normálne notifikácie)
     // Ak má zapnuté "mentions only", notifikácia sa zobrazí LEN ak je používateľ spomenutý
     if (currentUser?.notifyOnMentionOnly === true) {
       // LEN A LEN ak je tam @MOJ_NICKNAME, inak nie!
@@ -99,7 +112,7 @@ export function useNotifications() {
       }
       // Ak je spomenutý, pokračuj ďalej a zobraz notifikáciu
     } else {
-      // Normálny režim - notifikácie len keď nie je app viditeľná
+      // Normálny režim (ONLINE/AWAY) - notifikácie len keď nie je app viditeľná (minimalizovaná)
       if (!isAppNotVisible) {
         return;
       }
