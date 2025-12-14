@@ -411,28 +411,21 @@ router
       }
 
       // Ak je správca, môže okamžite vyhodiť a zabanovať
+      // FUNGUJE PRESNE TAK ISTO AKO /revoke - odstrániť používateľa z ChannelMember
       if (requesterMember.status === 'owner') {
-        // Odstrániť Access (pre private kanály)
-        await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
-
-        // Nastaviť status na 'banned' (alebo vytvoriť ak neexistuje)
-        const existingMember = await ChannelMember.query()
+        // Odstrániť Access (pre private kanály) - LEN pre tento konkrétny kanál
+        await Access.query()
           .where('user_id', targetUser.id)
           .where('channel_id', channelId)
-          .first()
+          .delete()
 
-        if (existingMember) {
-          existingMember.status = 'banned'
-          await existingMember.save()
-        } else {
-          await ChannelMember.create({
-            userId: targetUser.id,
-            channelId: channelId,
-            status: 'banned',
-          })
-        }
+        // Odstrániť používateľa z ChannelMember - LEN pre tento konkrétny kanál (presne ako /revoke)
+        await ChannelMember.query()
+          .where('user_id', targetUser.id)
+          .where('channel_id', channelId)
+          .delete()
 
-        // Odstrániť všetky KickVote ak existujú
+        // Odstrániť všetky KickVote - LEN pre tento konkrétny kanál
         await KickVote.query()
           .where('channel_id', channelId)
           .where('target_user_id', targetUser.id)
@@ -446,7 +439,7 @@ router
         const systemMessage = await Message.create({
           channelId,
           senderId: targetUser.id,
-          content: `${userName} bol zabanovaný správcom`,
+          content: `${userName} bol odobraný z kanála správcom`,
         })
 
         channel.lastMessageAt = systemMessage.timestamp
@@ -481,11 +474,11 @@ router
             title: channel.title,
           })
           console.log(
-            `Sent member:left and channel:left events for banned user ${targetUser.id} from channel ${channelId}`
+            `Sent member:left and channel:left events for kicked user ${targetUser.id} from channel ${channelId}`
           )
         }
 
-        return { message: `Používateľ ${targetNick} bol zabanovaný správcom.` }
+        return { message: `Používateľ ${targetNick} bol odobraný z kanála.` }
       }
 
       // Ak nie je správca, vytvoriť KickVote (len ak ešte nehlasoval)
@@ -527,10 +520,13 @@ router
 
       // Ak má 3 alebo viac kikov, automaticky ho zabanovať
       if (totalKicks >= 3) {
-        // Odstrániť Access (pre private kanály)
-        await Access.query().where('user_id', targetUser.id).where('channel_id', channelId).delete()
+        // DÔLEŽITÉ: Odstrániť Access LEN pre tento konkrétny kanál (nie zo všetkých kanálov!)
+        await Access.query()
+          .where('user_id', targetUser.id)
+          .where('channel_id', channelId)
+          .delete()
 
-        // Nastaviť status na 'banned' (alebo vytvoriť ak neexistuje)
+        // DÔLEŽITÉ: Nastaviť status na 'banned' LEN pre tento konkrétny kanál (nie zo všetkých kanálov!)
         const existingMember = await ChannelMember.query()
           .where('user_id', targetUser.id)
           .where('channel_id', channelId)
@@ -539,15 +535,21 @@ router
         if (existingMember) {
           existingMember.status = 'banned'
           await existingMember.save()
+          console.log(
+            `Auto-banned user ${targetUser.id} in channel ${channelId} only (not all channels) - ${totalKicks} kicks`
+          )
         } else {
           await ChannelMember.create({
             userId: targetUser.id,
             channelId: channelId,
             status: 'banned',
           })
+          console.log(
+            `Created auto-banned member for user ${targetUser.id} in channel ${channelId} only (not all channels) - ${totalKicks} kicks`
+          )
         }
 
-        // Odstrániť všetky KickVote pre tohto používateľa
+        // DÔLEŽITÉ: Odstrániť všetky KickVote LEN pre tento konkrétny kanál (nie zo všetkých kanálov!)
         await KickVote.query()
           .where('channel_id', channelId)
           .where('target_user_id', targetUser.id)

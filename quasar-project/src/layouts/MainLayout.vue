@@ -11,7 +11,7 @@
           <span v-else-if="currentChannelTitle">
             {{ currentChannelTitle }}
           </span>
-          <span v-else> VPWA - projekt </span>
+          <span v-else> Vyber KANALOS </span>
         </q-toolbar-title>
 
         <!-- Typing Indicator in Header -->
@@ -385,12 +385,12 @@ const isOffline = computed(() => currentUser.value?.connection === 'offline');
 // Compute user status for MemberList (considering connection)
 const computedUserStatus = computed(() => {
   if (!currentUser.value) return null;
-  
+
   // If offline, return 'offline'
   if (currentUser.value.connection === 'offline') {
     return 'offline';
   }
-  
+
   // If online, return status (normal -> online)
   const status = currentUser.value.status?.toLowerCase() ?? 'normal';
   return status === 'normal' ? 'online' : status;
@@ -400,7 +400,7 @@ const computedUserStatus = computed(() => {
 const displayStatusText = computed(() => {
   const status = currentUserStatus.value;
   if (!status) return 'Online';
-  
+
   switch (status.toLowerCase()) {
     case 'online':
       return 'Online';
@@ -777,7 +777,10 @@ const setupEventListeners = () => {
     const customEvent = event as CustomEvent<{ channelId: number; title: string }>;
     const { channelId } = customEvent.detail;
 
+    // DÔLEŽITÉ: Odstrániť LEN tento konkrétny kanál (nie všetky kanály!)
+    console.log(`Removing channel ${channelId} from list (not all channels)`);
     channels.value = channels.value.filter((c) => c.id !== channelId);
+
     if (currentChannel.value?.id === channelId) {
       currentChannel.value = null;
       currentChannelTitle.value = null;
@@ -902,7 +905,7 @@ watch(
 /* ===== Lifecycle ===== */
 onMounted(async () => {
   await loadUser();
-  
+
   // Počkaj, kým sa načíta currentUser pred načítaním kanálov
   if (currentUser.value?.id) {
     await loadChannels();
