@@ -50,9 +50,19 @@ export function useNotifications() {
   };
 
   const isUserMentioned = (messageContent: string, userNickname: string | null): boolean => {
-    if (!userNickname) return false;
-    const mentionRegex = new RegExp(`\\B@${userNickname}\\b`, 'gi');
-    return mentionRegex.test(messageContent);
+    if (!userNickname || !messageContent) return false;
+    
+    // Escapovať špeciálne znaky v nickname pre regex
+    const escapedNickname = userNickname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Hľadať presne @nickname s word boundary (začína s @ a končí s word boundary)
+    // \B zaisťuje, že @ nie je súčasťou iného slova
+    // \b zaisťuje, že nickname končí na word boundary
+    // Používame match() namiesto test() aby sme sa vyhli problémom s global flagom
+    const mentionRegex = new RegExp(`\\B@${escapedNickname}\\b`, 'i');
+    const matches = messageContent.match(mentionRegex);
+    
+    return matches !== null && matches.length > 0;
   };
 
   const showMessageNotification = (
@@ -81,11 +91,15 @@ export function useNotifications() {
       return;
     }
 
+    // Ak má zapnuté "mentions only", notifikácia sa zobrazí LEN ak je používateľ spomenutý
     if (currentUser?.notifyOnMentionOnly === true) {
+      // LEN A LEN ak je tam @MOJ_NICKNAME, inak nie!
       if (!isMentioned) {
         return;
       }
+      // Ak je spomenutý, pokračuj ďalej a zobraz notifikáciu
     } else {
+      // Normálny režim - notifikácie len keď nie je app viditeľná
       if (!isAppNotVisible) {
         return;
       }

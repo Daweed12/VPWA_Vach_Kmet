@@ -179,12 +179,26 @@ const handleLoad = (index: number, done: (finished?: boolean) => void) => {
 
 /* ===== Channel Selection Handler ===== */
 const handleChannelSelected = (event: Event) => {
-  const detail = (event as CustomEvent<{ id: number; title: string }>).detail;
+  const detail = (event as CustomEvent<{ id: number | null; title: string | null }>).detail;
   const previousChannelId = activeChannelId.value;
 
   console.log('📺 Channel selected:', detail.id, 'Previous:', previousChannelId);
 
   clearTyping();
+
+  // Ak sa kanál zruší (id je null), len vyčistiť stav
+  if (detail.id === null) {
+    // Leave previous channel if any
+    if (previousChannelId) {
+      leaveChannel(previousChannelId);
+    }
+
+    activeChannelId.value = null;
+    activeChannelTitle.value = null;
+    rawMessages.value = [];
+    resetPaging();
+    return;
+  }
 
   // Leave previous channel if any
   if (previousChannelId && previousChannelId !== detail.id) {
@@ -195,12 +209,14 @@ const handleChannelSelected = (event: Event) => {
   activeChannelTitle.value = detail.title;
 
   // Aktualizovať mapu kanálov pre notifikácie
-  channelTitleMap.value.set(detail.id, detail.title);
-  console.log('📋 Channel title map updated:', {
-    channelId: detail.id,
-    channelTitle: detail.title,
-    mapSize: channelTitleMap.value.size,
-  });
+  if (detail.id && detail.title) {
+    channelTitleMap.value.set(detail.id, detail.title);
+    console.log('📋 Channel title map updated:', {
+      channelId: detail.id,
+      channelTitle: detail.title,
+      mapSize: channelTitleMap.value.size,
+    });
+  }
 
   // Len ak používateľ nie je offline, pripojiť WebSocket a načítať správy
   if (currentUser.value?.connection !== 'offline') {

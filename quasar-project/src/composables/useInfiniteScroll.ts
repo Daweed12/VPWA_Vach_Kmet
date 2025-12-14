@@ -7,7 +7,6 @@ export function useInfiniteScroll(totalItems: { value: number }) {
   const finished = ref(false);
   const infiniteKey = ref(0);
 
-  // This computed is not used in the current implementation, but kept for potential future use
   const visibleItems = computed(() => {
     const total = totalItems.value;
     if (total === 0) return [];
